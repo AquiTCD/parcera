@@ -54,7 +54,37 @@ sequenceDiagram
 
 ## インストール方法
 
-（Coming Soon）
+### 開発環境のセットアップ
+
+1. 必要な環境
+   - Python 3.12
+   - uv（パッケージマネージャー）
+
+2. 環境構築
+   ```bash
+   # 仮想環境の作成
+   uv venv --python python3.12
+
+   # 仮想環境のアクティベート
+   source .venv/bin/activate
+
+   # 依存関係のインストール
+   uv pip install -r requirements.txt
+   ```
+
+3. アプリケーションの実行
+   ```bash
+   # 開発モードで実行
+   python src/main.py
+   ```
+
+4. ビルド方法
+   ```bash
+   # 実行可能なアプリケーションとしてビルド
+   pyinstaller --clean --onefile --windowed --collect-all tkinter --name parcera src/main.py
+
+   # ビルドされたアプリケーションは dist/parcera に生成されます
+   ```
 
 ## 使用方法
 
