@@ -1,0 +1,19 @@
+[env]
+PYTHON_VERSION = "3.12.9"
+
+[tools]
+python = "3.12.9"
+
+[tasks]
+dev = { description = "開発環境を起動", run = "python src/main.py" }
+build-mac = { description = "Mac用アプリケーションをビルド", run = """
+rm -rf build dist *.spec && \
+pyinstaller \
+  --clean \
+  --windowed \
+  --target-arch arm64 \
+  --collect-all app.audio \
+  --name "Parcera" \
+  src/main.py &&\
+open dist/Parcera.app
+""" }

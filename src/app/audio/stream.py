@@ -9,11 +9,11 @@ class AudioInputStream:
         self.stream = None
         self.pyaudio = None
 
-        # 音声入力の設定
+        # 音声入力の設定（高品質化）
         self.format = pyaudio.paFloat32
         self.channels = 1
         self.rate = 16000
-        self.chunk = 512
+        self.chunk = 1024  # バッファサイズを増やして安定性を向上
 
     def start(self):
         """音声入力ストリームを開始"""

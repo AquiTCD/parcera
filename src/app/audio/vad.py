@@ -1,7 +1,7 @@
 import numpy as np
 
 class VoiceActivityDetector:
-    def __init__(self, threshold: float = 0.03):
+    def __init__(self, threshold: float = 0.008):  # さらに感度を上げる
         self.threshold = threshold
 
     def is_speech(self, audio_data: np.ndarray) -> bool:

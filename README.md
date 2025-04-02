@@ -83,19 +83,25 @@ sequenceDiagram
    ```
 
 4. アプリケーションの実行
-   ```bash
-   # 開発モードで実行
-   python src/main.py
-   ```
+    ```bash
+    # 開発環境で実行
+    mise run dev
+
+    # または直接実行
+    python src/main.py
+    ```
 
 5. ビルド方法
-    ```bash
-    # Mac用アプリケーションとしてビルド
-    pyinstaller --clean --name "Parcera" --windowed --target-arch arm64 src/main.py
+     ```bash
+     # Mac用アプリケーションとしてビルド
+     mise run build-mac
 
-    # ビルドされたアプリケーションは dist/Parcera.app に生成されます
-    # Intel Macの場合は --target-arch x86_64 を指定してください
-    ```
+     # または直接コマンドを実行
+     pyinstaller --clean --name "Parcera" --windowed --target-arch arm64 src/main.py
+
+     # ビルドされたアプリケーションは dist/Parcera.app に生成されます
+     # Intel Macの場合は --target-arch x86_64 を指定してください
+     ```
 
     注意：ビルドにはPyInstaller 6.12.0以上が必要です。バージョンの確認は以下のコマンドで行えます：
     ```bash
