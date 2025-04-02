@@ -10,6 +10,9 @@ build/
 *.egg-info/
 *.egg
 
+# PyInstaller関連
+*.spec
+
 # 仮想環境
 .venv/
 venv/
