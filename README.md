@@ -89,12 +89,18 @@ sequenceDiagram
    ```
 
 5. ビルド方法
-   ```bash
-   # 実行可能なアプリケーションとしてビルド
-   pyinstaller --clean --onefile --windowed --collect-all tkinter --name parcera src/main.py
+    ```bash
+    # Mac用アプリケーションとしてビルド
+    pyinstaller --clean --name "Parcera" --windowed --target-arch arm64 src/main.py
 
-   # ビルドされたアプリケーションは dist/parcera に生成されます
-   ```
+    # ビルドされたアプリケーションは dist/Parcera.app に生成されます
+    # Intel Macの場合は --target-arch x86_64 を指定してください
+    ```
+
+    注意：ビルドにはPyInstaller 6.12.0以上が必要です。バージョンの確認は以下のコマンドで行えます：
+    ```bash
+    python -m PyInstaller --version
+    ```
 
 ## 依存関係の管理
 
