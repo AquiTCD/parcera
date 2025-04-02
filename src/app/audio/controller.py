@@ -17,7 +17,12 @@ class AudioController:
     ):
         self.status_callback = status_callback
         self.transcription_callback = transcription_callback
-        self.vad = VoiceActivityDetector()
+        try:
+            self.vad = VoiceActivityDetector()
+            self.notify_status("VAD initialized")  # デバッグ情報
+        except Exception as e:
+            self.notify_status(f"VAD initialization error: {str(e)}")
+
         self.whisper_model = None
         self.audio_stream = None
         self.event_loop = None
@@ -26,8 +31,8 @@ class AudioController:
         # 音声処理用の変数
         self.is_transcribing = False
         self.silence_counter = 0
-        self.silence_limit = 12  # 無音判定のフレーム数（長めに設定して安定化）
-        self.noise_threshold = 8  # ノイズ判定のフレーム数（長めに設定してノイズを除去）
+        self.silence_limit = 8  # 無音判定のフレーム数を短くして反応を早める
+        self.noise_threshold = 4  # ノイズ判定のフレーム数を短くして反応を早める
         self.audio_data_list = []
         self.audio_queue = queue.Queue()
 
@@ -76,7 +81,7 @@ class AudioController:
             if is_speech:
                 self.silence_counter = 0
                 self.audio_data_list.append(audio_data.flatten())
-                self.notify_status("音声入力中...")  # デバッグ用
+                self.notify_status(f"音声入力中... (データ長: {len(self.audio_data_list)})")  # デバッグ情報を追加
             else:
                 self.silence_counter += 1
 
@@ -145,27 +150,67 @@ class AudioController:
 
             # Whisperモデルの初期化（まだ初期化されていない場合）
             if self.whisper_model is None:
-                self.notify_status("音声認識モデルをダウンロード/初期化中...")
-                self.notify_status("(モデルのダウンロードには数分かかる場合があります)")
+                try:
+                    import os
+                    import sys
+                    from pathlib import Path
 
-                self.whisper_model = WhisperModel(
-                    model_size_or_path="kotoba-tech/kotoba-whisper-v2.0-faster",
-                    device="cpu",
-                    compute_type="int8",
-                    download_root="./.models"  # モデルの保存先を指定
-                )
+                    # アプリケーションの実行モードを確認
+                    if getattr(sys, 'frozen', False):
+                        self.notify_status("Running in frozen mode (packaged app)")
+                    else:
+                        self.notify_status("Running in development mode")
+
+                    # モデル保存用のディレクトリを設定
+                    models_dir = os.path.join(
+                        str(Path.home()),
+                        "Library",
+                        "Application Support",
+                        "Parcera",
+                        "models"
+                    )
+                    os.makedirs(models_dir, exist_ok=True)
+                    self.notify_status(f"Models directory: {models_dir}")
+
+                    # モデルの初期化
+                    self.notify_status("音声認識モデルをダウンロード/初期化中...")
+                    try:
+                        self.whisper_model = WhisperModel(
+                            model_size_or_path="kotoba-tech/kotoba-whisper-v2.0-faster",
+                            device="cpu",  # パッケージ版ではCPUを使用
+                            compute_type="int8",
+                            download_root=models_dir,
+                            num_workers=1
+                        )
+                        self.notify_status("モデルの初期化が完了しました")
+                    except Exception as e:
+                        self.notify_status(f"モデル初期化エラー: {str(e)}")
+                        import traceback
+                        self.notify_status(f"詳細なエラー: {traceback.format_exc()}")
+                        return
+                except Exception as e:
+                    self.notify_status(f"セットアップエラー: {str(e)}")
+                    return
 
                 self.notify_status("音声認識モデルの準備が完了しました")
 
-            # イベントループの設定
-            self.event_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.event_loop)
+            # イベントループの設定（既存のループがあれば再利用）
+            try:
+                self.event_loop = asyncio.get_event_loop()
+            except RuntimeError:
+                self.event_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self.event_loop)
 
             # 音声入力ストリームの開始
-            self.audio_stream = AudioInputStream(
-                callback=self.process_audio,
-                device_index=device_index
-            )
+            try:
+                self.audio_stream = AudioInputStream(
+                    callback=self.process_audio,
+                    device_index=device_index
+                )
+                self.notify_status("AudioInputStream created successfully")  # デバッグ情報
+            except Exception as e:
+                self.notify_status(f"AudioInputStream creation error: {str(e)}")
+                raise  # エラーを上位に伝播
             self.audio_stream.start()
 
             # 音声認識スレッドの開始
@@ -212,10 +257,11 @@ class AudioController:
                 self.audio_stream = None
 
             # イベントループの停止
-            if self.event_loop:
+            if self.event_loop and self.event_loop.is_running():
                 self.event_loop.stop()
+            if self.event_loop and not self.event_loop.is_closed():
                 self.event_loop.close()
-                self.event_loop = None
+            self.event_loop = None
 
             # スレッドの終了待機
             if self.thread and self.thread.is_alive():

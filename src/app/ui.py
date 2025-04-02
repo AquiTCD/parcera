@@ -6,12 +6,7 @@ class ParceraUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Parcera")
-
-        # 音声コントローラーの初期化
-        self.audio_controller = AudioController(
-            status_callback=self.update_status,
-            transcription_callback=self.append_transcription
-        )
+        self.audio_controller = None  # 後で初期化する
 
         # ウィンドウサイズの設定
         self.root.geometry("600x500")
@@ -43,9 +38,9 @@ class ParceraUI:
         control_frame = tk.Frame(self.main_frame)
         control_frame.pack(fill='x')
 
-        # デバイス選択用コンボボックス
-        self.devices = self.audio_controller.get_available_devices()
+        # デバイス選択用コンボボックスのフレーム
         device_frame = tk.Frame(control_frame)
+        self.devices = []  # 後で初期化
         device_frame.pack(fill='x', pady=(0, 10))
 
         tk.Label(
@@ -60,10 +55,17 @@ class ParceraUI:
             state='readonly',
             width=30
         )
+        self.device_combo.pack(side='left', padx=(5, 0))
+
+        # コントローラー初期化後にデバイスリストを設定
+        self.audio_controller = AudioController(
+            status_callback=self.update_status,
+            transcription_callback=self.append_transcription
+        )
+        self.devices = self.audio_controller.get_available_devices()
         self.device_combo['values'] = [d['name'] for d in self.devices]
         if self.devices:
             self.device_combo.current(0)
-        self.device_combo.pack(side='left', padx=(5, 0))
 
         # 音声入力ボタン
         self.record_button = tk.Button(
@@ -74,6 +76,12 @@ class ParceraUI:
             height=2
         )
         self.record_button.pack(pady=10)
+
+        # UI要素の作成後に音声コントローラーを初期化
+        self.audio_controller = AudioController(
+            status_callback=self.update_status,
+            transcription_callback=self.append_transcription
+        )
 
         # 終了時のクリーンアップ
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)

@@ -11,6 +11,7 @@ dependencies = [
     "pyaudio==0.2.14",
     "faster-whisper==1.1.1",
     "numpy==2.2.4",
+    "appdirs>=1.4.4",
 ]
 
 [build-system]

@@ -17,23 +17,36 @@ class AudioInputStream:
 
     def start(self):
         """音声入力ストリームを開始"""
-        self.pyaudio = pyaudio.PyAudio()
+        try:
+            print("Initializing PyAudio...")  # デバッグ情報
+            self.pyaudio = pyaudio.PyAudio()
+            print("PyAudio initialized successfully")  # デバッグ情報
 
-        def pyaudio_callback(in_data, frame_count, time_info, status):
-            audio_data = np.frombuffer(in_data, dtype=np.float32)
-            self.callback(audio_data, frame_count, time_info, status)
-            return (in_data, pyaudio.paContinue)
+            def pyaudio_callback(in_data, frame_count, time_info, status):
+                try:
+                    audio_data = np.frombuffer(in_data, dtype=np.float32)
+                    self.callback(audio_data, frame_count, time_info, status)
+                    return (in_data, pyaudio.paContinue)
+                except Exception as e:
+                    print(f"Error in audio callback: {str(e)}")  # デバッグ情報
+                    return (in_data, pyaudio.paContinue)
 
-        self.stream = self.pyaudio.open(
-            format=self.format,
-            channels=self.channels,
-            rate=self.rate,
-            input=True,
-            input_device_index=self.device_index,
-            frames_per_buffer=self.chunk,
-            stream_callback=pyaudio_callback
-        )
-        self.stream.start_stream()
+            print(f"Opening stream with device index: {self.device_index}")  # デバッグ情報
+            self.stream = self.pyaudio.open(
+                format=self.format,
+                channels=self.channels,
+                rate=self.rate,
+                input=True,
+                input_device_index=self.device_index,
+                frames_per_buffer=self.chunk,
+                stream_callback=pyaudio_callback
+            )
+            print("Audio stream opened successfully")  # デバッグ情報
+            self.stream.start_stream()
+            print("Audio stream started")  # デバッグ情報
+        except Exception as e:
+            print(f"Error initializing audio stream: {str(e)}")  # デバッグ情報
+            raise
 
     def stop(self):
         """音声入力ストリームを停止"""
