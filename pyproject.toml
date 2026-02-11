@@ -1,0 +1,10 @@
+[project]
+name = "parcera"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiavatar>=0.8.7",
+    "python-dotenv>=1.2.1",
+]
