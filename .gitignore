@@ -60,6 +60,10 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+aiavatar.db
+aiavatar.db-journal
+recorded_voices/
+*.wav
 
 # Flask stuff:
 instance/
