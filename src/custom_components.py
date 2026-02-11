@@ -46,7 +46,8 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
                 initial_prompt=self.initial_prompt if self.initial_prompt else None,
                 beam_size=5,
                 vad_filter=True,
-                temperature=0.0
+                temperature=0.0,
+                vad_parameters=dict(min_silence_duration_ms=500) # Slightly more aggressive VAD
             )
         )
 

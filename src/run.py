@@ -46,13 +46,15 @@ async def run():
         debug=True
     )
 
-    # STT (Kotoba-Whisper)
+    # STT (Kotoba-Whisper v2.2 tuned)
     stt_initial_prompt_path = "prompts/stt_initial_prompt.md"
     # Response Filter
     response_filter = ResponseWeightFilter(force_keywords=["パルセラ", "どう", "教えて", "ねぇ"])
     
     kotoba_stt = KotobaWhisperRecognizer(
         model_name="longisland3/kotoba-whisper-v2.2-faster", 
+        device="cpu",      # Force CPU for stability on Mac
+        compute_type="int8", # Efficient computation for CPU
         initial_prompt_path=stt_initial_prompt_path,
         response_filter=response_filter,
         debug=True
