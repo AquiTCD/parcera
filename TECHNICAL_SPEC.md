@@ -46,7 +46,9 @@ Parcera is a real-time AI Avatar system running locally on macOS. It captures au
 ## 4. Milestones
 
 1.  **Environment Setup**: `mise` + `uv` configured. `aiavatar` installed. **(Done)**
-2.  **Hello World**: Script that listens, thinks, and speaks back (CLI only, verifying STT/LLM/TTS pipeline).
+2.  **Hello World**: Script that listens, thinks, and speaks back (CLI only, verifying STT/LLM/TTS pipeline). **(Done)**
+    - Added integrated engine management (AivisSpeech/VOICEVOX auto-startup).
+    - Centralized configuration in `configs/settings.yaml`.
 3.  **Avatar GUI**: Basic window showing the avatar image/model.
 4.  **Animation Sync**: Lip-sync working with AivisSpeech audio.
 5.  **OBS Integration**: Transparency and layout refinement.
