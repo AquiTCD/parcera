@@ -1,0 +1,34 @@
+# General Application Settings
+force_keywords:
+  - パルセラ
+  - Parcera
+  - 教えて
+
+# TTS Engine Selection: ["aivisspeech", "voicevox"]
+# You can change this to "aivisspeech" to use AivisSpeech.
+active_engine: "aivisspeech"
+
+# Engine Configurations
+engines:
+  aivisspeech:
+    api_url: "http://127.0.0.1:10101"
+    engine_path: "/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run"
+    style_id: 345585728 # るな
+
+  voicevox:
+    api_url: "http://127.0.0.1:50021"
+    engine_path: "/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run"
+    speaker_id: 90 # ぞん子
+
+# TTS Common Parameters (Fine-tuning)
+tts_settings:
+  speedScale: 1.25
+  tempoDynamicScale: 0.7
+  volumeScale: 0.50
+  prePhonemeLength: 0
+  postPhonemeLength: 0.20
+
+# VAD (Voice Activity Detection) Settings
+vad:
+  volume_db_threshold: -30.0
+  max_duration: 15.0

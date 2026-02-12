@@ -1163,8 +1163,10 @@ dependencies = [
     { name = "aiavatar" },
     { name = "faster-whisper" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "openai-whisper" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "setuptools" },
 ]
 
@@ -1173,8 +1175,10 @@ requires-dist = [
     { name = "aiavatar", specifier = ">=0.8.7" },
     { name = "faster-whisper", specifier = ">=1.2.1" },
     { name = "google-genai", specifier = ">=1.62.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai-whisper", specifier = ">=20250625" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "setuptools", specifier = ">=82.0.0" },
 ]
 
