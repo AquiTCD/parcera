@@ -4,7 +4,9 @@ import logging
 import asyncio
 import numpy as np
 import httpx
+import yaml
 from faster_whisper import WhisperModel
+
 from aiavatar.sts.stt import SpeechRecognizer
 from aiavatar.sts.tts.voicevox import VoicevoxSpeechSynthesizer
 
@@ -118,7 +120,8 @@ class ResponseWeightFilter:
         # 2. Probability by Length
         # Example: 1 char = 10%, 10 chars = 50%, 20+ chars = 90%
         length = len(text)
-        probability = min(0.9, 0.1 + (length * 0.04))
+        probability = min(0.95, 0.3 + (length * 0.05))
+
 
         rolled = random.random()
         decision = rolled < probability
@@ -131,3 +134,9 @@ def load_text_file(path: str) -> str:
         with open(path, "r", encoding="utf-8") as f:
             return f.read().strip()
     return ""
+
+def load_config_file(path: str) -> dict:
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    return {}
