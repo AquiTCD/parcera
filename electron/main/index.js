@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import yaml from 'js-yaml';
@@ -75,6 +75,10 @@ function createUserWindow() {
     userWindow.loadFile(path.join(RENDERER_DIST, 'index.html'));
   }
 }
+
+ipcMain.handle('get-settings', async () => {
+  return loadSettings();
+});
 
 app.whenReady().then(() => {
   createUserWindow();

@@ -1,5 +1,5 @@
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Add any IPC bridge if needed later
+  getSettings: () => ipcRenderer.invoke('get-settings'),
 });

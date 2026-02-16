@@ -17,7 +17,22 @@ app.innerHTML = `
 `;
 
 const mouthPath = document.querySelector('#mouth-path');
-const threshold = 15; // From settings.yaml (will implement dynamic loading in Phase 2)
+let threshold = 15; // Fallback
+
+async function init() {
+  const settings = await window.electronAPI.getSettings();
+  if (settings?.avatars?.user) {
+    threshold = settings.avatars.user.micThreshold || 15;
+    console.log('Using threshold:', threshold);
+
+    // Update assets if defined
+    if (settings.avatars.user.assets?.base) {
+      document.querySelector('#avatar-base').src = settings.avatars.user.assets.base;
+    }
+  }
+}
+
+init();
 
 // Mic Analysis
 let audioContext;
