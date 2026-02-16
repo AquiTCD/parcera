@@ -13,11 +13,13 @@ engines:
   aivisspeech:
     api_url: "http://127.0.0.1:10101"
     engine_path: "/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run"
+    # speaker_id: 888753760 # Anneli
     style_id: 345585728 # るな
 
   voicevox:
     api_url: "http://127.0.0.1:50021"
     engine_path: "/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run"
+    # speaker_id: 3 # ずんだもん (Standard)
     speaker_id: 90 # ぞん子
 
 # TTS Common Parameters (Fine-tuning)
@@ -32,3 +34,40 @@ tts_settings:
 vad:
   volume_db_threshold: -30.0
   max_duration: 15.0
+
+# Electron Application Settings
+electron:
+  port: 8080
+  windows:
+    ai: { width: 400, height: 600, alwaysOnTop: true }
+    user: { width: 400, height: 600, alwaysOnTop: false }
+
+# Avatar Visual Definitions
+avatars:
+  user:
+    name: "User"
+    micThreshold: 15
+    idleAmplitude: "2px"
+    assets:
+      base: "./assets/user/base.png"
+      eyes_open: "./assets/user/eyes_open.png"
+      eyes_closed: "./assets/user/eyes_closed.png"
+      mouth:
+        closed: "./assets/user/mouth_0.png"
+        open_a: "./assets/user/mouth_a.png"
+        open_i: "./assets/user/mouth_i.png"
+        open_u: "./assets/user/mouth_u.png"
+  ai:
+    name: "AI"
+    wsUrl: "ws://localhost:8080"
+    micThreshold: 10
+    idleAmplitude: "3px"
+    assets:
+      base: "./assets/ai/base.png"
+      eyes_open: "./assets/ai/eyes_open.png"
+      eyes_closed: "./assets/ai/eyes_closed.png"
+      mouth:
+        closed: "./assets/ai/mouth_0.png"
+        open_a: "./assets/ai/mouth_a.png"
+        open_i: "./assets/ai/mouth_i.png"
+        open_u: "./assets/ai/mouth_u.png"
