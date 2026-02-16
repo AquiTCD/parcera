@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import yaml from 'js-yaml';
@@ -27,9 +27,19 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 
 let userWindow = null;
 
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  app.quit();
+});
+
 function loadSettings() {
   try {
-    const settingsPath = path.join(process.env.APP_ROOT, '../configs/settings.yaml');
+    const settingsPath = path.resolve(process.env.APP_ROOT, '../configs/settings.yaml');
+    console.log('Attempting to load settings from:', settingsPath);
+    if (!fs.existsSync(settingsPath)) {
+      console.warn('Settings file not found at:', settingsPath);
+      return {};
+    }
     const file = fs.readFileSync(settingsPath, 'utf8');
     return yaml.load(file);
   } catch (e) {
