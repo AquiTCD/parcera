@@ -51,7 +51,7 @@ function loadSettings() {
 
 function createAvatarWindow(type) {
   const settings = loadSettings();
-  const winCfg = settings?.electron?.windows?.[type] || { width: 400, height: 600, alwaysOnTop: type === 'ai' };
+  const winCfg = settings?.electron?.windows?.[type] || { width: 400, height: 400, alwaysOnTop: type === 'ai' };
 
   const win = new BrowserWindow({
     width: winCfg.width,
@@ -60,6 +60,7 @@ function createAvatarWindow(type) {
     transparent: true,
     frame: false,
     hasShadow: false,
+    resizable: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },
@@ -79,6 +80,13 @@ function createAvatarWindow(type) {
 
 ipcMain.handle('get-settings', async () => {
   return loadSettings();
+});
+
+ipcMain.on('resize-window', (event, width, height) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.setSize(Math.round(width), Math.round(height));
+  }
 });
 
 app.whenReady().then(() => {
