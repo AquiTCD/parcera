@@ -8,50 +8,52 @@ console.log('[Parcera] Avatar Type:', avatarType);
 
 // 1. Setup UI
 const app = document.querySelector('#app');
-// Add a visual confirmation that the window is active/inactive
 app.innerHTML = `
-  <div class="avatar-container" id="interaction-layer">
-    <img id="avatar-base" class="avatar-base" src="/assets/${avatarType}/base.png" />
-    <div id="mouth-container" class="avatar-mouth">
-       <svg id="mouth-svg" width="60" height="40" viewBox="0 0 60 40">
-          <path id="mouth-path" d="M 10 20 Q 30 20 50 20" stroke="black" stroke-width="3" fill="none" stroke-linecap="round" />
-       </svg>
+  <div id="interaction-layer" style="position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:999; cursor:pointer; display:flex; justify-content:center; align-items:center;">
+    <div id="click-prompt" style="color:white; background:rgba(0,0,0,0.5); padding:20px; border-radius:10px; font-family:sans-serif;">
+      Click anywhere to start Avatar
     </div>
-    <div id="status-debug" style="position:fixed; bottom:10px; left:10px; color:white; background:rgba(0,0,0,0.75); padding: 2px 5px; border-radius: 4px; font-size:10px; pointer-events:none; z-index:100; font-family: monospace;">
-      Click anywhere to start
+  </div>
+  <div class="avatar-container">
+    <img id="avatar-image" class="avatar-main" src="" />
+    <div id="status-debug" style="position:fixed; bottom:4px; left:4px; color:white; background:rgba(0,0,0,0.75); padding: 2px 5px; border-radius: 4px; font-size:9px; pointer-events:none; z-index:100; font-family: monospace; white-space: pre;">
+      Initializing...
     </div>
   </div>
 `;
 
-const mouthPath = document.querySelector('#mouth-path');
+const avatarImage = document.querySelector('#avatar-image');
 const statusDebug = document.querySelector('#status-debug');
+const interactionLayer = document.querySelector('#interaction-layer');
+
 let threshold = 15;
 let settings = {};
 
 // 2. Audio Infrastructure
 let audioContext;
 let analyser;
-let dataArray;
 let socket;
 let isAIPlaying = false;
 
+// Using Float32 for higher precision analysis matching the sample
+const fData = new Float32Array(256); // Half of fftSize 512
+const tData = new Float32Array(512);
+
+let persistentStatus = 'Waiting for interaction...';
 function logStatus(msg) {
   console.log(`[Parcera] ${msg}`);
-  if (statusDebug) statusDebug.innerText = msg;
+  persistentStatus = msg;
 }
 
 function initAudioContext() {
   if (audioContext) return;
   try {
-    // CRITICAL: We MUST use 16000Hz for AI Window STT to match Whisper server
     const options = (avatarType === 'ai') ? { sampleRate: 16000 } : {};
     audioContext = new (window.AudioContext || window.webkitAudioContext)(options);
 
     analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    // We don't connect analyser to destination by default to avoid hearing mic input
-
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.2;
     logStatus(`Audio System: ${audioContext.sampleRate}Hz`);
   } catch (e) {
     console.error('AudioContext error:', e);
@@ -61,28 +63,116 @@ function initAudioContext() {
 
 function getRMS() {
   if (!analyser) return 0;
-  analyser.getByteTimeDomainData(dataArray);
+  analyser.getFloatTimeDomainData(tData);
   let sum = 0;
-  for (let i = 0; i < dataArray.length; i++) {
-    const v = (dataArray[i] - 128) / 128;
-    sum += v * v;
+  for (let i = 0; i < tData.length; i++) {
+    sum += tData[i] * tData[i];
   }
-  return Math.sqrt(sum / dataArray.length) * 100;
+  let rms = Math.sqrt(sum / tData.length) * 100;
+  // AI audio is often cleaner/quieter, so we boost it for lip-sync
+  if (avatarType === 'ai' && isAIPlaying) rms *= 1.5;
+  return rms;
 }
 
-function updateMouth() {
+function getVowel() {
+  if (!analyser) return null;
+  analyser.getFloatFrequencyData(fData); // Returns dB values
+
+  const nyquist = audioContext.sampleRate / 2;
+  let weightedFreqSum = 0;
+  let totalAmplitude = 0;
+
+  for (let i = 0; i < fData.length; i++) {
+    // Convert dB to linear amplitude
+    const amplitude = Math.pow(10, fData[i] / 20);
+    const freq = (i / fData.length) * nyquist;
+
+    // Ignore low-end rumble below 200Hz
+    if (freq > 200) {
+      weightedFreqSum += amplitude * freq;
+      totalAmplitude += amplitude;
+    }
+  }
+
+  if (totalAmplitude < 0.001) return null; // Extremely quiet
+
+  const centroid = weightedFreqSum / totalAmplitude;
+  const centroid01 = Math.min(1, centroid / nyquist);
+
+  // Mapping Spectral Centroid (0.0 - 1.0) to Japanese Vowels
+  // Optimized for 16kHz (AI) and 44.1/48kHz (User)
+  if (centroid01 < 0.04) return 'u';
+  if (centroid01 < 0.10) return 'o';
+  if (centroid01 < 0.20) return 'a';
+  if (centroid01 < 0.35) return 'e';
+  return 'i';
+}
+
+// 3. Animation Logic
+let blinkTimer = Date.now() + 2000;
+let isBlinking = false;
+let currentMouthFile = 'base.png';
+let mouthHoldTimer = 0;
+
+function updateVisuals() {
   const rms = getRMS();
-  if (rms > threshold) {
-    mouthPath.setAttribute('d', 'M 10 20 Q 30 45 50 20');
-    mouthPath.setAttribute('fill', 'black');
-  } else {
-    mouthPath.setAttribute('d', 'M 10 20 Q 30 20 50 20');
-    mouthPath.setAttribute('fill', 'none');
+  const vowel = rms > threshold ? (getVowel() || '?') : '-';
+
+  // Debug Display Management
+  if (statusDebug) {
+    const showDebug = settings.avatars?.show_debug !== false;
+    statusDebug.style.display = showDebug ? 'block' : 'none';
+    const debugInfo = showDebug ? `\nRMS: ${rms.toFixed(1)} | Vowel: ${vowel}` : '';
+    statusDebug.innerText = persistentStatus + debugInfo;
   }
-  requestAnimationFrame(updateMouth);
+
+  let targetFile = 'base.png';
+  const now = Date.now();
+
+  // Blinking Logic with configurable intervals
+  if (now > blinkTimer) {
+    if (!isBlinking) {
+      isBlinking = true;
+      blinkTimer = now + 150; // Eyes closed for 150ms
+    } else {
+      isBlinking = false;
+      const min = settings.avatars?.blink_interval_min || 5000;
+      const max = settings.avatars?.blink_interval_max || 15000;
+      blinkTimer = now + min + Math.random() * (max - min);
+    }
+  }
+
+  if (isBlinking) {
+    targetFile = 'closed.png';
+  } else {
+    // Mouth Logic with "Hold" to smooth out fast animations
+    const holdTime = settings.avatars?.mouth_hold_time || 120;
+
+    if (now > mouthHoldTimer) {
+      let nextMouth = 'base.png';
+      if (rms > threshold && vowel && vowel !== '?') {
+        nextMouth = `${vowel}.png`;
+      }
+
+      if (nextMouth !== currentMouthFile) {
+        currentMouthFile = nextMouth;
+        mouthHoldTimer = now + holdTime;
+      }
+    }
+    targetFile = currentMouthFile;
+  }
+
+  const assetsDir = settings.avatars?.[avatarType]?.assets_dir || `/assets/${avatarType}`;
+  const targetPath = `${assetsDir}/${targetFile}`;
+
+  if (avatarImage.src !== window.location.origin + targetPath) {
+    avatarImage.src = targetPath;
+  }
+
+  requestAnimationFrame(updateVisuals);
 }
 
-// 3. Microphone Logic
+// 4. Microphone Logic
 async function startMic() {
   initAudioContext();
   try {
@@ -96,16 +186,12 @@ async function startMic() {
     const micSource = audioContext.createMediaStreamSource(stream);
 
     if (avatarType === 'user') {
-      // User Window: Mic feeds analyser for lip-sync
       micSource.connect(analyser);
       logStatus('User Mic Active');
     } else {
-      // AI Window: Mic ONLY feeds WebSocket for STT
-      // We explicitly DON'T connect to analyser here so AI doesn't move when user speaks
       setupMicStreaming(micSource);
       logStatus('AI System Listening...');
     }
-    updateMouth();
   } catch (err) {
     console.error('Mic Access Denied:', err);
     logStatus('Mic Error: ' + err.message);
@@ -113,7 +199,6 @@ async function startMic() {
 }
 
 function setupMicStreaming(source) {
-  // ScriptProcessor for robustness (matching sample code)
   const processor = audioContext.createScriptProcessor(4096, 1, 1);
   const silentGain = audioContext.createGain();
   silentGain.gain.value = 0;
@@ -123,18 +208,14 @@ function setupMicStreaming(source) {
   silentGain.connect(audioContext.destination);
 
   processor.onaudioprocess = (e) => {
-    // CRITICAL: Stop sending audio data while AI is playing to prevent loopback
     if (isAIPlaying) return;
-
     if (socket && socket.readyState === WebSocket.OPEN) {
       const inputData = e.inputBuffer.getChannelData(0);
       const pcmData = new Int16Array(inputData.length);
       for (let i = 0; i < inputData.length; i++) {
-        // Safe conversion to Int16
         const s = Math.max(-1, Math.min(1, inputData[i]));
         pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
       }
-
       const base64Data = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
       socket.send(JSON.stringify({
         type: 'data',
@@ -145,7 +226,7 @@ function setupMicStreaming(source) {
   };
 }
 
-// 4. WebSocket Logic
+// 5. WebSocket Logic
 function startWebSocket() {
   if (avatarType !== 'ai') return;
   const wsUrl = settings.avatars?.ai?.wsUrl || 'ws://localhost:8080/ws';
@@ -154,31 +235,19 @@ function startWebSocket() {
 
   socket.onopen = () => {
     logStatus('AI Server Online');
-    socket.send(JSON.stringify({
-      type: 'start',
-      session_id: 'parcera-session'
-    }));
+    socket.send(JSON.stringify({ type: 'start', session_id: 'parcera-session' }));
   };
 
   socket.onmessage = async (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'start' || data.type === 'thinking') {
-      const msg = data.type === 'thinking' ? `Thinking about: ${data.text}` : 'AI responding...';
-      logStatus(msg);
-      isAIPlaying = true; // Set early to stop mic input immediately
+      isAIPlaying = true;
+      logStatus(data.type === 'thinking' ? `Thinking: ${data.text}` : 'AI Responding...');
     } else if (data.type === 'chunk' && data.audio_data) {
       playAIResponse(data.audio_data);
-    } else if (data.type === 'final') {
-      console.log('AI Final Sentence:', data.text);
     } else if (data.type === 'stop') {
       isAIPlaying = false;
-      logStatus('AI Response Interrupted');
-    } else if (data.type === 'canceled') {
-      // Ignore canceled message if we are already playing/thinking,
-      // as it usually means a background noise or busy-ignored input was canceled.
-      if (!isAIPlaying) {
-        logStatus('AI Server Online');
-      }
+      logStatus('AI Stopped');
     }
   };
 
@@ -192,62 +261,96 @@ async function playAIResponse(base64) {
   try {
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+
     const audioData = await audioContext.decodeAudioData(bytes.buffer);
     const source = audioContext.createBufferSource();
     source.buffer = audioData;
 
-    // AI Window: AI voice feeds analyser (lip-sync) AND speakers
+    // AI Window: Wire AI voice through analyser for lip-sync
     source.connect(analyser);
     analyser.connect(audioContext.destination);
 
     isAIPlaying = true;
     source.start();
+    console.log('[Parcera] AI Speaking... AudioBuffer Size:', audioData.length);
 
     source.onended = () => {
       isAIPlaying = false;
-      // Disconnect to stop lip-sync when audio ends
-      analyser.disconnect(audioContext.destination);
+      // Do not disconnect destination yet, keep it connected for future chunks
+      console.log('[Parcera] AI Chunk Finished');
     };
   } catch (err) {
-    console.error('AI Audio Playback Error:', err);
+    console.error('AI Audio Error:', err);
     isAIPlaying = false;
   }
 }
 
-// 5. App Entry
-// Use multiple event types to ensure it captures the first interaction
-const triggerInit = async () => {
-  logStatus('Initializing...');
+// 6. App Entry
+let isInitialized = false;
+
+const triggerInit = async (e) => {
+  if (isInitialized) return;
+  e.stopPropagation();
+
+  console.log('[Parcera] Interaction triggered');
+  isInitialized = true;
+  interactionLayer.style.display = 'none'; // Completely hide to restore body drag
+
+  logStatus('Initializing Audio...');
   initAudioContext();
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
-  }
+  if (audioContext.state === 'suspended') await audioContext.resume();
+
   await startMic();
-  if (avatarType === 'ai') {
-    startWebSocket();
-  }
-  // Remove listeners after first success
-  window.removeEventListener('click', triggerInit);
-  window.removeEventListener('mousedown', triggerInit);
+  if (avatarType === 'ai') startWebSocket();
+
+  logStatus('System Live');
 };
 
-window.addEventListener('click', triggerInit);
-window.addEventListener('mousedown', triggerInit);
+interactionLayer.addEventListener('click', triggerInit);
+window.addEventListener('mousedown', triggerInit); // Double guard
 
-// Background settings load
+// Start visuals immediately (Blinking starts here!)
+updateVisuals();
+
 (async () => {
   try {
     settings = await window.electronAPI.getSettings();
     const config = settings.avatars?.[avatarType] || {};
     threshold = config.micThreshold || 15;
-    if (config.assets?.base) {
-      document.querySelector('#avatar-base').src = config.assets.base;
+
+    // Set Breathe Animation from settings
+    const bScale = settings.avatars?.breathe_scale || 1.005;
+    const bAmp = settings.avatars?.breathe_amplitude || 2;
+    const bDur = settings.avatars?.breathe_duration || 5000;
+
+    document.documentElement.style.setProperty('--breathe-scale', bScale);
+    document.documentElement.style.setProperty('--breathe-amplitude', `${bAmp}px`);
+    document.documentElement.style.setProperty('--breathe-duration', `${bDur}ms`);
+
+    // Set Initial Image
+    const assetsDir = config.assets_dir || `/assets/${avatarType}`;
+    avatarImage.src = `${assetsDir}/base.png`;
+
+    // Explicit Resize Trigger for initial load
+    if (avatarImage.complete) {
+      console.log(`[Parcera] Initial Resize Trigger: ${avatarImage.naturalWidth}x${avatarImage.naturalHeight}`);
+      window.electronAPI.resizeWindow(avatarImage.naturalWidth, avatarImage.naturalHeight);
     }
-    logStatus('Syncing Settings...');
+    avatarImage.onerror = () => {
+      const src = avatarImage.src;
+      if (src.endsWith('/e.png')) {
+        avatarImage.src = src.replace('/e.png', '/a.png');
+      } else if (src.endsWith('/o.png')) {
+        avatarImage.src = src.replace('/o.png', '/u.png');
+      }
+    };
+
+    logStatus('Settings Loaded');
   } catch (e) {
-    console.warn('Config not found, using default threshold');
+    console.error('Settings error:', e);
+    const assetsDir = `/assets/${avatarType}`;
+    avatarImage.src = `${assetsDir}/base.png`;
+    logStatus('Using Defaults');
   }
 })();

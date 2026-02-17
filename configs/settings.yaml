@@ -47,35 +47,24 @@ vad:
 electron:
   port: 8080
   windows:
-    ai: { width: 400, height: 600, alwaysOnTop: true }
-    user: { width: 400, height: 600, alwaysOnTop: false }
+    ai: { width: 400, height: 400, alwaysOnTop: true }
+    user: { width: 400, height: 400, alwaysOnTop: false }
 
 # Avatar Visual Definitions
 avatars:
+  show_debug: true
+  blink_interval_min: 5000 # ms
+  blink_interval_max: 15000 # ms
+  mouth_hold_time: 120    # ms
+  breathe_scale: 1.005     # Scale factor for breathing animation (subtle expansion)
+  breathe_amplitude: 2     # Vertical movement in pixels
+  breathe_duration: 5000   # Duration of one breath cycle in ms (5s is natural)
   user:
     name: "User"
     micThreshold: 15
-    idleAmplitude: "2px"
-    assets:
-      base: "./assets/user/base.png"
-      eyes_open: "./assets/user/eyes_open.png"
-      eyes_closed: "./assets/user/eyes_closed.png"
-      mouth:
-        closed: "./assets/user/mouth_0.png"
-        open_a: "./assets/user/mouth_a.png"
-        open_i: "./assets/user/mouth_i.png"
-        open_u: "./assets/user/mouth_u.png"
+    assets_dir: "/assets/user"
   ai:
     name: "AI"
     wsUrl: "ws://localhost:8080/ws"
     micThreshold: 10
-    idleAmplitude: "3px"
-    assets:
-      base: "./assets/ai/base.png"
-      eyes_open: "./assets/ai/eyes_open.png"
-      eyes_closed: "./assets/ai/eyes_closed.png"
-      mouth:
-        closed: "./assets/ai/mouth_0.png"
-        open_a: "./assets/ai/mouth_a.png"
-        open_i: "./assets/ai/mouth_i.png"
-        open_u: "./assets/ai/mouth_u.png"
+    assets_dir: "/assets/ai"
