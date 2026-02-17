@@ -26,6 +26,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
 
 let userWindow = null;
+let aiWindow = null;
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
@@ -48,11 +49,11 @@ function loadSettings() {
   }
 }
 
-function createUserWindow() {
+function createAvatarWindow(type) {
   const settings = loadSettings();
-  const winCfg = settings?.electron?.windows?.user || { width: 400, height: 600, alwaysOnTop: false };
+  const winCfg = settings?.electron?.windows?.[type] || { width: 400, height: 600, alwaysOnTop: type === 'ai' };
 
-  userWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: winCfg.width,
     height: winCfg.height,
     alwaysOnTop: winCfg.alwaysOnTop,
@@ -64,16 +65,16 @@ function createUserWindow() {
     },
   });
 
-  // macOS specific: make window truly transparent and float
   if (process.platform === 'darwin') {
-    userWindow.setWindowButtonVisibility(false);
+    win.setWindowButtonVisibility(false);
   }
 
-  if (VITE_DEV_SERVER_URL) {
-    userWindow.loadURL(VITE_DEV_SERVER_URL);
-  } else {
-    userWindow.loadFile(path.join(RENDERER_DIST, 'index.html'));
-  }
+  const url = VITE_DEV_SERVER_URL
+    ? `${VITE_DEV_SERVER_URL}?type=${type}`
+    : `file://${path.join(RENDERER_DIST, 'index.html')}?type=${type}`;
+
+  win.loadURL(url);
+  return win;
 }
 
 ipcMain.handle('get-settings', async () => {
@@ -81,11 +82,13 @@ ipcMain.handle('get-settings', async () => {
 });
 
 app.whenReady().then(() => {
-  createUserWindow();
+  userWindow = createAvatarWindow('user');
+  aiWindow = createAvatarWindow('ai');
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createUserWindow();
+      userWindow = createAvatarWindow('user');
+      aiWindow = createAvatarWindow('ai');
     }
   });
 });

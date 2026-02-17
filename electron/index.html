@@ -1,13 +1,37 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>electron</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/renderer/main.js"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>electron</title>
+</head>
+
+<body>
+  <div id="app">
+    <!-- User Avatar -->
+    <div id="user-avatar" class="avatar-container">
+      <img id="user-base" class="avatar-base" src="/assets/user/base.png" />
+      <div id="user-mouth" class="avatar-mouth">
+        <svg width="60" height="40" viewBox="0 0 60 40">
+          <path id="user-mouth-path" d="M 10 20 Q 30 20 50 20" stroke="black" stroke-width="3" fill="none"
+            stroke-linecap="round" />
+        </svg>
+      </div>
+    </div>
+    <!-- AI Avatar -->
+    <div id="ai-avatar" class="avatar-container">
+      <img id="ai-base" class="avatar-base" src="/assets/ai/base.png" />
+      <div id="ai-mouth" class="avatar-mouth">
+        <svg width="60" height="40" viewBox="0 0 60 40">
+          <path id="ai-mouth-path" d="M 10 20 Q 30 20 50 20" stroke="black" stroke-width="3" fill="none"
+            stroke-linecap="round" />
+        </svg>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/renderer/main.js"></script>
+</body>
+
 </html>

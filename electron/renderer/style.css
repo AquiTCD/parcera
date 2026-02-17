@@ -4,7 +4,8 @@ body {
   overflow: hidden;
   background-color: transparent !important;
   user-select: none;
-  -webkit-app-region: drag; /* Window is draggable */
+  -webkit-app-region: drag;
+  /* Window is draggable */
 }
 
 #app {
@@ -14,15 +15,19 @@ body {
   justify-content: center;
   align-items: center;
   position: relative;
+  overflow: hidden;
 }
 
 .avatar-container {
-  position: relative;
   width: 100%;
   height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
   justify-content: center;
   align-items: center;
+  cursor: pointer;
 }
 
 .avatar-base {
@@ -35,7 +40,8 @@ body {
 
 .avatar-mouth {
   position: absolute;
-  top: 62%; /* Adjusted for typical face position */
+  top: 62%;
+  /* Adjusted for typical face position */
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10;
@@ -44,6 +50,13 @@ body {
 }
 
 @keyframes breathe {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
 }
