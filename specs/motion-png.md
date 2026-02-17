@@ -97,22 +97,32 @@ avatars:
 - **Goal**: 自分の声で画像が動くのを確認。
 
 ### Phase 2: AIボイス連動（WebSocket 連携基盤）
-- [ ] Python側を `AIAvatarWebSocketServer` 形式にアップデート。
-- [ ] 音声Base64データをWebSocket経由でElectronへ飛ばし、再生。
-- **Goal**: AIの話し声に合わせてAIアバターが動く。
+- [x] Python側を `AIAvatarWebSocketServer` 形式にアップデート。
+- [x] 音声Base64データをWebSocket経由でElectronへ飛ばし、再生。
+- [x] **New**: 動的リクエストマージ（文字数に応じたしきい値調整）の実装。
+- [x] **New**: サーバー側 First-Wins ロジック（Busy状態の管理）の実装。
+- [x] **New**: `src/core` へのパッケージ化と Factory パターンの導入。
+- **Goal**: AIの話し声に合わせてAIアバターが動き、自然な会話のキャッチボールができる。
 
 ### Phase 3: 高精度リップシンク & アニメーション
 - [ ] FFTによる母音推定JSロジックの実装（あ・い・う の画像切り替え）。
 - [ ] 呼吸揺れ(CSS)とまばたき(JS Timer)の追加。
 - **Goal**: 実際に「喋っている」ような滑らかなアニメーション。
 
-### Phase 4: サイドカー化 & パッケージ化
+### Phase 4: チューニング・拡張・リファクタリング
+- [ ] LLMの換装（Gemini から ChatGPT への切り替え対応）。
+- [ ] STTの換装（Whisper から Azure STT への切り替え対応）。
+- [ ] 全体的なレスポンス速度のプロファイリングと極限チューニング。
+- [ ] コード全体の再設計とテストコードの拡充。
+- **Goal**: 性能・安定性・拡張性においてプロダクトレベルの品質に到達。
+
+### Phase 5: サイドカー化 & パッケージ化
 - [ ] `child_process.spawn` でPythonエンジンを自動起動。
 - [ ] `PyInstaller` でのPythonバイナリ化と `asarUnpack` 設定。
 - [ ] `Electron Builder` で `.app` 化。
 - **Goal**: アイコンクリックだけで全システムが起動。
 
-### Phase 5: 統合動作テスト & 最適化
+### Phase 6: 統合動作テスト & 最適化
 - [ ] OBS 連携テスト（「透過を許可」を有効にしたキャプチャ）。
 - [ ] リソース（CPU/メモリ）使用率の最適化。
 - **Goal**: Parcera AI Avatar システムの完成。
