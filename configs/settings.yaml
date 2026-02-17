@@ -1,8 +1,16 @@
 # General Application Settings
+verbose: false
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+merge_request_threshold: 3.0  # Seconds to merge consecutive requests
 force_keywords:
   - パルセラ
   - Parcera
   - 教えて
+
+# LLM Settings
+llm_model: "gemini-2.0-flash"
+llm_temperature: 0.7
+option_split_threshold: 20  # Tuning for faster response (default 50)
 
 # TTS Engine Selection: ["aivisspeech", "voicevox"]
 # You can change this to "aivisspeech" to use AivisSpeech.
@@ -59,7 +67,7 @@ avatars:
         open_u: "./assets/user/mouth_u.png"
   ai:
     name: "AI"
-    wsUrl: "ws://localhost:8080"
+    wsUrl: "ws://localhost:8080/ws"
     micThreshold: 10
     idleAmplitude: "3px"
     assets:
