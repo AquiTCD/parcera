@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'node:url';
+import type { ParceraSettings, WindowConfig } from '../shared/types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,31 +18,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // │ └── index.html    > Renderer-process
 //
 
-process.env.APP_ROOT = path.join(__dirname, '..');
+process.env['APP_ROOT'] = path.join(__dirname, '..');
 
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
+export const VITE_DEV_SERVER_URL: string | undefined = process.env['VITE_DEV_SERVER_URL'];
+export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist');
 
-let userWindow = null;
-let aiWindow = null;
+let userWindow: BrowserWindow | null = null;
+let aiWindow: BrowserWindow | null = null;
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
   app.quit();
 });
 
-let cachedSettings = null;
+let cachedSettings: ParceraSettings | null = null;
 
-function loadSettings() {
+function loadSettings(): ParceraSettings {
   if (cachedSettings) return cachedSettings;
   try {
-    const settingsPath = path.resolve(process.env.APP_ROOT, '../configs/settings.yaml');
+    const settingsPath = path.resolve(process.env['APP_ROOT']!, '../configs/settings.yaml');
     if (!fs.existsSync(settingsPath)) {
       console.warn('Settings file not found at:', settingsPath);
       return {};
     }
     const file = fs.readFileSync(settingsPath, 'utf8');
-    cachedSettings = yaml.load(file);
+    cachedSettings = yaml.load(file) as ParceraSettings;
     return cachedSettings;
   } catch (e) {
     console.error('Failed to load settings:', e);
@@ -49,9 +50,9 @@ function loadSettings() {
   }
 }
 
-function createAvatarWindow(type) {
+function createAvatarWindow(type: string): BrowserWindow {
   const settings = loadSettings();
-  const winCfg = settings?.electron?.windows?.[type] || { width: 400, height: 400, alwaysOnTop: type === 'ai' };
+  const winCfg: WindowConfig = settings.electron?.windows?.[type] || { width: 400, height: 400, alwaysOnTop: type === 'ai' };
 
   const win = new BrowserWindow({
     width: winCfg.width,
@@ -82,7 +83,7 @@ ipcMain.handle('get-settings', async () => {
   return loadSettings();
 });
 
-ipcMain.on('resize-window', (event, width, height) => {
+ipcMain.on('resize-window', (event, width: number, height: number) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
     win.setSize(Math.round(width), Math.round(height));

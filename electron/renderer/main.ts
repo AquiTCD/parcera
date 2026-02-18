@@ -6,7 +6,7 @@
  */
 import './style.css';
 import { state, logStatus } from './lib/state';
-import type { AvatarType, AvatarConfig } from './lib/state';
+import type { AvatarType, AvatarConfig, ParceraSettings } from './lib/state';
 import { initAudioContext, getContext, getAnalyser } from './lib/audio';
 import { initVisual } from './lib/visual';
 import { startWebSocket, setupMicStreaming } from './lib/comm';
@@ -15,7 +15,7 @@ import { startWebSocket, setupMicStreaming } from './lib/comm';
 declare global {
   interface Window {
     electronAPI: {
-      getSettings: () => Promise<Record<string, unknown>>;
+      getSettings: () => Promise<ParceraSettings>;
       resizeWindow: (width: number, height: number) => void;
     };
   }
@@ -100,12 +100,12 @@ initVisual(avatarImage, statusDebug);
 
     // Unified threshold: dB → RMS×100
     const volumeDb = state.settings.vad?.volume_db_threshold ?? -20;
-    state.threshold = Math.pow(10, (volumeDb as number) / 20) * 100;
+    state.threshold = Math.pow(10, volumeDb / 20) * 100;
 
     // Breathe animation CSS variables
-    const bScale = (state.settings.avatars?.breathe_scale as number | undefined) || 1.005;
-    const bAmp = (state.settings.avatars?.breathe_amplitude as number | undefined) || 2;
-    const bDur = (state.settings.avatars?.breathe_duration as number | undefined) || 5000;
+    const bScale = state.settings.avatars?.breathe_scale || 1.005;
+    const bAmp = state.settings.avatars?.breathe_amplitude || 2;
+    const bDur = state.settings.avatars?.breathe_duration || 5000;
     document.documentElement.style.setProperty('--breathe-scale', String(bScale));
     document.documentElement.style.setProperty('--breathe-amplitude', `${bAmp}px`);
     document.documentElement.style.setProperty('--breathe-duration', `${bDur}ms`);

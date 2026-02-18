@@ -51,8 +51,8 @@ function updateVisuals(): void {
       blinkTimer = now + BLINK_CLOSE_DURATION;
     } else {
       isBlinking = false;
-      const min = (state.settings.avatars?.blink_interval_min as number | undefined) || DEFAULT_BLINK_MIN;
-      const max = (state.settings.avatars?.blink_interval_max as number | undefined) || DEFAULT_BLINK_MAX;
+      const min = state.settings.avatars?.blink_interval_min || DEFAULT_BLINK_MIN;
+      const max = state.settings.avatars?.blink_interval_max || DEFAULT_BLINK_MAX;
       blinkTimer = now + min + Math.random() * (max - min);
     }
   }
@@ -61,7 +61,7 @@ function updateVisuals(): void {
     targetFile = 'closed.png';
   } else {
     // --- Mouth (lip-sync with hold timer) ---
-    const holdTime = (state.settings.avatars?.mouth_hold_time as number | undefined) || DEFAULT_MOUTH_HOLD;
+    const holdTime = state.settings.avatars?.mouth_hold_time || DEFAULT_MOUTH_HOLD;
 
     if (now > mouthHoldTimer) {
       let nextMouth = 'base.png';
