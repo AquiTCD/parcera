@@ -39,8 +39,11 @@ tts_settings:
   postPhonemeLength: 0.20
 
 # VAD (Voice Activity Detection) Settings
+# volume_db_threshold: Single source of truth for audio sensitivity (dB).
+# Used by both Python VAD (speech recognition) and JS lip-sync (mouth movement).
+# JS conversion: RMS×100 = 10^(dB/20) × 100  (-20dB → 10.0)
 vad:
-  volume_db_threshold: -30.0
+  volume_db_threshold: -20.0
   max_duration: 15.0
 
 # Electron Application Settings
@@ -61,10 +64,8 @@ avatars:
   breathe_duration: 5000   # Duration of one breath cycle in ms (5s is natural)
   user:
     name: "User"
-    micThreshold: 15
     assets_dir: "/assets/user"
   ai:
     name: "AI"
     wsUrl: "ws://localhost:8080/ws"
-    micThreshold: 10
     assets_dir: "/assets/ai"

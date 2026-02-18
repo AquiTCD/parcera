@@ -317,7 +317,9 @@ updateVisuals();
   try {
     settings = await window.electronAPI.getSettings();
     const config = settings.avatars?.[avatarType] || {};
-    threshold = config.micThreshold || 15;
+    // Unified threshold: read dB from vad settings, convert to RMS×100 for JS lip-sync
+    const volumeDb = settings.vad?.volume_db_threshold ?? -20;
+    threshold = Math.pow(10, volumeDb / 20) * 100;
 
     // Set Breathe Animation from settings
     const bScale = settings.avatars?.breathe_scale || 1.005;
