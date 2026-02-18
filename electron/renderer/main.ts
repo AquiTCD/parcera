@@ -5,20 +5,31 @@
  * Only UI creation, settings loading, and user-gesture activation live here.
  */
 import './style.css';
-import { state, logStatus } from './lib/state.js';
-import { initAudioContext, getContext, getAnalyser } from './lib/audio.js';
-import { initVisual } from './lib/visual.js';
-import { startWebSocket, setupMicStreaming } from './lib/comm.js';
+import { state, logStatus } from './lib/state';
+import type { AvatarType, AvatarConfig } from './lib/state';
+import { initAudioContext, getContext, getAnalyser } from './lib/audio';
+import { initVisual } from './lib/visual';
+import { startWebSocket, setupMicStreaming } from './lib/comm';
+
+/** Electron preload API exposed via contextBridge */
+declare global {
+  interface Window {
+    electronAPI: {
+      getSettings: () => Promise<Record<string, unknown>>;
+      resizeWindow: (width: number, height: number) => void;
+    };
+  }
+}
 
 console.log('[Parcera] Renderer process starting...');
 
 // --- Determine Window Type ---
 const params = new URLSearchParams(window.location.search);
-state.avatarType = params.get('type') || 'user';
+state.avatarType = (params.get('type') as AvatarType) || 'user';
 console.log('[Parcera] Avatar Type:', state.avatarType);
 
 // --- UI Scaffold ---
-const app = document.querySelector('#app');
+const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
   <div id="interaction-layer" style="position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:999; cursor:pointer; display:flex; justify-content:center; align-items:center;">
     <div id="click-prompt" style="color:white; background:rgba(0,0,0,0.5); padding:20px; border-radius:10px; font-family:sans-serif;">
@@ -33,12 +44,12 @@ app.innerHTML = `
   </div>
 `;
 
-const avatarImage = document.querySelector('#avatar-image');
-const statusDebug = document.querySelector('#status-debug');
-const interactionLayer = document.querySelector('#interaction-layer');
+const avatarImage = document.querySelector<HTMLImageElement>('#avatar-image')!;
+const statusDebug = document.querySelector<HTMLElement>('#status-debug')!;
+const interactionLayer = document.querySelector<HTMLDivElement>('#interaction-layer')!;
 
 // --- Activation (user gesture required to unlock AudioContext) ---
-const triggerInit = async (e) => {
+const triggerInit = async (e: Event): Promise<void> => {
   if (state.isInitialized) return;
   e.stopPropagation();
 
@@ -48,6 +59,7 @@ const triggerInit = async (e) => {
   logStatus('Initializing Audio...');
   initAudioContext();
   const ctx = getContext();
+  if (!ctx) return;
   if (ctx.state === 'suspended') await ctx.resume();
 
   // Microphone
@@ -56,9 +68,10 @@ const triggerInit = async (e) => {
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
     const micSource = ctx.createMediaStreamSource(stream);
+    const analyser = getAnalyser();
 
     if (state.avatarType === 'user') {
-      micSource.connect(getAnalyser());
+      if (analyser) micSource.connect(analyser);
       logStatus('User Mic Active');
     } else {
       setupMicStreaming(micSource);
@@ -66,7 +79,7 @@ const triggerInit = async (e) => {
     }
   } catch (err) {
     console.error('Mic Access Denied:', err);
-    logStatus('Mic Error: ' + err.message);
+    logStatus('Mic Error: ' + (err instanceof Error ? err.message : String(err)));
   }
 
   if (state.avatarType === 'ai') startWebSocket();
@@ -83,22 +96,22 @@ initVisual(avatarImage, statusDebug);
 (async () => {
   try {
     state.settings = await window.electronAPI.getSettings();
-    const config = state.settings.avatars?.[state.avatarType] || {};
+    const avatarConfig = state.settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
 
     // Unified threshold: dB → RMS×100
     const volumeDb = state.settings.vad?.volume_db_threshold ?? -20;
-    state.threshold = Math.pow(10, volumeDb / 20) * 100;
+    state.threshold = Math.pow(10, (volumeDb as number) / 20) * 100;
 
     // Breathe animation CSS variables
-    const bScale = state.settings.avatars?.breathe_scale || 1.005;
-    const bAmp = state.settings.avatars?.breathe_amplitude || 2;
-    const bDur = state.settings.avatars?.breathe_duration || 5000;
-    document.documentElement.style.setProperty('--breathe-scale', bScale);
+    const bScale = (state.settings.avatars?.breathe_scale as number | undefined) || 1.005;
+    const bAmp = (state.settings.avatars?.breathe_amplitude as number | undefined) || 2;
+    const bDur = (state.settings.avatars?.breathe_duration as number | undefined) || 5000;
+    document.documentElement.style.setProperty('--breathe-scale', String(bScale));
     document.documentElement.style.setProperty('--breathe-amplitude', `${bAmp}px`);
     document.documentElement.style.setProperty('--breathe-duration', `${bDur}ms`);
 
     // Initial avatar image
-    const assetsDir = config.assets_dir || `/assets/${state.avatarType}`;
+    const assetsDir = avatarConfig?.assets_dir || `/assets/${state.avatarType}`;
     avatarImage.src = `${assetsDir}/base.png`;
 
     // Resize window to match image

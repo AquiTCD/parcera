@@ -2,9 +2,9 @@
  * Parcera: Audio Analysis Engine
  *
  * Manages AudioContext, RMS volume detection, and vowel classification
- * via spectral centroid analysis. All magic numbers are named constants.
+ * via spectral centroid analysis.
  */
-import { state, logStatus } from './state.js';
+import { state, logStatus } from './state';
 
 // --- Constants ---
 const FFT_SIZE = 512;
@@ -13,26 +13,28 @@ const AI_RMS_BOOST = 1.5;
 const SILENCE_AMPLITUDE_FLOOR = 0.001;
 const LOW_FREQ_CUTOFF = 200; // Hz — ignore rumble below this
 
-// Vowel spectral centroid boundaries (normalized 0.0–1.0)
-const VOWEL_BOUNDARIES = { u: 0.04, o: 0.10, a: 0.20, e: 0.35 };
+/** Vowel spectral centroid boundaries (normalized 0.0–1.0) */
+const VOWEL_BOUNDARIES = { u: 0.04, o: 0.10, a: 0.20, e: 0.35 } as const;
+
+export type Vowel = 'a' | 'i' | 'u' | 'e' | 'o';
 
 // --- Module State ---
-let audioContext = null;
-let analyser = null;
+let audioContext: AudioContext | null = null;
+let analyser: AnalyserNode | null = null;
 const fData = new Float32Array(FFT_SIZE / 2);
 const tData = new Float32Array(FFT_SIZE);
 
 // --- Public Accessors ---
-export function getContext() { return audioContext; }
-export function getAnalyser() { return analyser; }
+export function getContext(): AudioContext | null { return audioContext; }
+export function getAnalyser(): AnalyserNode | null { return analyser; }
 
 // --- Initialization ---
-export function initAudioContext() {
+export function initAudioContext(): void {
   if (audioContext) return;
   try {
     // AI window uses 16 kHz to match server-side TTS audio
-    const options = state.avatarType === 'ai' ? { sampleRate: 16000 } : {};
-    audioContext = new (window.AudioContext || window.webkitAudioContext)(options);
+    const options: AudioContextOptions = state.avatarType === 'ai' ? { sampleRate: 16000 } : {};
+    audioContext = new AudioContext(options);
 
     analyser = audioContext.createAnalyser();
     analyser.fftSize = FFT_SIZE;
@@ -45,7 +47,7 @@ export function initAudioContext() {
 }
 
 // --- RMS Volume ---
-export function getRMS() {
+export function getRMS(): number {
   if (!analyser) return 0;
   analyser.getFloatTimeDomainData(tData);
   let sum = 0;
@@ -59,8 +61,8 @@ export function getRMS() {
 }
 
 // --- Vowel Detection (Spectral Centroid → Japanese Vowel) ---
-export function getVowel() {
-  if (!analyser) return null;
+export function getVowel(): Vowel | null {
+  if (!analyser || !audioContext) return null;
   analyser.getFloatFrequencyData(fData);
 
   const nyquist = audioContext.sampleRate / 2;

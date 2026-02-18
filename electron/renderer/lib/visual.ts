@@ -4,8 +4,8 @@
  * Handles avatar rendering: blinking, mouth shapes (lip-sync),
  * debug overlay, and the requestAnimationFrame loop.
  */
-import { state } from './state.js';
-import { getRMS, getVowel } from './audio.js';
+import { state } from './state';
+import { getRMS, getVowel } from './audio';
 
 // --- Constants ---
 const BLINK_CLOSE_DURATION = 150; // ms — eyes stay shut this long
@@ -14,22 +14,22 @@ const DEFAULT_BLINK_MAX = 15000;
 const DEFAULT_MOUTH_HOLD = 120; // ms — minimum time a mouth shape is held
 
 // --- Module State ---
-let avatarImage = null;
-let statusDebug = null;
+let avatarImage: HTMLImageElement | null = null;
+let statusDebug: HTMLElement | null = null;
 let blinkTimer = Date.now() + 2000;
 let isBlinking = false;
 let currentMouthFile = 'base.png';
 let mouthHoldTimer = 0;
 
 // --- Public API ---
-export function initVisual(imageEl, debugEl) {
+export function initVisual(imageEl: HTMLImageElement, debugEl: HTMLElement): void {
   avatarImage = imageEl;
   statusDebug = debugEl;
-  updateVisuals(); // kick off the animation loop
+  updateVisuals();
 }
 
 // --- Animation Loop (called every frame) ---
-function updateVisuals() {
+function updateVisuals(): void {
   const rms = getRMS();
   const vowel = rms > state.threshold ? (getVowel() || '?') : '-';
 
@@ -51,8 +51,8 @@ function updateVisuals() {
       blinkTimer = now + BLINK_CLOSE_DURATION;
     } else {
       isBlinking = false;
-      const min = state.settings.avatars?.blink_interval_min || DEFAULT_BLINK_MIN;
-      const max = state.settings.avatars?.blink_interval_max || DEFAULT_BLINK_MAX;
+      const min = (state.settings.avatars?.blink_interval_min as number | undefined) || DEFAULT_BLINK_MIN;
+      const max = (state.settings.avatars?.blink_interval_max as number | undefined) || DEFAULT_BLINK_MAX;
       blinkTimer = now + min + Math.random() * (max - min);
     }
   }
@@ -61,7 +61,7 @@ function updateVisuals() {
     targetFile = 'closed.png';
   } else {
     // --- Mouth (lip-sync with hold timer) ---
-    const holdTime = state.settings.avatars?.mouth_hold_time || DEFAULT_MOUTH_HOLD;
+    const holdTime = (state.settings.avatars?.mouth_hold_time as number | undefined) || DEFAULT_MOUTH_HOLD;
 
     if (now > mouthHoldTimer) {
       let nextMouth = 'base.png';
@@ -77,7 +77,10 @@ function updateVisuals() {
   }
 
   // --- Apply image ---
-  const assetsDir = state.settings.avatars?.[state.avatarType]?.assets_dir || `/assets/${state.avatarType}`;
+  const avatarConfig = state.settings.avatars?.[state.avatarType];
+  const assetsDir = (typeof avatarConfig === 'object' && avatarConfig?.assets_dir)
+    ? avatarConfig.assets_dir
+    : `/assets/${state.avatarType}`;
   const targetPath = `${assetsDir}/${targetFile}`;
 
   if (avatarImage && avatarImage.src !== window.location.origin + targetPath) {

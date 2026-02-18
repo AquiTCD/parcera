@@ -4,21 +4,22 @@
  * WebSocket connection to the Python AI server, microphone streaming
  * (PCM → Base64), and sequential audio playback queue.
  */
-import { state, logStatus } from './state.js';
-import { getContext, getAnalyser } from './audio.js';
+import { state, logStatus } from './state';
+import type { ServerMessage } from './state';
+import { getContext, getAnalyser } from './audio';
 
 // --- Module State ---
-let socket = null;
+let socket: WebSocket | null = null;
 let playbackRouteReady = false;
 
 // =====================
 // Audio Playback Queue
 // =====================
-const audioQueue = [];
-let currentSource = null;
+const audioQueue: string[] = [];
+let currentSource: AudioBufferSourceNode | null = null;
 let isProcessingQueue = false;
 
-function flushAudioQueue() {
+function flushAudioQueue(): void {
   audioQueue.length = 0;
   if (currentSource) {
     try {
@@ -30,7 +31,7 @@ function flushAudioQueue() {
   isProcessingQueue = false;
 }
 
-function enqueueAudioChunk(base64) {
+function enqueueAudioChunk(base64: string): void {
   audioQueue.push(base64);
   state.isAIPlaying = true;
   if (!isProcessingQueue) {
@@ -38,7 +39,7 @@ function enqueueAudioChunk(base64) {
   }
 }
 
-async function playNextChunk() {
+async function playNextChunk(): Promise<void> {
   if (audioQueue.length === 0) {
     isProcessingQueue = false;
     currentSource = null;
@@ -48,9 +49,11 @@ async function playNextChunk() {
   }
 
   isProcessingQueue = true;
-  const base64 = audioQueue.shift();
+  const base64 = audioQueue.shift()!;
   const audioContext = getContext();
   const analyser = getAnalyser();
+
+  if (!audioContext || !analyser) return;
 
   try {
     const binaryString = atob(base64);
@@ -81,7 +84,7 @@ async function playNextChunk() {
 // =====================
 // WebSocket
 // =====================
-function initPlaybackRoute() {
+function initPlaybackRoute(): void {
   if (playbackRouteReady) return;
   const analyser = getAnalyser();
   const audioContext = getContext();
@@ -91,7 +94,7 @@ function initPlaybackRoute() {
   }
 }
 
-export function startWebSocket() {
+export function startWebSocket(): void {
   if (state.avatarType !== 'ai') return;
 
   initPlaybackRoute(); // wire analyser→destination once
@@ -104,11 +107,11 @@ export function startWebSocket() {
 
   socket.onopen = () => {
     logStatus('AI Server Online');
-    socket.send(JSON.stringify({ type: 'start', session_id: 'parcera-session' }));
+    socket?.send(JSON.stringify({ type: 'start', session_id: 'parcera-session' }));
   };
 
-  socket.onmessage = async (event) => {
-    const data = JSON.parse(event.data);
+  socket.onmessage = async (event: MessageEvent) => {
+    const data: ServerMessage = JSON.parse(event.data as string);
     if (data.type === 'start' || data.type === 'thinking') {
       flushAudioQueue(); // cancel old response
       state.isAIPlaying = true;
@@ -133,8 +136,12 @@ export function startWebSocket() {
 // =====================
 // Mic Streaming
 // =====================
-export function setupMicStreaming(source) {
+const BASE64_CHUNK_SIZE = 8192;
+
+export function setupMicStreaming(source: MediaStreamAudioSourceNode): void {
   const audioContext = getContext();
+  if (!audioContext) return;
+
   const processor = audioContext.createScriptProcessor(4096, 1, 1);
   const silentGain = audioContext.createGain();
   silentGain.gain.value = 0;
@@ -143,7 +150,7 @@ export function setupMicStreaming(source) {
   processor.connect(silentGain);
   silentGain.connect(audioContext.destination);
 
-  processor.onaudioprocess = (e) => {
+  processor.onaudioprocess = (e: AudioProcessingEvent) => {
     if (state.isAIPlaying) return;
     if (socket && socket.readyState === WebSocket.OPEN) {
       const inputData = e.inputBuffer.getChannelData(0);
@@ -152,12 +159,11 @@ export function setupMicStreaming(source) {
         const s = Math.max(-1, Math.min(1, inputData[i]));
         pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
       }
-      // Encode PCM to Base64 without stack overflow (no spread operator)
+      // Encode PCM to Base64 without stack overflow (chunked loop)
       const uint8 = new Uint8Array(pcmData.buffer);
       let binary = '';
-      const CHUNK = 8192;
-      for (let offset = 0; offset < uint8.length; offset += CHUNK) {
-        binary += String.fromCharCode.apply(null, uint8.subarray(offset, offset + CHUNK));
+      for (let offset = 0; offset < uint8.length; offset += BASE64_CHUNK_SIZE) {
+        binary += String.fromCharCode.apply(null, Array.from(uint8.subarray(offset, offset + BASE64_CHUNK_SIZE)));
       }
       const base64Data = btoa(binary);
       socket.send(JSON.stringify({
