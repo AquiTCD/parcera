@@ -13,7 +13,7 @@ Version: 1.3.0 (Feb 2026 Comprehensive Edition)
 ## 2. 技術要件 (TRD)
 ### 2.1 テクノロジースタック
 - **Node.js**: v24 (Active LTS) / **pnpm** (Package Manager)
-- **Frontend**: Vite + Electron (Vanilla JS / React)
+- **Frontend**: Vite + Electron (TypeScript)
 - **Engine**: Python 3.11+ (`uv` managed)
 - **Communication**: WebSocket (Port 8080) / Web Audio API
 
@@ -43,51 +43,45 @@ Version: 1.3.0 (Feb 2026 Comprehensive Edition)
 Python側と共通のYAMLファイルで一括管理する。Electron側は `js-yaml` 等を使用してこれを読み込む。
 
 ```yaml
+# VAD (Voice Activity Detection) Settings
+# volume_db_threshold: Single source of truth for audio sensitivity (dB).
+# Used by both Python VAD (speech recognition) and JS lip-sync (mouth movement).
+vad:
+  volume_db_threshold: -20.0
+  max_duration: 15.0
+
 # Electron Application Settings
 electron:
-  port: 8080
+  port: 8080  # WebSocket URL is auto-derived: ws://localhost:{port}/ws
   windows:
-    ai: { width: 400, height: 600, alwaysOnTop: true }
-    user: { width: 400, height: 600, alwaysOnTop: false }
+    ai: { width: 400, height: 400, alwaysOnTop: true }
+    user: { width: 400, height: 400, alwaysOnTop: true }
 
 # Avatar Visual Definitions
 avatars:
+  show_debug: true
+  blink_interval_min: 5000   # ms
+  blink_interval_max: 15000  # ms
+  mouth_hold_time: 120       # ms
+  breathe_scale: 1.005
+  breathe_amplitude: 2       # px
+  breathe_duration: 5000     # ms
   user:
     name: "User"
-    micThreshold: 15
-    idleAmplitude: "2px"
-    assets:
-      base: "./assets/user/base.png"
-      eyes_open: "./assets/user/eyes_open.png"
-      eyes_closed: "./assets/user/eyes_closed.png"
-      mouth:
-        closed: "./assets/user/mouth_0.png"
-        open_a: "./assets/user/mouth_a.png"
-        open_i: "./assets/user/mouth_i.png"
-        open_u: "./assets/user/mouth_u.png"
+    assets_dir: "/assets/user"
   ai:
     name: "AI"
-    wsUrl: "ws://localhost:8080"
-    micThreshold: 10
-    idleAmplitude: "3px"
-    assets:
-      base: "./assets/ai/base.png"
-      eyes_open: "./assets/ai/eyes_open.png"
-      eyes_closed: "./assets/ai/eyes_closed.png"
-      mouth:
-        closed: "./assets/ai/mouth_0.png"
-        open_a: "./assets/ai/mouth_a.png"
-        open_i: "./assets/ai/mouth_i.png"
-        open_u: "./assets/ai/mouth_u.png"
+    assets_dir: "/assets/ai"
 ```
 
 ## 5. リップシンク解析詳細
 - **音圧取得 (RMS)**: 
-  - `analyser.getByteTimeDomainData` を使用。
-  - `Math.sqrt(sum((data[i]/128-1)^2)/len)` で算出し、 `micThreshold` を超えたら発話中と判定。
+  - `analyser.getFloatTimeDomainData` を使用（Float32 で高精度解析）。
+  - `Math.sqrt(sum(data[i]^2)/len) * 100` で算出し、統一閾値（VAD dB → RMS×100 変換）を超えたら発話中と判定。
 - **母音推定 (FFT)**: 
-  - `analyser.getByteFrequencyData` からスペクトル重心を計算。
-  - 推定された母音に基づき `config.json` の `assets.mouth` から適切な画像を選択。
+  - `analyser.getFloatFrequencyData` からスペクトル重心を計算。
+  - 5母音（あ・い・う・え・お）に分類し、対応する口画像に切り替え。
+  - 200Hz以下の低周波ノイズは除外。
 
 ## 6. 実装フェーズ (詳細ロードマップ)
 ### Phase 1: ユーザーボイス連動（UI基盤 & ローカルマイク）
@@ -105,15 +99,26 @@ avatars:
 - **Goal**: AIの話し声に合わせてAIアバターが動き、自然な会話のキャッチボールができる。
 
 ### Phase 3: 高精度リップシンク & アニメーション
-- [ ] FFTによる母音推定JSロジックの実装（あ・い・う の画像切り替え）。
-- [ ] 呼吸揺れ(CSS)とまばたき(JS Timer)の追加。
+- [x] FFTによる母音推定ロジックの実装（あ・い・う・え・お の5母音切り替え）。
+- [x] 呼吸揺れ(CSS Keyframes)とまばたき(JS Timer)の追加。
+- [x] **New**: 音声キューシステム導入（AI応答の重なり防止・シーケンシャル再生）。
+- [x] **New**: 音声感度閾値の統一（VAD dB → RMS×100 自動変換）。
+- [x] **New**: レンダラーのモジュール分割（state / audio / visual / comm）。
+- [x] **New**: TypeScript 全面移行（型定義・Discriminated Union による型安全）。
+- [x] **New**: ScriptProcessor → AudioWorklet 移行（音声処理の別スレッド化）。
+- [x] **New**: Base64エンコード安全化（スタックオーバーフロー防止）。
+- [x] **New**: Web Audio グラフ最適化（analyser→destination 重複接続修正）。
+- [x] **New**: WebSocket URL を electron.port から自動導出（設定の重複排除）。
+- [x] **New**: loadSettings() キャッシュ化、未使用コード除去。
 - **Goal**: 実際に「喋っている」ような滑らかなアニメーション。
 
 ### Phase 4: チューニング・拡張・リファクタリング
 - [ ] LLMの換装（Gemini から ChatGPT への切り替え対応）。
 - [ ] STTの換装（Whisper から Azure STT への切り替え対応）。
 - [ ] 全体的なレスポンス速度のプロファイリングと極限チューニング。
-- [ ] コード全体の再設計とテストコードの拡充。
+- [ ] GUI設定画面の実装（settings.yaml のパラメータをUIから変更可能に）。
+- [ ] WebSocket 再接続の指数バックオフ対応。
+- [ ] テストコードの拡充。
 - **Goal**: 性能・安定性・拡張性においてプロダクトレベルの品質に到達。
 
 ### Phase 5: サイドカー化 & パッケージ化
