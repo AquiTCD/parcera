@@ -139,7 +139,14 @@ export function setupMicStreaming(source) {
         const s = Math.max(-1, Math.min(1, inputData[i]));
         pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
       }
-      const base64Data = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+      // Encode PCM to Base64 without stack overflow (no spread operator)
+      const uint8 = new Uint8Array(pcmData.buffer);
+      let binary = '';
+      const CHUNK = 8192;
+      for (let offset = 0; offset < uint8.length; offset += CHUNK) {
+        binary += String.fromCharCode.apply(null, uint8.subarray(offset, offset + CHUNK));
+      }
+      const base64Data = btoa(binary);
       socket.send(JSON.stringify({
         type: 'data',
         session_id: 'parcera-session',
