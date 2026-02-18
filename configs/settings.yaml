@@ -49,6 +49,7 @@ vad:
 # Electron Application Settings
 electron:
   port: 8080
+  ai_audio_sample_rate: 16000  # Hz — must match TTS engine output sample rate
   windows:
     ai: { width: 400, height: 400, alwaysOnTop: true }
     user: { width: 400, height: 400, alwaysOnTop: true }

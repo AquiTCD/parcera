@@ -32,8 +32,9 @@ export function getAnalyser(): AnalyserNode | null { return analyser; }
 export function initAudioContext(): void {
   if (audioContext) return;
   try {
-    // AI window uses 16 kHz to match server-side TTS audio
-    const options: AudioContextOptions = state.avatarType === 'ai' ? { sampleRate: 16000 } : {};
+    // AI window uses a specific sample rate to match server-side TTS audio
+    const aiSampleRate = state.settings.electron?.ai_audio_sample_rate || 16000;
+    const options: AudioContextOptions = state.avatarType === 'ai' ? { sampleRate: aiSampleRate } : {};
     audioContext = new AudioContext(options);
 
     analyser = audioContext.createAnalyser();

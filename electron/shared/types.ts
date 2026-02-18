@@ -46,6 +46,7 @@ export interface VADSettings {
 
 export interface ElectronSettings {
   port?: number;                         // WebSocket port, ws://localhost:{port}/ws
+  ai_audio_sample_rate?: number;         // Hz — AudioContext sample rate for AI window
   windows?: Record<string, WindowConfig>;
 }
 

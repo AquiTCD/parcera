@@ -53,6 +53,7 @@ vad:
 # Electron Application Settings
 electron:
   port: 8080  # WebSocket URL is auto-derived: ws://localhost:{port}/ws
+  ai_audio_sample_rate: 16000  # Hz — must match TTS engine output
   windows:
     ai: { width: 400, height: 400, alwaysOnTop: true }
     user: { width: 400, height: 400, alwaysOnTop: true }
@@ -120,8 +121,8 @@ avatars:
 5. - [x] `vite.config.js` の TypeScript 化（`vite.config.ts`）。
 6. - [x] `getSettings()` の戻り型を `Record<string, unknown>` → `ParceraSettings` に統一。
 7. - [x] `ParceraSettings` 型の Single Source of Truth 化（`shared/types.ts` に集約、YAML構造との手動同期解消）。
-8. - [ ] Settings キャッシュのリロード対応（開発中の設定変更を即反映）。
-9. - [ ] AudioContext sampleRate のハードコード除去（`16000` → settings.yaml から読み込み）。
+8. - [x] Settings キャッシュのリロード対応（`forceReload` + `fs.watch` によるホットリロード）。
+9. - [x] AudioContext sampleRate のハードコード除去（`electron.ai_audio_sample_rate` から読み込み）。
 10. - [ ] Python側に健全性チェック用 `/health` エンドポイント追加（WebSocket再接続判断用）。
 11. - [ ] WebSocket 再接続の指数バックオフ対応（固定3秒→指数バックオフ＋最大リトライ回数＋状態表示）。
 12. - [ ] TTS失敗時のリトライ/フォールバック（空bytes握り潰し→1回リトライ＋エラー通知）。

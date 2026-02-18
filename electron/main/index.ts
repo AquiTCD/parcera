@@ -33,20 +33,33 @@ process.on('uncaughtException', (error: Error) => {
 
 let cachedSettings: ParceraSettings | null = null;
 
-function loadSettings(): ParceraSettings {
-  if (cachedSettings) return cachedSettings;
+function getSettingsPath(): string {
+  return path.resolve(process.env['APP_ROOT']!, '../configs/settings.yaml');
+}
+
+function loadSettings(forceReload = false): ParceraSettings {
+  if (cachedSettings && !forceReload) return cachedSettings;
   try {
-    const settingsPath = path.resolve(process.env['APP_ROOT']!, '../configs/settings.yaml');
+    const settingsPath = getSettingsPath();
     if (!fs.existsSync(settingsPath)) {
       console.warn('Settings file not found at:', settingsPath);
       return {};
     }
     const file = fs.readFileSync(settingsPath, 'utf8');
     cachedSettings = yaml.load(file) as ParceraSettings;
+    console.log('[Parcera] Settings loaded' + (forceReload ? ' (reloaded)' : ''));
     return cachedSettings;
   } catch (e) {
     console.error('Failed to load settings:', e);
     return {};
+  }
+}
+
+/** Notify all renderer windows that settings have changed */
+function broadcastSettingsReload(): void {
+  const settings = loadSettings(true);
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('settings-changed', settings);
   }
 }
 
@@ -83,6 +96,10 @@ ipcMain.handle('get-settings', async () => {
   return loadSettings();
 });
 
+ipcMain.handle('reload-settings', async () => {
+  return loadSettings(true);
+});
+
 ipcMain.on('resize-window', (event, width: number, height: number) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
@@ -93,6 +110,20 @@ ipcMain.on('resize-window', (event, width: number, height: number) => {
 app.whenReady().then(() => {
   userWindow = createAvatarWindow('user');
   aiWindow = createAvatarWindow('ai');
+
+  // Watch settings.yaml for changes in dev mode
+  if (VITE_DEV_SERVER_URL) {
+    const settingsPath = getSettingsPath();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    fs.watch(settingsPath, () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        console.log('[Parcera] settings.yaml changed, reloading...');
+        broadcastSettingsReload();
+      }, 300);
+    });
+    console.log('[Parcera] Watching settings.yaml for changes');
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
