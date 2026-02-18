@@ -74,7 +74,7 @@ const triggerInit = async (e: Event): Promise<void> => {
       if (analyser) micSource.connect(analyser);
       logStatus('User Mic Active');
     } else {
-      setupMicStreaming(micSource);
+      await setupMicStreaming(micSource);
       logStatus('AI System Listening...');
     }
   } catch (err) {

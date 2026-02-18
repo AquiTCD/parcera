@@ -2,15 +2,30 @@
  * Parcera: Communication Manager
  *
  * WebSocket connection to the Python AI server, microphone streaming
- * (PCM → Base64), and sequential audio playback queue.
+ * (PCM via AudioWorklet → Base64), and sequential audio playback queue.
  */
 import { state, logStatus } from './state';
 import type { ServerMessage } from './state';
 import { getContext, getAnalyser } from './audio';
+import processorUrl from './pcm-processor.js?url';
 
 // --- Module State ---
 let socket: WebSocket | null = null;
 let playbackRouteReady = false;
+
+// --- Base64 Encoding (chunked, stack-safe) ---
+const BASE64_CHUNK_SIZE = 8192;
+
+function uint8ToBase64(uint8: Uint8Array): string {
+  let binary = '';
+  for (let offset = 0; offset < uint8.length; offset += BASE64_CHUNK_SIZE) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(uint8.subarray(offset, offset + BASE64_CHUNK_SIZE))
+    );
+  }
+  return btoa(binary);
+}
 
 // =====================
 // Audio Playback Queue
@@ -134,42 +149,33 @@ export function startWebSocket(): void {
 }
 
 // =====================
-// Mic Streaming
+// Mic Streaming (AudioWorklet — off main thread)
 // =====================
-const BASE64_CHUNK_SIZE = 8192;
-
-export function setupMicStreaming(source: MediaStreamAudioSourceNode): void {
+export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Promise<void> {
   const audioContext = getContext();
   if (!audioContext) return;
 
-  const processor = audioContext.createScriptProcessor(4096, 1, 1);
+  // Load the worklet processor (Vite resolves the URL via ?url import)
+  await audioContext.audioWorklet.addModule(processorUrl);
+  const workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
+
+  source.connect(workletNode);
+
+  // Silent output to keep the audio graph alive
   const silentGain = audioContext.createGain();
   silentGain.gain.value = 0;
-
-  source.connect(processor);
-  processor.connect(silentGain);
+  workletNode.connect(silentGain);
   silentGain.connect(audioContext.destination);
 
-  processor.onaudioprocess = (e: AudioProcessingEvent) => {
+  // Receive PCM buffers from the worklet thread
+  workletNode.port.onmessage = (e: MessageEvent) => {
     if (state.isAIPlaying) return;
     if (socket && socket.readyState === WebSocket.OPEN) {
-      const inputData = e.inputBuffer.getChannelData(0);
-      const pcmData = new Int16Array(inputData.length);
-      for (let i = 0; i < inputData.length; i++) {
-        const s = Math.max(-1, Math.min(1, inputData[i]));
-        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-      }
-      // Encode PCM to Base64 without stack overflow (chunked loop)
-      const uint8 = new Uint8Array(pcmData.buffer);
-      let binary = '';
-      for (let offset = 0; offset < uint8.length; offset += BASE64_CHUNK_SIZE) {
-        binary += String.fromCharCode.apply(null, Array.from(uint8.subarray(offset, offset + BASE64_CHUNK_SIZE)));
-      }
-      const base64Data = btoa(binary);
+      const base64Data = uint8ToBase64(new Uint8Array(e.data as ArrayBuffer));
       socket.send(JSON.stringify({
         type: 'data',
         session_id: 'parcera-session',
-        audio_data: base64Data
+        audio_data: base64Data,
       }));
     }
   };
