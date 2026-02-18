@@ -113,8 +113,8 @@ avatars:
 - **Goal**: 実際に「喋っている」ような滑らかなアニメーション。
 
 ### Phase 4: チューニング・拡張・リファクタリング
-1. - [ ] Vite ボイラープレート残骸の削除（`counter.js`, `javascript.svg`）。
-2. - [ ] デバッグ用一時ファイルのクリーンアップ（`check_tts_output.wav` の除去/.gitignore追加）。
+1. - [x] Vite ボイラープレート残骸の削除（`counter.js`, `javascript.svg`）。
+2. - [x] デバッグ用一時ファイルのクリーンアップ（`check_tts_output.wav` の除去。`*.wav` は既に .gitignore 済み）。
 3. - [ ] Electron Main Process (`main/index.js`) の TypeScript 化。
 4. - [ ] Electron Preload (`main/preload.js`) の TypeScript 化。
 5. - [ ] `vite.config.js` の TypeScript 化（`vite.config.ts`）。
