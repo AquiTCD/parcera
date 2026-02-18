@@ -123,9 +123,9 @@ avatars:
 7. - [x] `ParceraSettings` 型の Single Source of Truth 化（`shared/types.ts` に集約、YAML構造との手動同期解消）。
 8. - [x] Settings キャッシュのリロード対応（`forceReload` + `fs.watch` によるホットリロード）。
 9. - [x] AudioContext sampleRate のハードコード除去（`electron.ai_audio_sample_rate` から読み込み）。
-10. - [ ] Python側に健全性チェック用 `/health` エンドポイント追加（WebSocket再接続判断用）。
-11. - [ ] WebSocket 再接続の指数バックオフ対応（固定3秒→指数バックオフ＋最大リトライ回数＋状態表示）。
-12. - [ ] TTS失敗時のリトライ/フォールバック（空bytes握り潰し→1回リトライ＋エラー通知）。
+10. - [x] Python側に健全性チェック用 `/health` エンドポイント追加（TTSエンジン状態含む）。
+11. - [x] WebSocket 再接続の指数バックオフ対応（1s→1s/2s/4s/...30s、最夅10回、`/health` 事前確認）。
+12. - [x] TTS失敗時のリトライ/フォールバック（空チャンクスキップ、1回リトライ後スキップでキュー継続）。
 13. - [ ] 全体的なレスポンス速度のプロファイリングと極限チューニング。
 14. - [ ] LLMの換装（Gemini から ChatGPT への切り替え対応）。
 15. - [ ] STTの換装（Whisper から Azure STT への切り替え対応）。

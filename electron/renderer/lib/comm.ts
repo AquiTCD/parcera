@@ -54,8 +54,10 @@ function enqueueAudioChunk(base64: string): void {
   }
 }
 
-async function playNextChunk(): Promise<void> {
-  if (audioQueue.length === 0) {
+async function playNextChunk(retryData?: string): Promise<void> {
+  const base64 = retryData || audioQueue.shift();
+
+  if (!base64) {
     isProcessingQueue = false;
     currentSource = null;
     state.isAIPlaying = false;
@@ -63,8 +65,14 @@ async function playNextChunk(): Promise<void> {
     return;
   }
 
+  // Skip empty or trivially small chunks (TTS engine failure)
+  if (base64.length < 100) {
+    console.warn('[Parcera] Skipping empty/tiny audio chunk');
+    playNextChunk();
+    return;
+  }
+
   isProcessingQueue = true;
-  const base64 = audioQueue.shift()!;
   const audioContext = getContext();
   const analyser = getAnalyser();
 
@@ -92,7 +100,16 @@ async function playNextChunk(): Promise<void> {
   } catch (err) {
     console.error('AI Audio Error:', err);
     currentSource = null;
-    playNextChunk(); // skip bad chunk
+
+    // Retry once if this wasn't already a retry
+    if (!retryData) {
+      console.warn('[Parcera] Retrying audio chunk decode...');
+      await new Promise((r) => setTimeout(r, 50));
+      playNextChunk(base64);
+    } else {
+      console.error('[Parcera] Audio chunk decode failed after retry, skipping');
+      playNextChunk(); // skip bad chunk, continue queue
+    }
   }
 }
 
@@ -109,43 +126,79 @@ function initPlaybackRoute(): void {
   }
 }
 
+// --- Reconnection with Exponential Backoff ---
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+const RECONNECT_MAX_RETRIES = 10;
+let reconnectAttempt = 0;
+
+async function checkServerHealth(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://localhost:${port}/health`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function scheduleReconnect(): void {
+  reconnectAttempt++;
+  if (reconnectAttempt > RECONNECT_MAX_RETRIES) {
+    logStatus(`Reconnect failed (${RECONNECT_MAX_RETRIES} attempts)`);
+    return;
+  }
+  const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, reconnectAttempt - 1), RECONNECT_MAX_MS);
+  logStatus(`Reconnecting in ${(delay / 1000).toFixed(0)}s (${reconnectAttempt}/${RECONNECT_MAX_RETRIES})...`);
+  setTimeout(startWebSocket, delay);
+}
+
 export function startWebSocket(): void {
   if (state.avatarType !== 'ai') return;
 
   initPlaybackRoute(); // wire analyser→destination once
 
-  // Derive URL from electron.port — no need for a separate wsUrl setting
   const port = state.settings.electron?.port || 8080;
-  const wsUrl = `ws://localhost:${port}/ws`;
-  logStatus('Connecting to AI Server...');
-  socket = new WebSocket(wsUrl);
 
-  socket.onopen = () => {
-    logStatus('AI Server Online');
-    socket?.send(JSON.stringify({ type: 'start', session_id: 'parcera-session' }));
-  };
-
-  socket.onmessage = async (event: MessageEvent) => {
-    const data: ServerMessage = JSON.parse(event.data as string);
-    if (data.type === 'start' || data.type === 'thinking') {
-      flushAudioQueue(); // cancel old response
-      state.isAIPlaying = true;
-      logStatus(data.type === 'thinking' ? `Thinking: ${data.text}` : 'AI Responding...');
-    } else if (data.type === 'chunk' && data.audio_data) {
-      enqueueAudioChunk(data.audio_data);
-    } else if (data.type === 'stop') {
-      if (audioQueue.length === 0 && !currentSource) {
-        state.isAIPlaying = false;
-        logStatus('AI Stopped');
-      }
-      // queue not empty → let it drain naturally via playNextChunk
+  // Check server health before attempting WebSocket connection
+  checkServerHealth(port).then((healthy) => {
+    if (!healthy && reconnectAttempt > 0) {
+      logStatus('Server not ready');
+      scheduleReconnect();
+      return;
     }
-  };
 
-  socket.onclose = () => {
-    logStatus('AI Connection Lost');
-    setTimeout(startWebSocket, 3000);
-  };
+    const wsUrl = `ws://localhost:${port}/ws`;
+    logStatus('Connecting to AI Server...');
+    socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      reconnectAttempt = 0; // reset on success
+      logStatus('AI Server Online');
+      socket?.send(JSON.stringify({ type: 'start', session_id: 'parcera-session' }));
+    };
+
+    socket.onmessage = async (event: MessageEvent) => {
+      const data: ServerMessage = JSON.parse(event.data as string);
+      if (data.type === 'start' || data.type === 'thinking') {
+        flushAudioQueue(); // cancel old response
+        state.isAIPlaying = true;
+        logStatus(data.type === 'thinking' ? `Thinking: ${data.text}` : 'AI Responding...');
+      } else if (data.type === 'chunk' && data.audio_data) {
+        enqueueAudioChunk(data.audio_data);
+      } else if (data.type === 'stop') {
+        if (audioQueue.length === 0 && !currentSource) {
+          state.isAIPlaying = false;
+          logStatus('AI Stopped');
+        }
+        // queue not empty → let it drain naturally via playNextChunk
+      }
+    };
+
+    socket.onclose = () => {
+      logStatus('AI Connection Lost');
+      scheduleReconnect();
+    };
+  });
 }
 
 // =====================

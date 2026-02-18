@@ -3,6 +3,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+import httpx
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from aiavatar.adapter.websocket.server import AIAvatarWebSocketServer, WebSocketSessionData
@@ -101,6 +102,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Health check endpoint (used by Electron for reconnection decisions)
+@app.get("/health")
+async def health_check():
+    tts_ok = False
+    try:
+        active_engine = parcera_server.config.get("active_engine", "voicevox")
+        engine_cfg = parcera_server.config.get("engines", {}).get(active_engine, {})
+        api_url = engine_cfg.get("api_url", "http://127.0.0.1:50021")
+        async with httpx.AsyncClient() as client:
+            res = await client.get(f"{api_url}/version", timeout=1.0)
+            tts_ok = res.status_code == 200
+    except Exception:
+        pass
+    return {"status": "ok", "tts_engine": tts_ok}
 
 # Use AIAvatarWebSocketServer's standard router
 app.include_router(parcera_server.aiavatar_server.get_websocket_router())
