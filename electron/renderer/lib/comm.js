@@ -9,6 +9,7 @@ import { getContext, getAnalyser } from './audio.js';
 
 // --- Module State ---
 let socket = null;
+let playbackRouteReady = false;
 
 // =====================
 // Audio Playback Queue
@@ -61,7 +62,7 @@ async function playNextChunk() {
     source.buffer = audioData;
 
     source.connect(analyser);
-    analyser.connect(audioContext.destination);
+    // analyser→destination is connected once via initPlaybackRoute()
 
     currentSource = source;
     source.start();
@@ -80,8 +81,20 @@ async function playNextChunk() {
 // =====================
 // WebSocket
 // =====================
+function initPlaybackRoute() {
+  if (playbackRouteReady) return;
+  const analyser = getAnalyser();
+  const audioContext = getContext();
+  if (analyser && audioContext) {
+    analyser.connect(audioContext.destination);
+    playbackRouteReady = true;
+  }
+}
+
 export function startWebSocket() {
   if (state.avatarType !== 'ai') return;
+
+  initPlaybackRoute(); // wire analyser→destination once
 
   // Derive URL from electron.port — no need for a separate wsUrl setting
   const port = state.settings.electron?.port || 8080;
