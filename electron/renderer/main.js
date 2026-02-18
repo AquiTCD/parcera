@@ -241,13 +241,19 @@ function startWebSocket() {
   socket.onmessage = async (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'start' || data.type === 'thinking') {
+      // New response incoming: flush old queue and cancel current playback
+      flushAudioQueue();
       isAIPlaying = true;
       logStatus(data.type === 'thinking' ? `Thinking: ${data.text}` : 'AI Responding...');
     } else if (data.type === 'chunk' && data.audio_data) {
-      playAIResponse(data.audio_data);
+      enqueueAudioChunk(data.audio_data);
     } else if (data.type === 'stop') {
-      isAIPlaying = false;
-      logStatus('AI Stopped');
+      // Server says done. If queue is empty, mark idle immediately.
+      if (audioQueue.length === 0 && !currentSource) {
+        isAIPlaying = false;
+        logStatus('AI Stopped');
+      }
+      // Otherwise, let the queue drain naturally via playNextChunk's onended.
     }
   };
 
@@ -257,7 +263,43 @@ function startWebSocket() {
   };
 }
 
-async function playAIResponse(base64) {
+// --- Audio Queue System ---
+const audioQueue = [];
+let currentSource = null;
+let isProcessingQueue = false;
+
+function flushAudioQueue() {
+  audioQueue.length = 0;
+  if (currentSource) {
+    try {
+      currentSource.onended = null; // Prevent cascading
+      currentSource.stop();
+    } catch (_) { /* already stopped */ }
+    currentSource = null;
+  }
+  isProcessingQueue = false;
+}
+
+function enqueueAudioChunk(base64) {
+  audioQueue.push(base64);
+  isAIPlaying = true;
+  if (!isProcessingQueue) {
+    playNextChunk();
+  }
+}
+
+async function playNextChunk() {
+  if (audioQueue.length === 0) {
+    isProcessingQueue = false;
+    currentSource = null;
+    isAIPlaying = false;
+    logStatus('AI Stopped');
+    return;
+  }
+
+  isProcessingQueue = true;
+  const base64 = audioQueue.shift();
+
   try {
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);
@@ -267,22 +309,20 @@ async function playAIResponse(base64) {
     const source = audioContext.createBufferSource();
     source.buffer = audioData;
 
-    // AI Window: Wire AI voice through analyser for lip-sync
     source.connect(analyser);
     analyser.connect(audioContext.destination);
 
-    isAIPlaying = true;
+    currentSource = source;
     source.start();
-    console.log('[Parcera] AI Speaking... AudioBuffer Size:', audioData.length);
 
     source.onended = () => {
-      isAIPlaying = false;
-      // Do not disconnect destination yet, keep it connected for future chunks
-      console.log('[Parcera] AI Chunk Finished');
+      currentSource = null;
+      playNextChunk(); // Play next in queue
     };
   } catch (err) {
     console.error('AI Audio Error:', err);
-    isAIPlaying = false;
+    currentSource = null;
+    playNextChunk(); // Skip bad chunk, continue queue
   }
 }
 
