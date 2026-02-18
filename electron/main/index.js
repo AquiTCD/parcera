@@ -20,10 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, '..');
 
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
-export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
-
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
 
 let userWindow = null;
 let aiWindow = null;
@@ -33,16 +30,19 @@ process.on('uncaughtException', (error) => {
   app.quit();
 });
 
+let cachedSettings = null;
+
 function loadSettings() {
+  if (cachedSettings) return cachedSettings;
   try {
     const settingsPath = path.resolve(process.env.APP_ROOT, '../configs/settings.yaml');
-    console.log('Attempting to load settings from:', settingsPath);
     if (!fs.existsSync(settingsPath)) {
       console.warn('Settings file not found at:', settingsPath);
       return {};
     }
     const file = fs.readFileSync(settingsPath, 'utf8');
-    return yaml.load(file);
+    cachedSettings = yaml.load(file);
+    return cachedSettings;
   } catch (e) {
     console.error('Failed to load settings:', e);
     return {};
@@ -51,7 +51,7 @@ function loadSettings() {
 
 function createAvatarWindow(type) {
   const settings = loadSettings();
-  const winCfg = settings?.electron?.windows?.[type] || { width: 400, height: 600, alwaysOnTop: type === 'ai' };
+  const winCfg = settings?.electron?.windows?.[type] || { width: 400, height: 400, alwaysOnTop: type === 'ai' };
 
   const win = new BrowserWindow({
     width: winCfg.width,
@@ -60,6 +60,7 @@ function createAvatarWindow(type) {
     transparent: true,
     frame: false,
     hasShadow: false,
+    resizable: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },
@@ -79,6 +80,13 @@ function createAvatarWindow(type) {
 
 ipcMain.handle('get-settings', async () => {
   return loadSettings();
+});
+
+ipcMain.on('resize-window', (event, width, height) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.setSize(Math.round(width), Math.round(height));
+  }
 });
 
 app.whenReady().then(() => {
