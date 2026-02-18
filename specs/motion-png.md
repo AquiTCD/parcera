@@ -113,12 +113,23 @@ avatars:
 - **Goal**: 実際に「喋っている」ような滑らかなアニメーション。
 
 ### Phase 4: チューニング・拡張・リファクタリング
-- [ ] LLMの換装（Gemini から ChatGPT への切り替え対応）。
-- [ ] STTの換装（Whisper から Azure STT への切り替え対応）。
-- [ ] 全体的なレスポンス速度のプロファイリングと極限チューニング。
-- [ ] GUI設定画面の実装（settings.yaml のパラメータをUIから変更可能に）。
-- [ ] WebSocket 再接続の指数バックオフ対応。
-- [ ] テストコードの拡充。
+1. - [ ] Vite ボイラープレート残骸の削除（`counter.js`, `javascript.svg`）。
+2. - [ ] デバッグ用一時ファイルのクリーンアップ（`check_tts_output.wav` の除去/.gitignore追加）。
+3. - [ ] Electron Main Process (`main/index.js`) の TypeScript 化。
+4. - [ ] Electron Preload (`main/preload.js`) の TypeScript 化。
+5. - [ ] `vite.config.js` の TypeScript 化（`vite.config.ts`）。
+6. - [ ] `getSettings()` の戻り型を `Record<string, unknown>` → `ParceraSettings` に統一。
+7. - [ ] `ParceraSettings` 型の Single Source of Truth 化（YAML構造との手動同期解消）。
+8. - [ ] Settings キャッシュのリロード対応（開発中の設定変更を即反映）。
+9. - [ ] AudioContext sampleRate のハードコード除去（`16000` → settings.yaml から読み込み）。
+10. - [ ] Python側に健全性チェック用 `/health` エンドポイント追加（WebSocket再接続判断用）。
+11. - [ ] WebSocket 再接続の指数バックオフ対応（固定3秒→指数バックオフ＋最大リトライ回数＋状態表示）。
+12. - [ ] TTS失敗時のリトライ/フォールバック（空bytes握り潰し→1回リトライ＋エラー通知）。
+13. - [ ] 全体的なレスポンス速度のプロファイリングと極限チューニング。
+14. - [ ] LLMの換装（Gemini から ChatGPT への切り替え対応）。
+15. - [ ] STTの換装（Whisper から Azure STT への切り替え対応）。
+16. - [ ] GUI設定画面の実装（settings.yaml のパラメータをUIから変更可能に）。
+17. - [ ] テストコードの拡充。
 - **Goal**: 性能・安定性・拡張性においてプロダクトレベルの品質に到達。
 
 ### Phase 5: サイドカー化 & パッケージ化
