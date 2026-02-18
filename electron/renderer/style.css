@@ -42,7 +42,7 @@ body {
   /* Transformation Origin: Top center so character breathes downward from head */
   transform-origin: top center;
 
-  /* Idle Animation: Controlled via CSS Variables set in main.js */
+  /* Idle Animation: Controlled via CSS Variables set in main.ts */
   animation: breathe var(--breathe-duration, 5s) ease-in-out infinite;
   pointer-events: none;
 }
