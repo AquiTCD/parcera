@@ -33,16 +33,19 @@ process.on('uncaughtException', (error) => {
   app.quit();
 });
 
+let cachedSettings = null;
+
 function loadSettings() {
+  if (cachedSettings) return cachedSettings;
   try {
     const settingsPath = path.resolve(process.env.APP_ROOT, '../configs/settings.yaml');
-    console.log('Attempting to load settings from:', settingsPath);
     if (!fs.existsSync(settingsPath)) {
       console.warn('Settings file not found at:', settingsPath);
       return {};
     }
     const file = fs.readFileSync(settingsPath, 'utf8');
-    return yaml.load(file);
+    cachedSettings = yaml.load(file);
+    return cachedSettings;
   } catch (e) {
     console.error('Failed to load settings:', e);
     return {};
