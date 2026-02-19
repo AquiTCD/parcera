@@ -9,7 +9,7 @@ force_keywords:
   - 教えて
 
 # LLM Settings
-llm_model: "gemini-3-flash-preview"
+llm_model: "gemini-2.5-flash"
 llm_temperature: 0.7
 option_split_threshold: 15  # Tuning for faster response (reduced from 20 for shorter replies)
 
@@ -46,6 +46,7 @@ tts_settings:
 vad:
   whisper_vad_filter: false  # Use Faster-Whisepr's internal VAD filter? (False = catch short utterances)
   volume_db_threshold: -20.0
+  silence_duration_threshold: 0.6 # Seconds of silence to consider speech ended (Lower = faster response)
   max_duration: 15.0
 
 # Electron Application Settings

@@ -69,10 +69,14 @@ class ParceraComponentFactory:
 
     def build_vad(self, volume_db_threshold=None):
         vad_cfg = self.config.get("vad", {})
-        threshold = volume_db_threshold if volume_db_threshold is not None else vad_cfg.get("volume_db_threshold", -10.0)
+        threshold = volume_db_threshold if volume_db_threshold is not None else vad_cfg.get("volume_db_threshold", -20.0)
+
+        silence_duration = vad_cfg.get("silence_duration_threshold", 0.6)
+        logger.info(f"VAD Config: Threshold={threshold}dB, Silence={silence_duration}s, MaxDur={vad_cfg.get('max_duration', 15.0)}")
+
         return StandardSpeechDetector(
             volume_db_threshold=threshold,
-            silence_duration_threshold=1.5,
+            silence_duration_threshold=silence_duration,
             max_duration=vad_cfg.get("max_duration", 15.0),
             debug=self.config.verbose
         )

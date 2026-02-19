@@ -29,6 +29,7 @@ class ParceraServer(ParceraAvatarBase):
 
         # Hook STT recognized callback to send "thinking" signal and manage state
         async def on_recognized(session_id, text):
+            # [PERF] Start measuring response latency
             # 1. Dynamic Merge Threshold
             # Cap at 1.5s to avoid over-merging short utterances into long responses
             length = len(text)
@@ -61,11 +62,10 @@ class ParceraServer(ParceraAvatarBase):
             if sts_response.type == "final":
                 self.set_busy(aiavatar_response.session_id, False)
                 logger.debug(f"Reset busy state for session {aiavatar_response.session_id}")
+                logger.info(f"AI: Response Final: {sts_response.text}")
 
             if sts_response.type == "chunk":
                 logger.debug(f"AI: Response Chunk: {sts_response.text}")
-            elif sts_response.type == "final":
-                logger.info(f"AI: Response Final: {sts_response.text}")
 
 # Global instances
 load_dotenv()
