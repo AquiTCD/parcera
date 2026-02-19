@@ -16,6 +16,7 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         compute_type="default",
         initial_prompt_path=None,
         response_filter=None,
+        whisper_vad_filter=False,
         on_recognized_callback=None,
         is_busy_handler=None,
         debug=False
@@ -24,7 +25,8 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         self.on_recognized_callback = on_recognized_callback
         self.is_busy_handler = is_busy_handler
         self.model_name = model_name
-        logger.info(f"Loading Faster-Whisper model: {model_name} on {device}...")
+        self.whisper_vad_filter = whisper_vad_filter
+        logger.info(f"Loading Faster-Whisper model: {model_name} on {device}... (VAD Filter: {self.whisper_vad_filter})")
         self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
         self.initial_prompt = ""
         if initial_prompt_path and os.path.exists(initial_prompt_path):
@@ -64,9 +66,9 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
                 language="ja",
                 initial_prompt=self.initial_prompt if self.initial_prompt else None,
                 beam_size=5,
-                vad_filter=True,
+                vad_filter=self.whisper_vad_filter,
                 temperature=0.0,
-                vad_parameters=dict(min_silence_duration_ms=500)
+                # vad_parameters=dict(min_silence_duration_ms=500)
             )
         )
 

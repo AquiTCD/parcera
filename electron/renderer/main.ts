@@ -6,7 +6,7 @@
  */
 import './style.css';
 import { state, logStatus } from './lib/state';
-import type { AvatarType, AvatarConfig } from './lib/state';
+import type { AvatarType, AvatarConfig, ParceraSettings } from './lib/state';
 import { initAudioContext, getContext, getAnalyser } from './lib/audio';
 import { initVisual } from './lib/visual';
 import { startWebSocket, setupMicStreaming } from './lib/comm';
@@ -15,8 +15,10 @@ import { startWebSocket, setupMicStreaming } from './lib/comm';
 declare global {
   interface Window {
     electronAPI: {
-      getSettings: () => Promise<Record<string, unknown>>;
+      getSettings: () => Promise<ParceraSettings>;
+      reloadSettings: () => Promise<ParceraSettings>;
       resizeWindow: (width: number, height: number) => void;
+      onSettingsChanged: (callback: (settings: ParceraSettings) => void) => void;
     };
   }
 }
@@ -88,44 +90,48 @@ const triggerInit = async (e: Event): Promise<void> => {
 
 interactionLayer.addEventListener('click', triggerInit);
 window.addEventListener('mousedown', triggerInit);
-
 // --- Start Visual Loop (blinking works before activation) ---
 initVisual(avatarImage, statusDebug);
 
-// --- Load Settings ---
+// --- Settings Application ---
+function applySettings(settings: ParceraSettings): void {
+  state.settings = settings;
+
+  // Unified threshold: dB → RMS×100
+  const volumeDb = settings.vad?.volume_db_threshold ?? -20;
+  state.threshold = Math.pow(10, volumeDb / 20) * 100;
+
+  // Breathe animation CSS variables
+  const bScale = settings.avatars?.breathe_scale || 1.005;
+  const bAmp = settings.avatars?.breathe_amplitude || 2;
+  const bDur = settings.avatars?.breathe_duration || 5000;
+  document.documentElement.style.setProperty('--breathe-scale', String(bScale));
+  document.documentElement.style.setProperty('--breathe-amplitude', `${bAmp}px`);
+  document.documentElement.style.setProperty('--breathe-duration', `${bDur}ms`);
+
+  // Avatar image
+  const avatarConfig = settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
+  const assetsDir = avatarConfig?.assets_dir || `/assets/${state.avatarType}`;
+  avatarImage.src = `${assetsDir}/base.png`;
+
+  // Resize window to match image
+  if (avatarImage.complete) {
+    window.electronAPI.resizeWindow(avatarImage.naturalWidth, avatarImage.naturalHeight);
+  }
+
+  // Vowel fallback for missing mouth sprites
+  avatarImage.onerror = () => {
+    const src = avatarImage.src;
+    if (src.endsWith('/e.png')) avatarImage.src = src.replace('/e.png', '/a.png');
+    else if (src.endsWith('/o.png')) avatarImage.src = src.replace('/o.png', '/u.png');
+  };
+}
+
+// --- Initial Load ---
 (async () => {
   try {
-    state.settings = await window.electronAPI.getSettings();
-    const avatarConfig = state.settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
-
-    // Unified threshold: dB → RMS×100
-    const volumeDb = state.settings.vad?.volume_db_threshold ?? -20;
-    state.threshold = Math.pow(10, (volumeDb as number) / 20) * 100;
-
-    // Breathe animation CSS variables
-    const bScale = (state.settings.avatars?.breathe_scale as number | undefined) || 1.005;
-    const bAmp = (state.settings.avatars?.breathe_amplitude as number | undefined) || 2;
-    const bDur = (state.settings.avatars?.breathe_duration as number | undefined) || 5000;
-    document.documentElement.style.setProperty('--breathe-scale', String(bScale));
-    document.documentElement.style.setProperty('--breathe-amplitude', `${bAmp}px`);
-    document.documentElement.style.setProperty('--breathe-duration', `${bDur}ms`);
-
-    // Initial avatar image
-    const assetsDir = avatarConfig?.assets_dir || `/assets/${state.avatarType}`;
-    avatarImage.src = `${assetsDir}/base.png`;
-
-    // Resize window to match image
-    if (avatarImage.complete) {
-      window.electronAPI.resizeWindow(avatarImage.naturalWidth, avatarImage.naturalHeight);
-    }
-
-    // Vowel fallback for missing mouth sprites
-    avatarImage.onerror = () => {
-      const src = avatarImage.src;
-      if (src.endsWith('/e.png')) avatarImage.src = src.replace('/e.png', '/a.png');
-      else if (src.endsWith('/o.png')) avatarImage.src = src.replace('/o.png', '/u.png');
-    };
-
+    const settings = await window.electronAPI.getSettings();
+    applySettings(settings);
     logStatus('Settings Loaded');
   } catch (e) {
     console.error('Settings error:', e);
@@ -133,3 +139,10 @@ initVisual(avatarImage, statusDebug);
     logStatus('Using Defaults');
   }
 })();
+
+// --- Hot Reload (dev mode: settings.yaml changes are auto-applied) ---
+window.electronAPI.onSettingsChanged((settings: ParceraSettings) => {
+  applySettings(settings);
+  logStatus('Settings Reloaded');
+  console.log('[Parcera] Settings hot-reloaded');
+});

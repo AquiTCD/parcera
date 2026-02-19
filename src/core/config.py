@@ -45,5 +45,9 @@ class ParceraConfig:
     def verbose(self) -> bool:
         return self.get("verbose", False)
 
+    @property
+    def profile_mode(self) -> bool:
+        return self.get("profile_mode", False)
+
     def get(self, key, default=None):
         return self.settings.get(key, default)

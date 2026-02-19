@@ -21,18 +21,25 @@ class ParceraComponentFactory:
             temperature=float(self.config.get("llm_temperature", 0.7)),
             option_split_threshold=int(self.config.get("option_split_threshold", 20)),
             system_prompt=self.config.full_system_prompt,
+            profile_mode=self.config.profile_mode,
             debug=self.config.verbose
         )
 
     def build_stt(self, on_recognized_callback=None, is_busy_handler=None):
         force_keywords = self.config.get("force_keywords", ["パルセラ"])
-        response_filter = ResponseWeightFilter(force_keywords=force_keywords)
+        sensitivity = self.config.get("response_sensitivity", "medium")
+        response_filter = ResponseWeightFilter(force_keywords=force_keywords, sensitivity=sensitivity)
+
+        vad_cfg = self.config.get("vad", {})
+        whisper_vad_filter = vad_cfg.get("whisper_vad_filter", False)
+
         return KotobaWhisperRecognizer(
             model_name="longisland3/kotoba-whisper-v2.2-faster",
             device="cpu",
             compute_type="int8",
             initial_prompt_path="prompts/stt_initial_prompt.md",
             response_filter=response_filter,
+            whisper_vad_filter=whisper_vad_filter,
             on_recognized_callback=on_recognized_callback,
             is_busy_handler=is_busy_handler,
             debug=self.config.verbose
@@ -63,10 +70,14 @@ class ParceraComponentFactory:
 
     def build_vad(self, volume_db_threshold=None):
         vad_cfg = self.config.get("vad", {})
-        threshold = volume_db_threshold if volume_db_threshold is not None else vad_cfg.get("volume_db_threshold", -10.0)
+        threshold = volume_db_threshold if volume_db_threshold is not None else vad_cfg.get("volume_db_threshold", -20.0)
+
+        silence_duration = vad_cfg.get("silence_duration_threshold", 0.6)
+        logger.info(f"VAD Config: Threshold={threshold}dB, Silence={silence_duration}s, MaxDur={vad_cfg.get('max_duration', 15.0)}")
+
         return StandardSpeechDetector(
             volume_db_threshold=threshold,
-            silence_duration_threshold=1.5,
+            silence_duration_threshold=silence_duration,
             max_duration=vad_cfg.get("max_duration", 15.0),
             debug=self.config.verbose
         )

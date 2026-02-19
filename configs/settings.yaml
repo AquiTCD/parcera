@@ -1,16 +1,19 @@
 # General Application Settings
 verbose: false
+profile_mode: false  # Enable performance logging ([PERF])
 log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-merge_request_threshold: 3.0  # Seconds to merge consecutive requests
+merge_request_threshold: 1.5  # Seconds to merge consecutive requests (reduced from 3.0 to prevent over-merging)
+response_sensitivity: "medium"  # "high" | "medium" | "low" - Controls how often AI responds to non-keyword speech
 force_keywords:
   - パルセラ
   - Parcera
   - 教えて
 
 # LLM Settings
-llm_model: "gemini-3-flash-preview"
+llm_model: "gemini-2.5-flash"
 llm_temperature: 0.7
-option_split_threshold: 20  # Tuning for faster response (default 50)
+llm_persist_history: false # If true, history (aiavatar.db) is kept. If false, it's deleted on startup.
+option_split_threshold: 15  # Tuning for faster response (reduced from 20 for shorter replies)
 
 # TTS Engine Selection: ["aivisspeech", "voicevox"]
 # You can change this to "aivisspeech" to use AivisSpeech.
@@ -43,12 +46,15 @@ tts_settings:
 # Used by both Python VAD (speech recognition) and JS lip-sync (mouth movement).
 # JS conversion: RMS×100 = 10^(dB/20) × 100  (-20dB → 10.0)
 vad:
+  whisper_vad_filter: false  # Use Faster-Whisepr's internal VAD filter? (False = catch short utterances)
   volume_db_threshold: -20.0
+  silence_duration_threshold: 0.6 # Seconds of silence to consider speech ended (Lower = faster response)
   max_duration: 15.0
 
 # Electron Application Settings
 electron:
   port: 8080
+  ai_audio_sample_rate: 16000  # Hz — must match TTS engine output sample rate
   windows:
     ai: { width: 400, height: 400, alwaysOnTop: true }
     user: { width: 400, height: 400, alwaysOnTop: true }

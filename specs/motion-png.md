@@ -53,6 +53,7 @@ vad:
 # Electron Application Settings
 electron:
   port: 8080  # WebSocket URL is auto-derived: ws://localhost:{port}/ws
+  ai_audio_sample_rate: 16000  # Hz — must match TTS engine output
   windows:
     ai: { width: 400, height: 400, alwaysOnTop: true }
     user: { width: 400, height: 400, alwaysOnTop: true }
@@ -112,25 +113,43 @@ avatars:
 - [x] **New**: loadSettings() キャッシュ化、未使用コード除去。
 - **Goal**: 実際に「喋っている」ような滑らかなアニメーション。
 
-### Phase 4: チューニング・拡張・リファクタリング
-- [ ] LLMの換装（Gemini から ChatGPT への切り替え対応）。
-- [ ] STTの換装（Whisper から Azure STT への切り替え対応）。
-- [ ] 全体的なレスポンス速度のプロファイリングと極限チューニング。
-- [ ] GUI設定画面の実装（settings.yaml のパラメータをUIから変更可能に）。
-- [ ] WebSocket 再接続の指数バックオフ対応。
-- [ ] テストコードの拡充。
+### Phase 4: チューニング・拡張・リファクタリング (In Progress)
+1. - [x] Vite ボイラープレート残骸の削除。
+2. - [x] デバッグ用一時ファイルのクリーンアップ。
+3. - [x] Electron Main/Preload/Vite Config の TypeScript 化。
+4. - [x] `ParceraSettings` 型の Single Source of Truth 化。
+5. - [x] Settings キャッシュのリロード対応（ホットリロード）。
+6. - [x] AudioContext sampleRate のハードコード除去。
+7. - [x] Python側に健全性チェック用 `/health` エンドポイント追加。
+8. - [x] WebSocket 再接続の指数バックオフ対応。
+9. - [x] TTS失敗時のリトライ/フォールバック。
+10. - [x] レスポンス速度の最適化 (VAD閾値調整, Warm-up実装, 句読点戦略)。
+11. - [x] LLM構成管理の強化 (履歴リセット設定, Gemini 3/2.5 切り替え基盤)。
+12. - [x] パフォーマンス計測基盤 (`profile_mode` 実装)。
+13. - [x] プロンプト改善: フィラー戦略（初速向上）。
+14. - [x] フロントエンド音声遅延改善 (`AudioContext` latencyHint)。
+15. - [x] リップシンク精度の向上（レイテンシ改善による反応速度向上）。
 - **Goal**: 性能・安定性・拡張性においてプロダクトレベルの品質に到達。
 
-### Phase 5: サイドカー化 & パッケージ化
-- [ ] `child_process.spawn` でPythonエンジンを自動起動。
+### Phase 5: AIエンジンの換装・拡張 (Next)
+- [ ] **LLM**: Gemini 以外のモデル (ChatGPT, Claude, Local LLM) 対応基盤の実装。
+- [ ] **STT**: Whisper 以外のエンジン (Azure STT, Google STT) への切り替え対応。
+- [ ] **TTS**: Voicevox 以外のエンジン (AivisSpeech, Azure TTS) への切り替え対応。
+- **Goal**: ユーザーが好みのAIコンポーネントを自由に組み合わせられる柔軟性を提供する。
+
+### Phase 6: GUI設定画面 (Settings UI)
+- [ ] GUI設定画面の実装（settings.yaml のパラメータをUIから変更可能に）。
+  - Electron IPC通信で YAML を読み書き。
+  - フロントエンド(React)でのフォーム実装とバリデーション。
+- **Goal**: テキストエディタを使わずに設定完結できるようにする。
+
+### Phase 7: パッケージ化 & 統合
+- [ ] `child_process.spawn` でPythonエンジンを自動起動（サイドカー化）。
 - [ ] `PyInstaller` でのPythonバイナリ化と `asarUnpack` 設定。
 - [ ] `Electron Builder` で `.app` 化。
-- **Goal**: アイコンクリックだけで全システムが起動。
-
-### Phase 6: 統合動作テスト & 最適化
-- [ ] OBS 連携テスト（「透過を許可」を有効にしたキャプチャ）。
+- [ ] OBS 連携テスト。
 - [ ] リソース（CPU/メモリ）使用率の最適化。
-- **Goal**: Parcera AI Avatar システムの完成。
+- **Goal**: Parcera AI Avatar システムの完成と配布。
 
 ## 7. OBS連携ガイド
 - **Electron側設定**: `transparent: true`, `frame: false`

@@ -8,10 +8,10 @@ export default defineConfig({
     electron([
       {
         // Main process entry file of the Electron App.
-        entry: 'main/index.js',
+        entry: 'main/index.ts',
       },
       {
-        entry: 'main/preload.js',
+        entry: 'main/preload.ts',
         onstart(options) {
           // Notify the Renderer-Process to reload the page when the Preload-Scripts build is complete,
           // instead of restarting the entire Electron App.

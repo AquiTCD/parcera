@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from .config import ParceraConfig
 from .factory import ParceraComponentFactory
 
@@ -12,6 +13,16 @@ class ParceraAvatarBase:
             raise ValueError("GOOGLE_API_KEY is required.")
 
         self.config = ParceraConfig()
+
+        # Reset conversation history on startup unless persistence is enabled
+        persist_history = self.config.get("llm_persist_history", False)
+        if not persist_history and os.path.exists("aiavatar.db"):
+            try:
+                os.remove("aiavatar.db")
+                logger.info("Deleted aiavatar.db (History reset)")
+            except Exception as e:
+                logger.warning(f"Failed to delete aiavatar.db: {e}")
+
         self.factory = ParceraComponentFactory(self.config, self.google_api_key)
         self._busy_sessions = set()
 
@@ -28,6 +39,39 @@ class ParceraAvatarBase:
             self._busy_sessions.add(session_id)
         else:
             self._busy_sessions.discard(session_id)
+
+    async def warmup(self):
+        """
+        Initialize components to reduce latency on first user interaction.
+        """
+        logger.info("Initializing components (Warm-up)...")
+        tasks = []
+
+        # 1. Warm-up LLM (Connection establishment)
+        if hasattr(self.llm, "warmup"):
+            tasks.append(self.llm.warmup())
+
+        # 2. Warm-up TTS (Engine startup)
+        # Synthesize a tiny silent character to wake up the engine/audio device
+        try:
+            # Using asyncio.to_thread if synchronous, but most TTS clients are async-capable (or wrapped)
+            # Assuming self.tts.synthesize is async or fast enough
+            if asyncio.iscoroutinefunction(self.tts.voice_text_to_wav):
+                tasks.append(self.tts.voice_text_to_wav("。"))
+            else:
+                # If sync, run in executor
+                loop = asyncio.get_running_loop()
+                tasks.append(loop.run_in_executor(None, self.tts.voice_text_to_wav, "。"))
+        except Exception as e:
+             logger.warning(f"TTS Warm-up setup failed: {e}")
+
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for res in results:
+                if isinstance(res, Exception):
+                     logger.warning(f"Warm-up task failed: {res}")
+
+        logger.info("Warm-up complete.")
 
     async def cleanup(self):
         if hasattr(self.tts, "close"):

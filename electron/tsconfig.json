@@ -24,7 +24,9 @@
   },
   "include": [
     "renderer/**/*.ts",
-    "renderer/vite-env.d.ts"
+    "renderer/vite-env.d.ts",
+    "main/**/*.ts",
+    "shared/**/*.ts"
   ],
   "exclude": [
     "node_modules",
