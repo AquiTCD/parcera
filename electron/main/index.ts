@@ -77,8 +77,12 @@ function createAvatarWindow(type: string): BrowserWindow {
     resizable: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      sandbox: false, // Allow preload full access
+      contextIsolation: true, // Default, but explicit
     },
   });
+
+  win.webContents.openDevTools({ mode: 'detach' });
 
   if (process.platform === 'darwin') {
     win.setWindowButtonVisibility(false);
@@ -138,3 +142,76 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+let settingsWindow: BrowserWindow | null = null;
+
+function createSettingsWindow() {
+  if (settingsWindow) {
+    settingsWindow.focus();
+    return;
+  }
+
+  const settings = loadSettings();
+  const win = new BrowserWindow({
+    width: 600,
+    height: 800,
+    title: 'Parcera Settings',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+  });
+
+  win.webContents.openDevTools({ mode: 'detach' });
+
+  const url = VITE_DEV_SERVER_URL
+    ? `${VITE_DEV_SERVER_URL}?type=settings`
+    : `file://${path.join(RENDERER_DIST, 'index.html')}?type=settings`;
+
+  win.loadURL(url);
+
+  win.on('closed', () => {
+    settingsWindow = null;
+  });
+
+  settingsWindow = win;
+}
+
+ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => {
+  try {
+    const settingsPath = getSettingsPath();
+    const yamlStr = yaml.dump(newSettings);
+    fs.writeFileSync(settingsPath, yamlStr, 'utf8');
+    cachedSettings = newSettings;
+    broadcastSettingsReload();
+    return { success: true };
+  } catch (e) {
+    console.error('Failed to save settings:', e);
+    return { success: false, error: String(e) };
+  }
+});
+
+import { Menu } from 'electron';
+
+const template: Electron.MenuItemConstructorOptions[] = [
+  {
+    label: 'Parcera',
+    submenu: [
+      { role: 'about' },
+      { type: 'separator' },
+      {
+        label: 'Preferences...',
+        accelerator: 'CmdOrCtrl+,',
+        click: () => {
+          createSettingsWindow();
+        },
+      },
+      { type: 'separator' },
+      { role: 'quit' },
+    ],
+  },
+];
+
+const menu = Menu.buildFromTemplate(template);
+Menu.setApplicationMenu(menu);
