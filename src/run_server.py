@@ -30,9 +30,10 @@ class ParceraServer(ParceraAvatarBase):
         # Hook STT recognized callback to send "thinking" signal and manage state
         async def on_recognized(session_id, text):
             # 1. Dynamic Merge Threshold
+            # Cap at 1.5s to avoid over-merging short utterances into long responses
             length = len(text)
-            # 3.0s to 0.8s based on length (0.8s at 44 chars)
-            dynamic_threshold = max(0.8, 3.0 - (length * 0.05))
+            # 1 char = 0.5s, 22 chars = 1.5s (max)
+            dynamic_threshold = max(0.5, min(1.5, 0.5 + (length * 0.05)))
             self.aiavatar_server.merge_request_threshold = dynamic_threshold
             logger.debug(f"Dynamic Merge Threshold: {dynamic_threshold:.2f} (len: {length})")
 

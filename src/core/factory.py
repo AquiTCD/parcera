@@ -26,13 +26,19 @@ class ParceraComponentFactory:
 
     def build_stt(self, on_recognized_callback=None, is_busy_handler=None):
         force_keywords = self.config.get("force_keywords", ["パルセラ"])
-        response_filter = ResponseWeightFilter(force_keywords=force_keywords)
+        sensitivity = self.config.get("response_sensitivity", "medium")
+        response_filter = ResponseWeightFilter(force_keywords=force_keywords, sensitivity=sensitivity)
+
+        vad_cfg = self.config.get("vad", {})
+        whisper_vad_filter = vad_cfg.get("whisper_vad_filter", False)
+
         return KotobaWhisperRecognizer(
             model_name="longisland3/kotoba-whisper-v2.2-faster",
             device="cpu",
             compute_type="int8",
             initial_prompt_path="prompts/stt_initial_prompt.md",
             response_filter=response_filter,
+            whisper_vad_filter=whisper_vad_filter,
             on_recognized_callback=on_recognized_callback,
             is_busy_handler=is_busy_handler,
             debug=self.config.verbose

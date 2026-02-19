@@ -13,8 +13,18 @@ const AI_RMS_BOOST = 1.5;
 const SILENCE_AMPLITUDE_FLOOR = 0.001;
 const LOW_FREQ_CUTOFF = 200; // Hz — ignore rumble below this
 
-/** Vowel spectral centroid boundaries (normalized 0.0–1.0) */
-const VOWEL_BOUNDARIES = { u: 0.04, o: 0.10, a: 0.20, e: 0.35 } as const;
+/**
+ * Vowel boundaries in absolute Hz (based on Japanese vowel formant ranges).
+ * Using absolute Hz rather than normalized 0-1 avoids sample-rate-dependent
+ * skew (User window uses ~48kHz, AI window uses 16kHz → very different nyquist).
+ *
+ *  u: spectral centroid below ~600Hz (dark, low-energy)
+ *  o: 600–1500Hz
+ *  a: 1500–3000Hz (bright, wide)
+ *  e: 3000–5000Hz
+ *  i: above 5000Hz (brightest)
+ */
+const VOWEL_BOUNDARIES_HZ = { u: 600, o: 1500, a: 3000, e: 5000 } as const;
 
 export type Vowel = 'a' | 'i' | 'u' | 'e' | 'o';
 
@@ -81,12 +91,12 @@ export function getVowel(): Vowel | null {
 
   if (totalAmplitude < SILENCE_AMPLITUDE_FLOOR) return null;
 
+  // Use absolute Hz centroid (not normalized) to avoid sample-rate skew
   const centroid = weightedFreqSum / totalAmplitude;
-  const centroid01 = Math.min(1, centroid / nyquist);
 
-  if (centroid01 < VOWEL_BOUNDARIES.u) return 'u';
-  if (centroid01 < VOWEL_BOUNDARIES.o) return 'o';
-  if (centroid01 < VOWEL_BOUNDARIES.a) return 'a';
-  if (centroid01 < VOWEL_BOUNDARIES.e) return 'e';
+  if (centroid < VOWEL_BOUNDARIES_HZ.u) return 'u';
+  if (centroid < VOWEL_BOUNDARIES_HZ.o) return 'o';
+  if (centroid < VOWEL_BOUNDARIES_HZ.a) return 'a';
+  if (centroid < VOWEL_BOUNDARIES_HZ.e) return 'e';
   return 'i';
 }
