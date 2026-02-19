@@ -29,7 +29,12 @@ class ParceraServer(ParceraAvatarBase):
 
         # Hook STT recognized callback to send "thinking" signal and manage state
         async def on_recognized(session_id, text):
-            # [PERF] Start measuring response latency
+            # [PERF] Measure response latency if profile mode is enabled
+            if self.config.profile_mode:
+                import time
+                start_time = time.time()
+                logger.info(f"[PERF] STT Recognized: '{text}' at {start_time:.3f}")
+
             # 1. Dynamic Merge Threshold
             # Cap at 1.5s to avoid over-merging short utterances into long responses
             length = len(text)
@@ -58,14 +63,27 @@ class ParceraServer(ParceraAvatarBase):
 
         @self.aiavatar_server.on_response
         async def on_response(aiavatar_response, sts_response):
+            # [PERF] Log response timing if profile mode is enabled
+            if self.config.profile_mode:
+                import time
+                now = time.time()
+
             # Reset busy state when final response is done
             if sts_response.type == "final":
                 self.set_busy(aiavatar_response.session_id, False)
                 logger.debug(f"Reset busy state for session {aiavatar_response.session_id}")
-                logger.info(f"AI: Response Final: {sts_response.text}")
+                if self.config.profile_mode:
+                    logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")
+                else:
+                    logger.info(f"AI: Response Final: {sts_response.text}")
 
             if sts_response.type == "chunk":
-                logger.debug(f"AI: Response Chunk: {sts_response.text}")
+                if self.config.profile_mode:
+                    logger.info(f"[PERF] Response Chunk (TTS Start): '{sts_response.text}' at {now:.3f}")
+                else:
+                    logger.debug(f"AI: Response Chunk: {sts_response.text}")
+            elif sts_response.type == "final":
+                pass # Already logged above
 
 # Global instances
 load_dotenv()

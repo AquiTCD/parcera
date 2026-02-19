@@ -21,6 +21,7 @@ class ParceraComponentFactory:
             temperature=float(self.config.get("llm_temperature", 0.7)),
             option_split_threshold=int(self.config.get("option_split_threshold", 20)),
             system_prompt=self.config.full_system_prompt,
+            profile_mode=self.config.profile_mode,
             debug=self.config.verbose
         )
 

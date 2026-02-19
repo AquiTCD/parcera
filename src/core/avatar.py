@@ -12,6 +12,16 @@ class ParceraAvatarBase:
             raise ValueError("GOOGLE_API_KEY is required.")
 
         self.config = ParceraConfig()
+
+        # Reset conversation history on startup unless persistence is enabled
+        persist_history = self.config.get("llm_persist_history", False)
+        if not persist_history and os.path.exists("aiavatar.db"):
+            try:
+                os.remove("aiavatar.db")
+                logger.info("Deleted aiavatar.db (History reset)")
+            except Exception as e:
+                logger.warning(f"Failed to delete aiavatar.db: {e}")
+
         self.factory = ParceraComponentFactory(self.config, self.google_api_key)
         self._busy_sessions = set()
 

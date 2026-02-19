@@ -9,8 +9,9 @@ from aiavatar.sts.llm import LLMResponse
 logger = logging.getLogger(__name__)
 
 class FixedGeminiService(GeminiService):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, profile_mode: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.profile_mode = profile_mode
         self._system_prompt_logged = False
 
     async def get_llm_stream_response(self, context_id: str, user_id: str, messages: List[dict], system_prompt_params: Dict[str, Any] = None, tools: List[Dict[str, Any]] = None):
@@ -35,9 +36,17 @@ class FixedGeminiService(GeminiService):
         try:
             first_chunk = True
             async for chunk in super().get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools):
-                if first_chunk:
+                if self.profile_mode:
+                    import time
+                    if first_chunk:
+                        logger.info(f"[PERF] LLM First Chunk Received at {time.time():.3f}")
+                        first_chunk = False
+                    # Ensure chunk is stringified before slicing to avoid TypeError
+                    logger.debug(f"[PERF] LLM Stream Chunk: {str(chunk)[:50]}...")
+                elif first_chunk:
                     logger.debug(f"LLM: First chunk received for context: {context_id}")
                     first_chunk = False
+
                 yield chunk
         except asyncio.CancelledError:
             logger.info(f"LLM: Request cancelled (context: {context_id}).")
