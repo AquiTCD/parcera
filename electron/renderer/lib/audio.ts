@@ -44,7 +44,10 @@ export function initAudioContext(): void {
   try {
     // AI window uses a specific sample rate to match server-side TTS audio
     const aiSampleRate = state.settings.electron?.ai_audio_sample_rate || 16000;
-    const options: AudioContextOptions = state.avatarType === 'ai' ? { sampleRate: aiSampleRate } : {};
+    const baseOptions: AudioContextOptions = { latencyHint: 'interactive' };
+    const options: AudioContextOptions = state.avatarType === 'ai'
+      ? { sampleRate: aiSampleRate, ...baseOptions }
+      : { ...baseOptions };
     audioContext = new AudioContext(options);
 
     analyser = audioContext.createAnalyser();
