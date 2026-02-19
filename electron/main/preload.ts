@@ -8,4 +8,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSettingsChanged: (callback: (settings: ParceraSettings) => void): void => {
     ipcRenderer.on('settings-changed', (_event, settings: ParceraSettings) => callback(settings));
   },
+  saveSettings: (settings: ParceraSettings): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('save-settings', settings),
 });
