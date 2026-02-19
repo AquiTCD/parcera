@@ -87,3 +87,15 @@ class FixedGeminiService(GeminiService):
                         part["text"] = self._update_context_filter(part["text"])
 
         await self.context_manager.add_histories(context_id, dict_messages, "gemini")
+
+    async def warmup(self):
+        """
+        Send a dummy request to warm up the connection and model.
+        Delegates to aiavatar's native preflight method if available.
+        """
+        try:
+            logger.info("LLM: Warming up (preflight)...")
+            await self.preflight()
+            logger.info("LLM: Warm-up complete.")
+        except Exception as e:
+            logger.warning(f"LLM: Warm-up failed: {e}")

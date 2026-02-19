@@ -92,7 +92,7 @@ parcera_server = ParceraServer()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    asyncio.create_task(parcera_server.llm.preflight())
+    # Startup
     logger.info("Server is ready and warming up Gemini...")
 
     settings = load_config_file("configs/settings.yaml")
@@ -104,6 +104,9 @@ async def lifespan(app: FastAPI):
 
     engine_manager = TTSEngineManager(tts_engine_path, tts_api_url)
     await engine_manager.start()
+
+    # Warm-up components (LLM connection, TTS engine) in background
+    asyncio.create_task(parcera_server.warmup())
 
     yield
 
