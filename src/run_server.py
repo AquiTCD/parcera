@@ -24,7 +24,8 @@ class ParceraServer(ParceraAvatarBase):
             vad=self.vad,
             tts=self.tts,
             merge_request_threshold=self.config.get("merge_request_threshold", 3.0),
-            debug=self.config.verbose
+            debug=self.config.verbose,
+            voice_recorder_enabled=False  # Disable audio recording
         )
 
         # Hook STT recognized callback to send "thinking" signal and manage state
@@ -92,27 +93,34 @@ parcera_server = ParceraServer()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    # Startup
     logger.info("Server is ready and warming up Gemini...")
 
-    settings = load_config_file("configs/settings.yaml")
-    active_engine = settings.get("active_engine", "voicevox")
-    engine_cfg = settings.get("engines", {}).get(active_engine, {})
+    settings = parcera_server.config.settings # Use loaded config from server instance
 
-    tts_api_url = engine_cfg.get("api_url", "http://127.0.0.1:50021" if active_engine == "voicevox" else "http://127.0.0.1:10101")
-    tts_engine_path = engine_cfg.get("engine_path")
+    # New TTS Config Structure
+    tts_cfg = settings.get("tts", {})
+    provider = tts_cfg.get("provider", "aivisspeech")
+    provider_cfg = tts_cfg.get("providers", {}).get(provider, {})
 
-    engine_manager = TTSEngineManager(tts_engine_path, tts_api_url)
-    await engine_manager.start()
+    tts_api_url = provider_cfg.get("api_url", "http://127.0.0.1:10101")
+    # engine_path is optional in settings.yaml now, but good to handle if present
+    tts_engine_path = provider_cfg.get("engine_path")
 
-    # Warm-up components (LLM connection, TTS engine) in background
+    # Only start engine manager if path is provided
+    engine_manager = None
+    if tts_engine_path:
+        engine_manager = TTSEngineManager(tts_engine_path, tts_api_url)
+        await engine_manager.start()
+
+    # Warm-up components
     asyncio.create_task(parcera_server.warmup())
 
     yield
 
     # Shutdown
     await parcera_server.cleanup()
-    await engine_manager.stop()
+    if engine_manager:
+        await engine_manager.stop()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -125,14 +133,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check endpoint (used by Electron for reconnection decisions)
+# Health check endpoint
 @app.get("/health")
 async def health_check():
     tts_ok = False
     try:
-        active_engine = parcera_server.config.get("active_engine", "voicevox")
-        engine_cfg = parcera_server.config.get("engines", {}).get(active_engine, {})
-        api_url = engine_cfg.get("api_url", "http://127.0.0.1:50021")
+        settings = parcera_server.config.settings
+        tts_cfg = settings.get("tts", {})
+        provider = tts_cfg.get("provider", "aivisspeech")
+        provider_cfg = tts_cfg.get("providers", {}).get(provider, {})
+        api_url = provider_cfg.get("api_url", "http://127.0.0.1:10101")
+
         async with httpx.AsyncClient() as client:
             res = await client.get(f"{api_url}/version", timeout=1.0)
             tts_ok = res.status_code == 200
