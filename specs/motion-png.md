@@ -131,10 +131,10 @@ avatars:
 15. - [x] リップシンク精度の向上（レイテンシ改善による反応速度向上）。
 - **Goal**: 性能・安定性・拡張性においてプロダクトレベルの品質に到達。
 
-### Phase 5: AIエンジンの換装・拡張 (Next)
-- [ ] **LLM**: Gemini 以外のモデル (ChatGPT, Claude, Local LLM) 対応基盤の実装。
-- [ ] **STT**: Whisper 以外のエンジン (Azure STT, Google STT) への切り替え対応。
-- [ ] **TTS**: Voicevox 以外のエンジン (AivisSpeech, Azure TTS) への切り替え対応。
+### Phase 5: AIエンジンの換装・拡張 (Completed)
+- [x] **LLM**: Gemini 以外のモデル (OpenAI GPT-4o) 対応基盤の実装。
+- [x] **STT**: Whisper 以外のエンジン (Azure STT, Google STT) への切り替え対応。
+- [x] **TTS**: Voicevox 以外のエンジン (AivisSpeech) への切り替え対応 (維持・整理)。
 - **Goal**: ユーザーが好みのAIコンポーネントを自由に組み合わせられる柔軟性を提供する。
 
 ### Phase 6: GUI設定画面 (Settings UI)
