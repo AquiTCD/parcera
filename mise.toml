@@ -1,0 +1,18 @@
+[tasks]
+description = "Parcera Project Tasks"
+
+[tasks.dev]
+description = "Start Electron dev server (Frontend)"
+run = "cd electron && pnpm dev"
+
+[tasks.build]
+description = "Build Electron app"
+run = "cd electron && pnpm build"
+
+[tasks.server]
+description = "Start Python AI Server (Backend)"
+run = "uv run src/core/main.py"
+
+[tasks.start]
+description = "Start both Frontend and Backend (Parallel)"
+depends = ["server", "dev"]
