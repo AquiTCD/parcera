@@ -8,16 +8,6 @@ export interface TabProps {
   updateProvider: (category: 'llm' | 'stt' | 'tts', providerName: string, key: string, value: any) => void;
   setStatus: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' | '' }>>;
   renderTabHeader?: (title: string) => React.ReactNode;
-  showApiKeysState?: [boolean, React.Dispatch<React.SetStateAction<boolean>>];
-  isFetchingLLM?: boolean;
-  llmModels?: string[] | null;
-  handleFetchLLMModels?: () => void;
-  isFetchingTTS?: boolean;
-  speakersInfo?: { id: number; name: string; styleName: string }[] | null;
-  handleFetchSpeakers?: () => void;
-  isFetchingGoogleVoice?: boolean;
-  googleVoices?: { id: string; gender: string }[] | null;
-  handleFetchGoogleVoices?: () => void;
   updateTTSSettings?: (key: string, value: any) => void;
   handleSelectDir?: (target: 'user' | 'ai') => Promise<void>;
 }

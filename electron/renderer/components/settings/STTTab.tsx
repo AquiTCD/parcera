@@ -1,8 +1,11 @@
 import React from 'react';
 import { TabProps, inputStyle } from './types';
-import { SettingGroup, CheckboxSetting, InputSetting, PasswordSetting } from './FormControls';
+import { SettingGroup } from './controls/SettingGroup';
+import { CheckboxSetting } from './controls/CheckboxSetting';
+import { InputSetting } from './controls/InputSetting';
+import { PasswordSetting } from './controls/PasswordSetting';
 
-export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot, updateProvider, showApiKeysState, renderTabHeader }) => {
+export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
   const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
 
   return (
@@ -155,7 +158,6 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
             placeholder="Google Cloud API Key"
             value={(settings.stt?.providers?.google as any)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'google', 'api_key', val)}
-            showPasswordState={showApiKeysState!}
           />
           <InputSetting
             label="言語 (Language)"
@@ -174,7 +176,6 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
             placeholder="Azure API Key"
             value={(settings.stt?.providers?.azure as any)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'azure', 'api_key', val)}
-            showPasswordState={showApiKeysState!}
           />
           <InputSetting
             label="リージョン"

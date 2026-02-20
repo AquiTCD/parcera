@@ -1,19 +1,55 @@
 import React from 'react';
 import { TabProps, inputStyle } from './types';
-import { SettingGroup, CheckboxSetting, InputSetting, PasswordSetting } from './FormControls';
+import { SettingGroup } from './controls/SettingGroup';
+import { CheckboxSetting } from './controls/CheckboxSetting';
+import { InputSetting } from './controls/InputSetting';
+import { PasswordSetting } from './controls/PasswordSetting';
+import useSWR from 'swr';
 
 export const LLMTab: React.FC<TabProps> = ({
   settings,
   updateNested,
   updateProvider,
   setStatus,
-  renderTabHeader,
-  showApiKeysState,
-  isFetchingLLM,
-  llmModels,
-  handleFetchLLMModels
+  renderTabHeader
 }) => {
   const currentLLMProvider = settings.llm?.provider || 'gemini';
+  const apiKey = (settings.llm?.providers as any)?.[currentLLMProvider]?.api_key;
+
+  const { data: llmModels, error, isValidating: isFetchingLLM, mutate } = useSWR(
+    apiKey ? ['llmModels', currentLLMProvider, apiKey] : null,
+    async ([_, provider, key]) => {
+      if (provider === 'gemini') {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        if (!res.ok) throw new Error('API要求に失敗しました。キーを確認してください');
+        const data = await res.json();
+        if (!data.models) throw new Error('モデル一覧が取得できませんでした');
+        return data.models.filter((m: any) => m.name.includes("gemini")).map((m: any) => m.name.replace("models/", ""));
+      } else if (provider === 'openai') {
+        const res = await fetch(`https://api.openai.com/v1/models`, { headers: { 'Authorization': `Bearer ${key}` } });
+        if (!res.ok) throw new Error('API要求に失敗しました。キーを確認してください');
+        const data = await res.json();
+        if (!data.data) throw new Error('モデル一覧が取得できませんでした');
+        return data.data.filter((m: any) => m.id.includes("gpt")).map((m: any) => m.id).reverse();
+      }
+      return [];
+    },
+    { revalidateOnFocus: false, errorRetryCount: 1 }
+  );
+
+  React.useEffect(() => {
+    if (error) {
+      setStatus({ message: `通信エラー: ${error.message}`, type: 'error' });
+    }
+  }, [error, setStatus]);
+
+  const handleFetchClick = () => {
+    if (!apiKey) {
+      setStatus({ message: 'APIキーを入力してから、モデル一覧を取得してください。', type: 'error' });
+      return;
+    }
+    mutate();
+  };
 
   return (
     <section className="animate-fade-in">
@@ -38,10 +74,9 @@ export const LLMTab: React.FC<TabProps> = ({
           placeholder="API Key"
           value={(settings.llm?.providers as any)?.[currentLLMProvider]?.api_key ?? ''}
           onChange={(val) => updateProvider('llm', currentLLMProvider, 'api_key', val)}
-          showPasswordState={showApiKeysState!}
           buttonAction={
             <button
-              onClick={handleFetchLLMModels}
+              onClick={handleFetchClick}
               style={{ padding: '6px 12px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}
               disabled={isFetchingLLM}
             >
@@ -62,7 +97,7 @@ export const LLMTab: React.FC<TabProps> = ({
             ) : llmModels && llmModels.length > 0 ? (
               <>
                 <option value="">-- 指定なし (デフォルト) --</option>
-                {llmModels.map(m => (
+                {llmModels.map((m: string) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </>

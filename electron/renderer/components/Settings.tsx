@@ -20,145 +20,6 @@ export const Settings: React.FC = () => {
   const [settings, setSettings] = useState<ParceraSettings | null>(null);
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({ message: '', type: '' });
   const [activeTab, setActiveTab] = useState('general');
-  const [speakersInfo, setSpeakersInfo] = useState<{ id: number; name: string; styleName: string }[] | null>(null);
-  const [llmModels, setLlmModels] = useState<string[] | null>(null);
-  const [googleVoices, setGoogleVoices] = useState<{ id: string, gender: string }[] | null>(null);
-  const [showApiKeys, setShowApiKeys] = useState(false);
-  const [isFetchingTTS, setIsFetchingTTS] = useState(false);
-  const [isFetchingLLM, setIsFetchingLLM] = useState(false);
-  const [isFetchingGoogleVoice, setIsFetchingGoogleVoice] = useState(false);
-
-  const currentTTSProvider = settings?.tts?.provider || 'aivisspeech';
-  const ttsSettingsUrl = settings?.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.api_url;
-
-  const handleFetchSpeakers = () => {
-    if (activeTab === 'tts' && (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox')) {
-      const rawUrl = ttsSettingsUrl || (currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021');
-      const url = rawUrl.replace(/\/$/, '');
-      setStatus({ message: `「${currentTTSProvider}」からキャラクター一覧を取得中...`, type: '' });
-      setIsFetchingTTS(true);
-      fetch(`${url}/speakers`)
-        .then(res => res.json())
-        .then(data => {
-          const formatted = data.flatMap((speaker: any) =>
-            speaker.styles.map((style: any) => ({
-              id: style.id,
-              name: speaker.name,
-              styleName: style.name
-            }))
-          );
-          setSpeakersInfo(formatted);
-          setStatus({ message: `「${currentTTSProvider}」からキャラクター一覧を取得しました！`, type: 'success' });
-          setTimeout(() => setStatus({ message: '', type: '' }), 3000);
-        })
-        .catch(err => {
-          console.error('Failed to fetch speakers:', err);
-          setSpeakersInfo(null);
-          setStatus({ message: `エラー: エンジンに接続できません。(${url}) 起動しているか確認してください。`, type: 'error' });
-        })
-        .finally(() => setIsFetchingTTS(false));
-    }
-  };
-
-  const currentLLMProvider = settings?.llm?.provider || 'gemini';
-
-  const handleFetchLLMModels = () => {
-    const apiKey = (settings?.llm?.providers as any)?.[currentLLMProvider]?.api_key;
-    if (!apiKey) {
-      setStatus({ message: 'APIキーを入力してから、モデル一覧を取得してください。', type: 'error' });
-      return;
-    }
-
-    setStatus({ message: 'モデル一覧を取得中...', type: '' });
-    setIsFetchingLLM(true);
-
-    if (currentLLMProvider === 'gemini') {
-      fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.models) {
-            setLlmModels(data.models.filter((m: any) => m.name.includes("gemini")).map((m: any) => m.name.replace("models/", "")));
-            setStatus({ message: 'Geminiからモデル一覧を取得しました！', type: 'success' });
-            setTimeout(() => setStatus({ message: '', type: '' }), 3000);
-          } else {
-            setStatus({ message: 'エラー: モデル一覧が取得できませんでした (APIキーを確認してください)', type: 'error' });
-          }
-        }).catch(e => { console.error('Gemini models fetch failed', e); setLlmModels(null); setStatus({ message: '通信エラーが発生しました', type: 'error' }); })
-        .finally(() => setIsFetchingLLM(false));
-    } else if (currentLLMProvider === 'openai') {
-      fetch(`https://api.openai.com/v1/models`, { headers: { 'Authorization': `Bearer ${apiKey}` } })
-        .then(res => res.json())
-        .then(data => {
-          if (data.data) {
-            setLlmModels(data.data.filter((m: any) => m.id.includes("gpt")).map((m: any) => m.id).reverse());
-            setStatus({ message: 'OpenAIからモデル一覧を取得しました！', type: 'success' });
-            setTimeout(() => setStatus({ message: '', type: '' }), 3000);
-          } else {
-            setStatus({ message: 'エラー: モデル一覧が取得できませんでした (APIキーを確認してください)', type: 'error' });
-          }
-        }).catch(e => { console.error('OpenAI models fetch failed', e); setLlmModels(null); setStatus({ message: '通信エラーが発生しました', type: 'error' }); })
-        .finally(() => setIsFetchingLLM(false));
-    }
-  };
-
-  const handleFetchGoogleVoices = () => {
-    const apiKey = (settings?.tts?.providers?.google as any)?.api_key;
-    if (!apiKey) {
-      setStatus({ message: 'APIキーを入力してから、音声一覧を取得してください。', type: 'error' });
-      return;
-    }
-    setStatus({ message: 'Googleから音声一覧を取得中...', type: '' });
-    setIsFetchingGoogleVoice(true);
-    fetch(`https://texttospeech.googleapis.com/v1/voices?key=${apiKey}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.voices) {
-          const formatted = data.voices
-            .filter((v: any) => v.name.includes('ja-JP'))
-            .map((v: any) => ({
-              id: v.name,
-              gender: v.ssmlGender.replace('SSML_VOICE_GENDER_', '')
-            }));
-          setGoogleVoices(formatted);
-          setStatus({ message: 'Googleから日本語音声一覧を取得しました！', type: 'success' });
-          setTimeout(() => setStatus({ message: '', type: '' }), 3000);
-        } else {
-          setStatus({ message: 'エラー: 音声一覧が取得できませんでした (APIキーを確認してください)', type: 'error' });
-        }
-      })
-      .catch(err => {
-        console.error('Failed to fetch google voices:', err);
-        setGoogleVoices(null);
-        setStatus({ message: '通信エラーが発生しました', type: 'error' });
-      })
-      .finally(() => setIsFetchingGoogleVoice(false));
-  };
-
-  useEffect(() => {
-    if (activeTab === 'tts' && settings) {
-      if (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') {
-        handleFetchSpeakers();
-      } else if (currentTTSProvider === 'google') {
-        if ((settings?.tts?.providers?.google as any)?.api_key) {
-          handleFetchGoogleVoices();
-        } else {
-          setGoogleVoices(null);
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTTSProvider]);
-
-  useEffect(() => {
-    if (activeTab === 'llm' && settings) {
-      if ((settings?.llm?.providers as any)?.[currentLLMProvider]?.api_key) {
-        handleFetchLLMModels();
-      } else {
-        setLlmModels(null);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLLMProvider]);
 
   useEffect(() => {
     // @ts-ignore
@@ -356,10 +217,6 @@ export const Settings: React.FC = () => {
               updateRoot={updateRoot}
               setStatus={setStatus}
               renderTabHeader={renderTabHeader}
-              showApiKeysState={[showApiKeys, setShowApiKeys]}
-              isFetchingLLM={isFetchingLLM}
-              llmModels={llmModels}
-              handleFetchLLMModels={handleFetchLLMModels}
             />
           )}
 
@@ -372,7 +229,6 @@ export const Settings: React.FC = () => {
               updateProvider={updateProvider}
               setStatus={setStatus}
               renderTabHeader={renderTabHeader}
-              showApiKeysState={[showApiKeys, setShowApiKeys]}
             />
           )}
 
@@ -386,13 +242,6 @@ export const Settings: React.FC = () => {
               updateTTSSettings={updateTTSSettings}
               setStatus={setStatus}
               renderTabHeader={renderTabHeader}
-              showApiKeysState={[showApiKeys, setShowApiKeys]}
-              isFetchingTTS={isFetchingTTS}
-              speakersInfo={speakersInfo}
-              handleFetchSpeakers={handleFetchSpeakers}
-              isFetchingGoogleVoice={isFetchingGoogleVoice}
-              googleVoices={googleVoices}
-              handleFetchGoogleVoices={handleFetchGoogleVoices}
             />
           )}
 

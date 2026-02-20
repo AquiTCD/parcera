@@ -1,6 +1,7 @@
 import React from 'react';
 import { TabProps, inputStyle } from './types';
-import { SettingGroup, InputSetting } from './FormControls';
+import { SettingGroup } from './controls/SettingGroup';
+import { InputSetting } from './controls/InputSetting';
 
 export const SystemTab: React.FC<TabProps> = ({ settings, updateNested, renderTabHeader }) => {
   return (

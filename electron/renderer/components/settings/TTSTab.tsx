@@ -1,22 +1,73 @@
 import React from 'react';
 import { TabProps, inputStyle } from './types';
-import { SettingGroup, InputSetting, PasswordSetting } from './FormControls';
+import { SettingGroup } from './controls/SettingGroup';
+import { InputSetting } from './controls/InputSetting';
+import { PasswordSetting } from './controls/PasswordSetting';
+import useSWR from 'swr';
 
 export const TTSTab: React.FC<TabProps> = ({
   settings,
   updateNested,
   updateProvider,
   updateTTSSettings,
-  showApiKeysState,
-  renderTabHeader,
-  isFetchingTTS,
-  speakersInfo,
-  handleFetchSpeakers,
-  isFetchingGoogleVoice,
-  googleVoices,
-  handleFetchGoogleVoices
+  setStatus,
+  renderTabHeader
 }) => {
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
+  const ttsSettingsUrl = settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.api_url;
+  const rawUrl = ttsSettingsUrl || (currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021');
+  const url = rawUrl.replace(/\/$/, '');
+
+  const { data: speakersInfo, error: speakersError, isValidating: isFetchingTTS, mutate: retrySpeakers } = useSWR(
+    (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') ? ['speakers', url] : null,
+    async ([_, fetchUrl]) => {
+      const res = await fetch(`${fetchUrl}/speakers`);
+      if (!res.ok) throw new Error('エンジンに接続できません');
+      const data = await res.json();
+      return data.flatMap((speaker: any) =>
+        speaker.styles.map((style: any) => ({
+          id: style.id,
+          name: speaker.name,
+          styleName: style.name
+        }))
+      );
+    },
+    { revalidateOnFocus: false, errorRetryCount: 1 }
+  );
+
+  const googleApiKey = (settings.tts?.providers?.google as any)?.api_key;
+  const { data: googleVoices, error: googleError, isValidating: isFetchingGoogleVoice, mutate: retryGoogle } = useSWR(
+    currentTTSProvider === 'google' && googleApiKey ? ['googleVoices', googleApiKey] : null,
+    async ([_, key]) => {
+      const res = await fetch(`https://texttospeech.googleapis.com/v1/voices?key=${key}`);
+      if (!res.ok) throw new Error('API要求に失敗しました。キーを確認してください');
+      const data = await res.json();
+      if (!data.voices) throw new Error('音声一覧が取得できませんでした');
+      return data.voices.filter((v: any) => v.name.includes('ja-JP')).map((v: any) => ({
+        id: v.name,
+        gender: v.ssmlGender.replace('SSML_VOICE_GENDER_', '')
+      }));
+    },
+    { revalidateOnFocus: false, errorRetryCount: 1 }
+  );
+
+  React.useEffect(() => {
+    if (speakersError) {
+      setStatus({ message: `通信エラー: ${speakersError.message}`, type: 'error' });
+    }
+    if (googleError) {
+      setStatus({ message: `通信エラー: ${googleError.message}`, type: 'error' });
+    }
+  }, [speakersError, googleError, setStatus]);
+
+  const handleFetchSpeakers = () => retrySpeakers();
+  const handleFetchGoogleVoices = () => {
+    if (!googleApiKey) {
+      setStatus({ message: 'APIキーを入力してから、音声一覧を取得してください。', type: 'error' });
+      return;
+    }
+    retryGoogle();
+  };
 
   return (
     <section className="animate-fade-in">
@@ -70,7 +121,7 @@ export const TTSTab: React.FC<TabProps> = ({
               ) : speakersInfo && speakersInfo.length > 0 ? (
                 <>
                   <option value="">-- 指定なし (デフォルト) --</option>
-                  {speakersInfo.map(spk => (
+                  {speakersInfo.map((spk: { id: number; name: string; styleName: string }) => (
                     <option key={`${spk.name}-${spk.id}`} value={spk.id}>{spk.name} ({spk.styleName}) - ID:{spk.id}</option>
                   ))}
                 </>
@@ -88,7 +139,6 @@ export const TTSTab: React.FC<TabProps> = ({
             placeholder="Google Cloud API Key"
             value={(settings.tts?.providers?.google as any)?.api_key ?? ''}
             onChange={(val) => updateProvider('tts', 'google', 'api_key', val)}
-            showPasswordState={showApiKeysState!}
             buttonAction={
               <button
                 onClick={handleFetchGoogleVoices}
@@ -111,7 +161,7 @@ export const TTSTab: React.FC<TabProps> = ({
               ) : googleVoices && googleVoices.length > 0 ? (
                 <>
                   <option value="">-- 指定なし (デフォルト) --</option>
-                  {googleVoices.map(v => (
+                  {googleVoices.map((v: { id: string; gender: string }) => (
                     <option key={v.id} value={v.id}>{v.id} ({v.gender})</option>
                   ))}
                 </>

@@ -1,6 +1,8 @@
 import React from 'react';
 import { TabProps, inputStyle } from './types';
-import { SettingGroup, CheckboxSetting, InputSetting } from './FormControls';
+import { SettingGroup } from './controls/SettingGroup';
+import { CheckboxSetting } from './controls/CheckboxSetting';
+import { InputSetting } from './controls/InputSetting';
 
 export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTabHeader, handleSelectDir }) => {
   return (
