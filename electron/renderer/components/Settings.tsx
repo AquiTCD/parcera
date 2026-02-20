@@ -22,14 +22,12 @@ export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
 
   useEffect(() => {
-    // @ts-ignore
     window.electronAPI.getSettings().then(setSettings);
   }, []);
 
   const handleSave = async () => {
     if (!settings) return;
     setStatus({ message: '保存中...', type: '' });
-    // @ts-ignore
     const result = await window.electronAPI.saveSettings(settings);
     if (result.success) {
       setStatus({ message: '設定を保存しました！', type: 'success' });
@@ -44,7 +42,6 @@ export const Settings: React.FC = () => {
     if (!window.confirm(`「${tabLabel}」のタブ設定を初期値に戻しますか？\n(「保存する」を押すまで確定しません)`)) return;
 
     setStatus({ message: '初期値を取得中...', type: '' });
-    // @ts-ignore
     const defaultSettings: ParceraSettings = await window.electronAPI.getDefaultSettings();
     if (!defaultSettings) {
       setStatus({ message: 'エラー: 初期値を取得できませんでした', type: 'error' });
@@ -88,7 +85,6 @@ export const Settings: React.FC = () => {
   const handleSelectDir = async (key: 'user' | 'ai') => {
     if (!settings) return;
     const current = (settings.avatars?.[key] as any)?.assets_dir;
-    // @ts-ignore
     const result = await window.electronAPI.selectDirectory(current);
     if (result) {
       updateNested('avatars', key, { ...(settings.avatars?.[key] as any), assets_dir: result });

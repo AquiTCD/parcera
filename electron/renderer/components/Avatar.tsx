@@ -5,24 +5,20 @@ import { initAudioContext, getContext, getAnalyser } from '../lib/audio';
 import { initVisual } from '../lib/visual';
 import { startWebSocket, setupMicStreaming } from '../lib/comm';
 
+// Initialize global state.avatarType immediately upon module execution
+const params = new URLSearchParams(window.location.search);
+state.avatarType = (params.get('type') as AvatarType) || 'user';
+console.log('[Parcera] Avatar Type Initialized:', state.avatarType);
+
 export const Avatar: React.FC = () => {
   const avatarImageRef = useRef<HTMLImageElement>(null);
   const statusDebugRef = useRef<HTMLDivElement>(null);
   const [initialized, setInitialized] = useState(false);
-  const [statusText, setStatusText] = useState('Initializing...');
 
-  // Helper to update status both in state and UI
+  // Helper to update status directly in UI to avoid full component re-renders
   const updateStatus = (text: string) => {
-    setStatusText(text);
     if (statusDebugRef.current) statusDebugRef.current.textContent = text;
   };
-
-  // Determine Avatar Type
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    state.avatarType = (params.get('type') as AvatarType) || 'user';
-    console.log('[Parcera] Avatar Type:', state.avatarType);
-  }, []);
 
   // Initialize Visual Loop
   useEffect(() => {
@@ -59,7 +55,7 @@ export const Avatar: React.FC = () => {
       // because it causes unexpected UI jumps when saving settings.
     };
 
-    (window as any).electronAPI.getSettings().then((settings: ParceraSettings) => {
+    window.electronAPI.getSettings().then((settings: ParceraSettings) => {
       applySettings(settings);
       updateStatus('Settings Loaded');
     }).catch((e: any) => {
@@ -70,7 +66,7 @@ export const Avatar: React.FC = () => {
       updateStatus('Using Defaults');
     });
 
-    (window as any).electronAPI.onSettingsChanged((settings: ParceraSettings) => {
+    window.electronAPI.onSettingsChanged((settings: ParceraSettings) => {
       applySettings(settings);
       updateStatus('Settings Reloaded');
       console.log('[Parcera] Settings hot-reloaded');
@@ -170,7 +166,7 @@ export const Avatar: React.FC = () => {
             whiteSpace: 'pre',
           }}
         >
-          {statusText}
+          Initializing...
         </div>
       </div>
     </>
