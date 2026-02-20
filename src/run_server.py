@@ -14,8 +14,8 @@ from core.config import load_config_file
 logger = logging.getLogger(__name__)
 
 class ParceraServer(ParceraAvatarBase):
-    def __init__(self, google_api_key: str = None):
-        super().__init__(google_api_key)
+    def __init__(self):
+        super().__init__()
         self.config.setup_logging()
 
         self.aiavatar_server = AIAvatarWebSocketServer(

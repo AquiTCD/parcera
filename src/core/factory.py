@@ -15,9 +15,8 @@ from .filters import ResponseWeightFilter
 logger = logging.getLogger(__name__)
 
 class ParceraComponentFactory:
-    def __init__(self, config: ParceraConfig, google_api_key: str):
+    def __init__(self, config: ParceraConfig):
         self.config = config
-        self.google_api_key = google_api_key
 
     def build_llm(self):
         llm_cfg = self.config.get("llm", {})
@@ -28,8 +27,11 @@ class ParceraComponentFactory:
 
         if provider == "gemini":
             gemini_cfg = providers.get("gemini", {})
+            api_key = gemini_cfg.get("api_key")
+            if not api_key:
+                logger.warning("Gemini API key is missing. Set it in Settings -> LLM.")
             service_instance = FixedGeminiService(
-                gemini_api_key=self.google_api_key,
+                gemini_api_key=api_key,
                 model=gemini_cfg.get("model", "gemini-2.0-flash"),
                 temperature=float(gemini_cfg.get("temperature", 0.7)),
                 option_split_threshold=int(gemini_cfg.get("option_split_threshold", 20)),
@@ -39,9 +41,9 @@ class ParceraComponentFactory:
             )
         elif provider == "openai":
             openai_cfg = providers.get("openai", {})
-            api_key = os.getenv("OPENAI_API_KEY")
+            api_key = openai_cfg.get("api_key")
             if not api_key:
-                logger.warning("OPENAI_API_KEY is not set. OpenAI provider may fail.")
+                logger.warning("OpenAI API key is missing. Set it in Settings -> LLM.")
 
             # NOTE: ChatGPTService arguments differ from ChatGPT
             service_instance = ChatGPTService(
@@ -89,7 +91,9 @@ class ParceraComponentFactory:
 
         elif provider == "google":
             google_cfg = providers.get("google", {})
-            api_key = os.getenv("GOOGLE_API_KEY") # Use API Key
+            api_key = google_cfg.get("api_key")
+            if not api_key:
+                 logger.warning("Google STT API key is missing. Set it in Settings -> STT.")
             recognizer_instance = GoogleSpeechRecognizer(
                 google_api_key=api_key,
                 language=google_cfg.get("language", "ja-JP"),
@@ -103,10 +107,10 @@ class ParceraComponentFactory:
 
         elif provider == "azure":
             azure_cfg = providers.get("azure", {})
-            api_key = os.getenv("AZURE_SPEECH_KEY")
-            region = os.getenv("AZURE_REGION")
+            api_key = azure_cfg.get("api_key")
+            region = azure_cfg.get("region")
             if not api_key or not region:
-                logger.warning("AZURE_SPEECH_KEY or AZURE_REGION is not set. Azure provider may fail.")
+                logger.warning("Azure Speech API key or Region is missing. Set it in Settings -> STT.")
 
             recognizer_instance = AzureSpeechRecognizer(
                 azure_api_key=api_key,
@@ -148,7 +152,9 @@ class ParceraComponentFactory:
 
         elif provider == "google":
             google_cfg = providers.get("google", {})
-            api_key = os.getenv("GOOGLE_API_KEY") # Use same key as LLM/STT if compatible
+            api_key = google_cfg.get("api_key")
+            if not api_key:
+                 logger.warning("Google TTS API key is missing. Set it in Settings -> TTS.")
 
             return GoogleSpeechSynthesizer(
                 google_api_key=api_key,

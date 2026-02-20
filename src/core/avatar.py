@@ -7,11 +7,7 @@ from .factory import ParceraComponentFactory
 logger = logging.getLogger(__name__)
 
 class ParceraAvatarBase:
-    def __init__(self, google_api_key: str = None):
-        self.google_api_key = google_api_key or os.getenv("GOOGLE_API_KEY")
-        if not self.google_api_key:
-            raise ValueError("GOOGLE_API_KEY is required.")
-
+    def __init__(self):
         self.config = ParceraConfig()
 
         # Reset conversation history on startup unless persistence is enabled
@@ -23,7 +19,7 @@ class ParceraAvatarBase:
             except Exception as e:
                 logger.warning(f"Failed to delete aiavatar.db: {e}")
 
-        self.factory = ParceraComponentFactory(self.config, self.google_api_key)
+        self.factory = ParceraComponentFactory(self.config)
         self._busy_sessions = set()
 
         self.llm = self.factory.build_llm()
