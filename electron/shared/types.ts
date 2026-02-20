@@ -2,33 +2,72 @@
  * Parcera: Shared Type Definitions
  *
  * Single source of truth for types shared between Main and Renderer processes.
- * These types mirror the structure of configs/settings.yaml.
- * When modifying settings.yaml, update these types to match.
+ * These types mirror the structure of configs/settings.default.yaml.
+ * When modifying settings, update these types to match.
  */
 
-// ─── Settings (mirrors configs/settings.yaml) ───
+// ─── Settings (mirrors configs/settings.default.yaml) ───
 
 export interface ParceraSettings {
   verbose?: boolean;
+  profile_mode?: boolean;
   log_level?: string;                    // "DEBUG" | "INFO" | "WARNING" | "ERROR"
   merge_request_threshold?: number;      // Seconds to merge consecutive requests
+  response_sensitivity?: string;         // "high" | "medium" | "low"
   force_keywords?: string[];
-  llm_model?: string;
-  llm_temperature?: number;
-  option_split_threshold?: number;
-  active_engine?: string;                // "aivisspeech" | "voicevox"
-  engines?: Record<string, EngineConfig>;
-  tts_settings?: TTSSettings;
+  llm?: LLMSettings;
+  stt?: STTSettings;
+  tts?: TTSSettingsConfig;
   vad?: VADSettings;
   electron?: ElectronSettings;
   avatars?: AvatarSettings;
 }
 
-export interface EngineConfig {
-  api_url?: string;
-  engine_path?: string;
-  speaker_id?: number;
-  style_id?: number;
+export interface LLMSettings {
+  provider?: string;
+  providers?: {
+    gemini?: LLMProviderConfig;
+    openai?: LLMProviderConfig;
+    [key: string]: LLMProviderConfig | undefined;
+  };
+}
+
+export interface LLMProviderConfig {
+  model?: string;
+  temperature?: number;
+  persist_history?: boolean;
+  option_split_threshold?: number;
+  api_key?: string;
+}
+
+export interface STTSettings {
+  provider?: string;
+  providers?: {
+    faster_whisper?: STTProviderConfig;
+    google?: STTProviderConfig;
+    azure?: STTProviderConfig;
+    [key: string]: STTProviderConfig | undefined;
+  };
+}
+
+export interface STTProviderConfig {
+  model?: string;
+  device?: string;
+  compute_type?: string;
+  whisper_vad_filter?: boolean;
+  api_key?: string;
+  region?: string;
+}
+
+export interface TTSSettingsConfig {
+  provider?: string;
+  settings?: TTSSettings;
+  providers?: {
+    aivisspeech?: TTSProviderConfig;
+    voicevox?: TTSProviderConfig;
+    google?: TTSProviderConfig;
+    [key: string]: TTSProviderConfig | undefined;
+  };
 }
 
 export interface TTSSettings {
@@ -39,14 +78,28 @@ export interface TTSSettings {
   postPhonemeLength?: number;
 }
 
+export interface TTSProviderConfig {
+  api_url?: string;
+  engine_path?: string;
+  speaker_id?: number;
+  style_id?: number;
+  language?: string;
+  voice?: string;
+  speaking_rate?: number;
+  pitch?: number;
+  volume_gain_db?: number;
+  api_key?: string;
+}
+
 export interface VADSettings {
-  volume_db_threshold?: number;          // dB, single source of truth for audio sensitivity
-  max_duration?: number;                 // seconds
+  volume_db_threshold?: number;
+  silence_duration_threshold?: number;
+  max_duration?: number;
 }
 
 export interface ElectronSettings {
-  port?: number;                         // WebSocket port, ws://localhost:{port}/ws
-  ai_audio_sample_rate?: number;         // Hz — AudioContext sample rate for AI window
+  port?: number;
+  ai_audio_sample_rate?: number;
   windows?: Record<string, WindowConfig>;
 }
 
@@ -58,12 +111,12 @@ export interface WindowConfig {
 
 export interface AvatarSettings {
   show_debug?: boolean;
-  blink_interval_min?: number;           // ms
-  blink_interval_max?: number;           // ms
-  mouth_hold_time?: number;              // ms
-  breathe_scale?: number;                // Scale factor for breathing animation
-  breathe_amplitude?: number;            // Vertical movement in pixels
-  breathe_duration?: number;             // Duration of one breath cycle in ms
+  blink_interval_min?: number;
+  blink_interval_max?: number;
+  mouth_hold_time?: number;
+  breathe_scale?: number;
+  breathe_amplitude?: number;
+  breathe_duration?: number;
   [key: string]: AvatarConfig | boolean | number | undefined;
 }
 

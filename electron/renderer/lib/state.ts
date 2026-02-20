@@ -8,8 +8,6 @@
 // Re-export all shared types so existing imports continue to work
 export type {
   ParceraSettings,
-  EngineConfig,
-  TTSSettings,
   VADSettings,
   ElectronSettings,
   WindowConfig,

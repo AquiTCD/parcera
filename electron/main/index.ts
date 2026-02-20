@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'node:url';
+import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,36 +33,63 @@ process.on('uncaughtException', (error: Error) => {
 });
 
 let cachedSettings: ParceraSettings | null = null;
+const store = new Store<ParceraSettings>({ name: 'config' });
 
-function getSettingsPath(): string {
-  return path.resolve(process.env['APP_ROOT']!, '../configs/settings.yaml');
+function getYamlSettingsPath(): string {
+  return path.resolve(process.env['APP_ROOT']!, '../configs/settings.default.yaml');
 }
 
-function loadSettings(forceReload = false): ParceraSettings {
-  if (cachedSettings && !forceReload) return cachedSettings;
-  try {
-    const settingsPath = getSettingsPath();
-    if (!fs.existsSync(settingsPath)) {
-      console.warn('Settings file not found at:', settingsPath);
-      return {};
+function initializeStore() {
+  if (Object.keys(store.store).length === 0) {
+    console.log('[Parcera] Store is empty, seeding from configs/settings.default.yaml...');
+    try {
+      const settingsPath = getYamlSettingsPath();
+      if (fs.existsSync(settingsPath)) {
+        const file = fs.readFileSync(settingsPath, 'utf8');
+        const yamlSettings = yaml.load(file) as ParceraSettings;
+        store.store = yamlSettings;
+      }
+    } catch (e) {
+      console.error('Failed to seed store from YAML:', e);
     }
-    const file = fs.readFileSync(settingsPath, 'utf8');
-    cachedSettings = yaml.load(file) as ParceraSettings;
-    console.log('[Parcera] Settings loaded' + (forceReload ? ' (reloaded)' : ''));
-    return cachedSettings;
-  } catch (e) {
-    console.error('Failed to load settings:', e);
-    return {};
   }
+}
+
+initializeStore();
+console.log('[Parcera] Store path:', store.path);
+
+// Write path to a file so Python dev server can easily find it
+try {
+  const envPath = path.resolve(process.env['APP_ROOT']!, '../.env.config_path');
+  fs.writeFileSync(envPath, `PARCERA_CONFIG_PATH="${store.path}"\n`, 'utf8');
+} catch (e) {
+  // Ignore
+}
+
+function loadSettings(): ParceraSettings {
+  return store.store;
 }
 
 /** Notify all renderer windows that settings have changed */
 function broadcastSettingsReload(): void {
-  const settings = loadSettings(true);
+  const settings = loadSettings();
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('settings-changed', settings);
   }
+
+  // Apply alwaysOnTop dynamically
+  if (userWindow) {
+    userWindow.setAlwaysOnTop(settings.electron?.windows?.user?.alwaysOnTop ?? false);
+  }
+  if (aiWindow) {
+    aiWindow.setAlwaysOnTop(settings.electron?.windows?.ai?.alwaysOnTop ?? false);
+  }
 }
+
+store.onDidAnyChange((newValue, oldValue) => {
+  console.log('[Parcera] Store changed, reloading...');
+  broadcastSettingsReload();
+});
 
 function createAvatarWindow(type: string): BrowserWindow {
   const settings = loadSettings();
@@ -101,7 +129,33 @@ ipcMain.handle('get-settings', async () => {
 });
 
 ipcMain.handle('reload-settings', async () => {
-  return loadSettings(true);
+  return loadSettings();
+});
+
+ipcMain.handle('get-default-settings', async () => {
+  try {
+    const settingsPath = getYamlSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      const file = fs.readFileSync(settingsPath, 'utf8');
+      return yaml.load(file) as ParceraSettings;
+    }
+  } catch (e) {
+    console.error('Failed to load default settings:', e);
+  }
+  return {};
+});
+
+ipcMain.handle('select-directory', async (event, currentPath: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return null;
+  const result = await dialog.showOpenDialog(win, {
+    defaultPath: currentPath || process.env['APP_ROOT'] || undefined,
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  return result.filePaths[0];
 });
 
 ipcMain.on('resize-window', (event, width: number, height: number) => {
@@ -114,20 +168,6 @@ ipcMain.on('resize-window', (event, width: number, height: number) => {
 app.whenReady().then(() => {
   userWindow = createAvatarWindow('user');
   aiWindow = createAvatarWindow('ai');
-
-  // Watch settings.yaml for changes in dev mode
-  if (VITE_DEV_SERVER_URL) {
-    const settingsPath = getSettingsPath();
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    fs.watch(settingsPath, () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        console.log('[Parcera] settings.yaml changed, reloading...');
-        broadcastSettingsReload();
-      }, 300);
-    });
-    console.log('[Parcera] Watching settings.yaml for changes');
-  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -153,7 +193,7 @@ function createSettingsWindow() {
 
   const settings = loadSettings();
   const win = new BrowserWindow({
-    width: 600,
+    width: 900,
     height: 800,
     title: 'Parcera Settings',
     webPreferences: {
@@ -180,11 +220,7 @@ function createSettingsWindow() {
 
 ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => {
   try {
-    const settingsPath = getSettingsPath();
-    const yamlStr = yaml.dump(newSettings);
-    fs.writeFileSync(settingsPath, yamlStr, 'utf8');
-    cachedSettings = newSettings;
-    broadcastSettingsReload();
+    store.store = newSettings;
     return { success: true };
   } catch (e) {
     console.error('Failed to save settings:', e);
@@ -211,6 +247,24 @@ const template: Electron.MenuItemConstructorOptions[] = [
       { role: 'quit' },
     ],
   },
+  {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      {
+        ...(process.platform === 'darwin' ? {
+          role: 'pasteAndMatchStyle'
+        } : {} as any)
+      },
+      { role: 'delete' },
+      { role: 'selectAll' }
+    ]
+  }
 ];
 
 const menu = Menu.buildFromTemplate(template);

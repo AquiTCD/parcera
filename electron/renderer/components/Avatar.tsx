@@ -55,16 +55,14 @@ export const Avatar: React.FC = () => {
         avatarImageRef.current.src = `${assetsDir}/base.png`;
       }
 
-      // Resize window to match image
-      if (avatarImageRef.current?.complete) {
-        window.electronAPI.resizeWindow(avatarImageRef.current.naturalWidth, avatarImageRef.current.naturalHeight);
-      }
+      // Ref: Removed automatic resize to match image naturalWidth/Height
+      // because it causes unexpected UI jumps when saving settings.
     };
 
-    window.electronAPI.getSettings().then((settings) => {
+    (window as any).electronAPI.getSettings().then((settings: ParceraSettings) => {
       applySettings(settings);
       updateStatus('Settings Loaded');
-    }).catch((e) => {
+    }).catch((e: any) => {
       console.error('Settings error:', e);
       if (avatarImageRef.current) {
         avatarImageRef.current.src = `/assets/${state.avatarType}/base.png`;
@@ -72,7 +70,7 @@ export const Avatar: React.FC = () => {
       updateStatus('Using Defaults');
     });
 
-    window.electronAPI.onSettingsChanged((settings) => {
+    (window as any).electronAPI.onSettingsChanged((settings: ParceraSettings) => {
       applySettings(settings);
       updateStatus('Settings Reloaded');
       console.log('[Parcera] Settings hot-reloaded');

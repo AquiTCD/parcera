@@ -1,149 +1,465 @@
 import React, { useState, useEffect } from 'react';
-import type { ParceraSettings, EngineConfig } from '../shared/types';
+import type { ParceraSettings } from '../../shared/types';
+import { GeneralTab } from './settings/GeneralTab';
+import { STTTab } from './settings/STTTab';
+import { LLMTab } from './settings/LLMTab';
+import { TTSTab } from './settings/TTSTab';
+import { VisualTab } from './settings/VisualTab';
+import { SystemTab } from './settings/SystemTab';
+
+const TABS = [
+  { id: 'general', label: '一般 (General)' },
+  { id: 'stt', label: '耳・音声認識 (STT)' },
+  { id: 'llm', label: '頭脳・思考 (LLM)' },
+  { id: 'tts', label: '口・音声合成 (TTS)' },
+  { id: 'visual', label: '体・アバター (Visual)' },
+  { id: 'system', label: 'システム (System)' },
+];
 
 export const Settings: React.FC = () => {
   const [settings, setSettings] = useState<ParceraSettings | null>(null);
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({ message: '', type: '' });
+  const [activeTab, setActiveTab] = useState('general');
+  const [speakersInfo, setSpeakersInfo] = useState<{ id: number; name: string; styleName: string }[] | null>(null);
+  const [llmModels, setLlmModels] = useState<string[] | null>(null);
+  const [googleVoices, setGoogleVoices] = useState<{ id: string, gender: string }[] | null>(null);
+  const [showApiKeys, setShowApiKeys] = useState(false);
+  const [isFetchingTTS, setIsFetchingTTS] = useState(false);
+  const [isFetchingLLM, setIsFetchingLLM] = useState(false);
+  const [isFetchingGoogleVoice, setIsFetchingGoogleVoice] = useState(false);
+
+  const currentTTSProvider = settings?.tts?.provider || 'aivisspeech';
+  const ttsSettingsUrl = settings?.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.api_url;
+
+  const handleFetchSpeakers = () => {
+    if (activeTab === 'tts' && (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox')) {
+      const rawUrl = ttsSettingsUrl || (currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021');
+      const url = rawUrl.replace(/\/$/, '');
+      setStatus({ message: `「${currentTTSProvider}」からキャラクター一覧を取得中...`, type: '' });
+      setIsFetchingTTS(true);
+      fetch(`${url}/speakers`)
+        .then(res => res.json())
+        .then(data => {
+          const formatted = data.flatMap((speaker: any) =>
+            speaker.styles.map((style: any) => ({
+              id: style.id,
+              name: speaker.name,
+              styleName: style.name
+            }))
+          );
+          setSpeakersInfo(formatted);
+          setStatus({ message: `「${currentTTSProvider}」からキャラクター一覧を取得しました！`, type: 'success' });
+          setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+        })
+        .catch(err => {
+          console.error('Failed to fetch speakers:', err);
+          setSpeakersInfo(null);
+          setStatus({ message: `エラー: エンジンに接続できません。(${url}) 起動しているか確認してください。`, type: 'error' });
+        })
+        .finally(() => setIsFetchingTTS(false));
+    }
+  };
+
+  const currentLLMProvider = settings?.llm?.provider || 'gemini';
+
+  const handleFetchLLMModels = () => {
+    const apiKey = (settings?.llm?.providers as any)?.[currentLLMProvider]?.api_key;
+    if (!apiKey) {
+      setStatus({ message: 'APIキーを入力してから、モデル一覧を取得してください。', type: 'error' });
+      return;
+    }
+
+    setStatus({ message: 'モデル一覧を取得中...', type: '' });
+    setIsFetchingLLM(true);
+
+    if (currentLLMProvider === 'gemini') {
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.models) {
+            setLlmModels(data.models.filter((m: any) => m.name.includes("gemini")).map((m: any) => m.name.replace("models/", "")));
+            setStatus({ message: 'Geminiからモデル一覧を取得しました！', type: 'success' });
+            setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+          } else {
+            setStatus({ message: 'エラー: モデル一覧が取得できませんでした (APIキーを確認してください)', type: 'error' });
+          }
+        }).catch(e => { console.error('Gemini models fetch failed', e); setLlmModels(null); setStatus({ message: '通信エラーが発生しました', type: 'error' }); })
+        .finally(() => setIsFetchingLLM(false));
+    } else if (currentLLMProvider === 'openai') {
+      fetch(`https://api.openai.com/v1/models`, { headers: { 'Authorization': `Bearer ${apiKey}` } })
+        .then(res => res.json())
+        .then(data => {
+          if (data.data) {
+            setLlmModels(data.data.filter((m: any) => m.id.includes("gpt")).map((m: any) => m.id).reverse());
+            setStatus({ message: 'OpenAIからモデル一覧を取得しました！', type: 'success' });
+            setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+          } else {
+            setStatus({ message: 'エラー: モデル一覧が取得できませんでした (APIキーを確認してください)', type: 'error' });
+          }
+        }).catch(e => { console.error('OpenAI models fetch failed', e); setLlmModels(null); setStatus({ message: '通信エラーが発生しました', type: 'error' }); })
+        .finally(() => setIsFetchingLLM(false));
+    }
+  };
+
+  const handleFetchGoogleVoices = () => {
+    const apiKey = (settings?.tts?.providers?.google as any)?.api_key;
+    if (!apiKey) {
+      setStatus({ message: 'APIキーを入力してから、音声一覧を取得してください。', type: 'error' });
+      return;
+    }
+    setStatus({ message: 'Googleから音声一覧を取得中...', type: '' });
+    setIsFetchingGoogleVoice(true);
+    fetch(`https://texttospeech.googleapis.com/v1/voices?key=${apiKey}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.voices) {
+          const formatted = data.voices
+            .filter((v: any) => v.name.includes('ja-JP'))
+            .map((v: any) => ({
+              id: v.name,
+              gender: v.ssmlGender.replace('SSML_VOICE_GENDER_', '')
+            }));
+          setGoogleVoices(formatted);
+          setStatus({ message: 'Googleから日本語音声一覧を取得しました！', type: 'success' });
+          setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+        } else {
+          setStatus({ message: 'エラー: 音声一覧が取得できませんでした (APIキーを確認してください)', type: 'error' });
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch google voices:', err);
+        setGoogleVoices(null);
+        setStatus({ message: '通信エラーが発生しました', type: 'error' });
+      })
+      .finally(() => setIsFetchingGoogleVoice(false));
+  };
 
   useEffect(() => {
+    if (activeTab === 'tts' && settings) {
+      if (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') {
+        handleFetchSpeakers();
+      } else if (currentTTSProvider === 'google') {
+        if ((settings?.tts?.providers?.google as any)?.api_key) {
+          handleFetchGoogleVoices();
+        } else {
+          setGoogleVoices(null);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTTSProvider]);
+
+  useEffect(() => {
+    if (activeTab === 'llm' && settings) {
+      if ((settings?.llm?.providers as any)?.[currentLLMProvider]?.api_key) {
+        handleFetchLLMModels();
+      } else {
+        setLlmModels(null);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLLMProvider]);
+
+  useEffect(() => {
+    // @ts-ignore
     window.electronAPI.getSettings().then(setSettings);
   }, []);
 
   const handleSave = async () => {
     if (!settings) return;
-    setStatus({ message: 'Saving...', type: '' });
+    setStatus({ message: '保存中...', type: '' });
+    // @ts-ignore
     const result = await window.electronAPI.saveSettings(settings);
     if (result.success) {
-      setStatus({ message: 'Settings saved successfully!', type: 'success' });
+      setStatus({ message: '設定を保存しました！', type: 'success' });
       setTimeout(() => setStatus({ message: '', type: '' }), 3000);
     } else {
-      setStatus({ message: 'Error saving settings: ' + result.error, type: 'error' });
+      setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
     }
   };
 
-  const updateVAD = (key: keyof NonNullable<ParceraSettings['vad']>, value: number) => {
-    setSettings(prev => prev ? ({ ...prev, vad: { ...prev.vad, [key]: value } }) : null);
+  const handleRestoreDefaults = async () => {
+    const tabLabel = TABS.find(t => t.id === activeTab)?.label;
+    if (!window.confirm(`「${tabLabel}」のタブ設定を初期値に戻しますか？\n(「保存する」を押すまで確定しません)`)) return;
+
+    setStatus({ message: '初期値を取得中...', type: '' });
+    // @ts-ignore
+    const defaultSettings: ParceraSettings = await window.electronAPI.getDefaultSettings();
+    if (!defaultSettings) {
+      setStatus({ message: 'エラー: 初期値を取得できませんでした', type: 'error' });
+      return;
+    }
+
+    setSettings((prev: ParceraSettings | null) => {
+      if (!prev) return prev;
+      let newSettings = { ...prev };
+
+      if (activeTab === 'general') {
+        newSettings.verbose = defaultSettings.verbose;
+        newSettings.profile_mode = defaultSettings.profile_mode;
+        newSettings.log_level = defaultSettings.log_level;
+      } else if (activeTab === 'llm') {
+        newSettings.llm = defaultSettings.llm;
+      } else if (activeTab === 'stt') {
+        newSettings.stt = defaultSettings.stt;
+        newSettings.vad = defaultSettings.vad;
+        newSettings.force_keywords = defaultSettings.force_keywords;
+        newSettings.response_sensitivity = defaultSettings.response_sensitivity;
+        newSettings.merge_request_threshold = defaultSettings.merge_request_threshold;
+      } else if (activeTab === 'tts') {
+        newSettings.tts = defaultSettings.tts;
+      } else if (activeTab === 'visual') {
+        newSettings.avatars = defaultSettings.avatars;
+        if (defaultSettings.electron?.windows) {
+          const prevWindows = newSettings.electron?.windows || {};
+          newSettings.electron = { ...newSettings.electron, windows: { ...prevWindows, ai: defaultSettings.electron.windows.ai, user: defaultSettings.electron.windows.user } };
+        }
+      } else if (activeTab === 'system') {
+        const prevWindows = newSettings.electron?.windows;
+        newSettings.electron = { ...defaultSettings.electron, windows: prevWindows };
+      }
+      return newSettings;
+    });
+    setStatus({ message: '初期値をロードしました。(保存を押すと確定します)', type: 'success' });
+    setTimeout(() => setStatus({ message: '', type: '' }), 5000);
   };
 
-  const updateElectron = (key: keyof NonNullable<ParceraSettings['electron']>, value: any) => {
-    setSettings(prev => prev ? ({ ...prev, electron: { ...prev.electron, [key]: value } }) : null);
+  const handleSelectDir = async (key: 'user' | 'ai') => {
+    if (!settings) return;
+    const current = (settings.avatars?.[key] as any)?.assets_dir;
+    // @ts-ignore
+    const result = await window.electronAPI.selectDirectory(current);
+    if (result) {
+      updateNested('avatars', key, { ...(settings.avatars?.[key] as any), assets_dir: result });
+    }
   };
 
-  const updateAvatar = (key: string, value: any) => {
-    setSettings(prev => prev ? ({ ...prev, avatars: { ...prev.avatars, [key]: value } }) : null);
+  const renderTabHeader = (title: string) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <h2 style={{ color: '#61dafb', margin: 0 }}>{title}</h2>
+      <button
+        onClick={handleRestoreDefaults}
+        style={{
+          padding: '6px 12px',
+          background: 'transparent',
+          color: '#ccc',
+          border: '1px solid #555',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '12px',
+          transition: 'background 0.2s',
+        }}
+        onMouseOver={(e) => e.currentTarget.style.background = '#333'}
+        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+      >
+        このタブを初期値に戻す
+      </button>
+    </div>
+  );
+
+  const updateRoot = (key: keyof ParceraSettings, value: any) => {
+    setSettings((prev: ParceraSettings | null) => prev ? ({ ...prev, [key]: value }) : null);
   };
 
-  if (!settings) return <div style={{ color: 'white', padding: 20 }}>Loading settings...</div>;
+  const updateNested = (section: keyof ParceraSettings, key: string, value: any) => {
+    setSettings((prev: ParceraSettings | null) => prev ? ({ ...prev, [section]: { ...(prev[section] as any), [key]: value } }) : null);
+  };
+
+  const updateProvider = (section: 'llm' | 'stt' | 'tts', providerName: string, key: string, value: any) => {
+    setSettings((prev: ParceraSettings | null) => {
+      if (!prev) return null;
+      const currentSection = prev[section] as any || {};
+      const providers = currentSection.providers || {};
+      const targetProvider = providers[providerName] || {};
+      return {
+        ...prev,
+        [section]: {
+          ...currentSection,
+          providers: {
+            ...providers,
+            [providerName]: {
+              ...targetProvider,
+              [key]: value
+            }
+          }
+        }
+      };
+    });
+  };
+
+  const updateTTSSettings = (key: string, value: any) => {
+    setSettings((prev: ParceraSettings | null) => {
+      if (!prev) return null;
+      const currentSection = prev.tts || {};
+      const ttsSettings = currentSection.settings || {};
+      return {
+        ...prev,
+        tts: {
+          ...currentSection,
+          settings: {
+            ...ttsSettings,
+            [key]: value
+          }
+        }
+      };
+    });
+  }
+
+  if (!settings) return <div style={{ color: 'white', padding: 20 }}>ローディング中...</div>;
+
+  const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
 
   return (
-    <div className="settings-container" style={{ padding: '20px', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', maxWidth: '800px', margin: '0 auto', background: '#1e1e1e', minHeight: '100vh', boxSizing: 'border-box' }}>
-      <h1 style={{ borderBottom: '1px solid #333', paddingBottom: '10px' }}>Parcera Settings</h1>
+    <div className="settings-container" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100vh', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', background: '#1e1e1e', boxSizing: 'border-box' }}>
+      <h1 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #333', background: '#252526' }}>Parcera 設定</h1>
 
-      {/* VAD Settings */}
-      <section style={{ marginBottom: '30px' }}>
-        <h2 style={{ color: '#61dafb' }}>Voice Activity Detection (VAD)</h2>
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Volume Threshold (dB)</label>
-          <input
-            type="number"
-            value={settings.vad?.volume_db_threshold ?? -20}
-            onChange={(e) => updateVAD('volume_db_threshold', Number(e.target.value))}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #444', background: '#333', color: 'white', width: '100%' }}
-          />
-          <small style={{ color: '#888' }}>Lower is more sensitive. Adjust if AI can't hear you.</small>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* Sidebar Tabs */}
+        <div style={{ width: '180px', borderRight: '1px solid #333', background: '#2d2d30', overflowY: 'auto' }}>
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '15px 20px',
+                textAlign: 'left',
+                background: activeTab === tab.id ? '#37373d' : 'transparent',
+                color: activeTab === tab.id ? '#fff' : '#ccc',
+                border: 'none',
+                borderLeft: activeTab === tab.id ? '4px solid #61dafb' : '4px solid transparent',
+                cursor: 'pointer',
+                fontSize: '15px',
+                transition: 'all 0.2s'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Max Duration (seconds)</label>
-          <input
-            type="number"
-            value={settings.vad?.max_duration ?? 15.0}
-            onChange={(e) => updateVAD('max_duration', Number(e.target.value))}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #444', background: '#333', color: 'white', width: '100%' }}
-          />
-        </div>
-      </section>
 
-      {/* Electron Settings */}
-      <section style={{ marginBottom: '30px' }}>
-        <h2 style={{ color: '#61dafb' }}>System Configuration</h2>
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>WebSocket Port</label>
-          <input
-            type="number"
-            value={settings.electron?.port ?? 8080}
-            onChange={(e) => updateElectron('port', Number(e.target.value))}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #444', background: '#333', color: 'white', width: '100%' }}
-          />
-        </div>
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Audio Sample Rate (Hz)</label>
-          <input
-            type="number"
-            value={settings.electron?.ai_audio_sample_rate ?? 16000}
-            onChange={(e) => updateElectron('ai_audio_sample_rate', Number(e.target.value))}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #444', background: '#333', color: 'white', width: '100%' }}
-          />
-        </div>
-      </section>
+        {/* Content Area */}
+        <div style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#1e1e1e' }}>
 
-      {/* Avatar Settings */}
-      <section style={{ marginBottom: '30px' }}>
-        <h2 style={{ color: '#61dafb' }}>Avatar Visuals</h2>
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={settings.avatars?.show_debug ?? true}
-              onChange={(e) => updateAvatar('show_debug', e.target.checked)}
-              style={{ marginRight: '10px' }}
+          {/* ========== 1. 一般 (General) ========== */}
+          {activeTab === 'general' && (
+            <GeneralTab settings={settings} updateRoot={updateRoot} updateNested={updateNested} updateProvider={updateProvider} setStatus={setStatus} renderTabHeader={renderTabHeader} />
+          )}
+
+          {/* ========== 2. LLM ========== */}
+          {activeTab === 'llm' && (
+            <LLMTab
+              settings={settings}
+              updateProvider={updateProvider}
+              updateNested={updateNested}
+              updateRoot={updateRoot}
+              setStatus={setStatus}
+              renderTabHeader={renderTabHeader}
+              showApiKeysState={[showApiKeys, setShowApiKeys]}
+              isFetchingLLM={isFetchingLLM}
+              llmModels={llmModels}
+              handleFetchLLMModels={handleFetchLLMModels}
             />
-            Show Debug Overlay
-          </label>
+          )}
+
+          {/* ========== 3. STT ========== */}
+          {activeTab === 'stt' && (
+            <STTTab
+              settings={settings}
+              updateRoot={updateRoot}
+              updateNested={updateNested}
+              updateProvider={updateProvider}
+              setStatus={setStatus}
+              renderTabHeader={renderTabHeader}
+              showApiKeysState={[showApiKeys, setShowApiKeys]}
+            />
+          )}
+
+          {/* ========== 4. TTS ========== */}
+          {activeTab === 'tts' && (
+            <TTSTab
+              settings={settings}
+              updateRoot={updateRoot}
+              updateNested={updateNested}
+              updateProvider={updateProvider}
+              updateTTSSettings={updateTTSSettings}
+              setStatus={setStatus}
+              renderTabHeader={renderTabHeader}
+              showApiKeysState={[showApiKeys, setShowApiKeys]}
+              isFetchingTTS={isFetchingTTS}
+              speakersInfo={speakersInfo}
+              handleFetchSpeakers={handleFetchSpeakers}
+              isFetchingGoogleVoice={isFetchingGoogleVoice}
+              googleVoices={googleVoices}
+              handleFetchGoogleVoices={handleFetchGoogleVoices}
+            />
+          )}
+
+          {activeTab === 'visual' && (
+            <VisualTab
+              settings={settings}
+              updateRoot={updateRoot}
+              updateNested={updateNested}
+              updateProvider={updateProvider}
+              setStatus={setStatus}
+              renderTabHeader={renderTabHeader}
+              handleSelectDir={handleSelectDir}
+            />
+          )}
+
+          {/* ========== 6. System ========== */}
+          {activeTab === 'system' && (
+            <SystemTab
+              settings={settings}
+              updateRoot={updateRoot}
+              updateNested={updateNested}
+              updateProvider={updateProvider}
+              setStatus={setStatus}
+              renderTabHeader={renderTabHeader}
+            />
+          )}
         </div>
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Breathe Scale</label>
-          <input
-            type="number"
-            step="0.001"
-            value={settings.avatars?.breathe_scale ?? 1.005}
-            onChange={(e) => updateAvatar('breathe_scale', Number(e.target.value))}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #444', background: '#333', color: 'white', width: '100%' }}
-          />
-        </div>
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Breathe Duration (ms)</label>
-          <input
-            type="number"
-            value={settings.avatars?.breathe_duration ?? 5000}
-            onChange={(e) => updateAvatar('breathe_duration', Number(e.target.value))}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #444', background: '#333', color: 'white', width: '100%' }}
-          />
-        </div>
-      </section>
+      </div>
 
       {/* Action Bar */}
-      <div style={{ position: 'sticky', bottom: 0, background: '#1e1e1e', padding: '20px 0', borderTop: '1px solid #333', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '15px' }}>
+      <div style={{ background: '#252526', padding: '15px 30px', borderTop: '1px solid #333', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '15px' }}>
         {status.message && (
-          <span style={{ color: status.type === 'error' ? '#ff6b6b' : '#51cf66' }}>
+          <span style={{ color: status.type === 'error' ? '#ff6b6b' : '#51cf66', marginRight: 'auto' }}>
             {status.message}
           </span>
         )}
         <button
           onClick={handleSave}
           style={{
-            padding: '10px 20px',
+            padding: '10px 25px',
             background: '#61dafb',
             color: '#000',
             border: 'none',
             borderRadius: '4px',
             fontWeight: 'bold',
             cursor: 'pointer',
-            fontSize: '16px'
+            fontSize: '15px',
+            transition: 'background 0.2s'
           }}
+          onMouseOver={(e) => e.currentTarget.style.background = '#4fa8c7'}
+          onMouseOut={(e) => e.currentTarget.style.background = '#61dafb'}
         >
-          Save Changes
+          保存する (Save)
         </button>
       </div>
-    </div>
+    </div >
   );
+};
+
+// UI style constant
+const inputStyle = {
+  padding: '10px',
+  borderRadius: '4px',
+  border: '1px solid #444',
+  background: '#3c3c3c',
+  color: 'white',
+  width: '100%',
+  boxSizing: 'border-box' as const,
+  fontSize: '14px'
 };

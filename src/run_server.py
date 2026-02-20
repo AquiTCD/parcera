@@ -88,6 +88,7 @@ class ParceraServer(ParceraAvatarBase):
 
 # Global instances
 load_dotenv()
+load_dotenv(".env.config_path", override=True) # Load dynamic path from Electron setting migration
 parcera_server = ParceraServer()
 
 @asynccontextmanager
@@ -156,6 +157,8 @@ app.include_router(parcera_server.aiavatar_server.get_websocket_router())
 
 if __name__ == "__main__":
     import uvicorn
-    settings = load_config_file("configs/settings.yaml")
+    import os
+    config_path = os.environ.get("PARCERA_CONFIG_PATH", "configs/settings.default.yaml")
+    settings = load_config_file(config_path)
     port = settings.get("electron", {}).get("port", 8080)
     uvicorn.run(app, host="127.0.0.1", port=port)

@@ -10,14 +10,20 @@ def load_text_file(path: str) -> str:
             return f.read().strip()
     return ""
 
+import json
+
 def load_config_file(path: str) -> dict:
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
+            if path.endswith(".json"):
+                return json.load(f)
             return yaml.safe_load(f)
     return {}
 
 class ParceraConfig:
-    def __init__(self, settings_path: str = "configs/settings.yaml"):
+    def __init__(self, settings_path: str = None):
+        if settings_path is None:
+            settings_path = os.environ.get("PARCERA_CONFIG_PATH", "configs/settings.default.yaml")
         self.settings = load_config_file(settings_path)
 
         # Load Prompts

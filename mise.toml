@@ -11,7 +11,7 @@ run = "cd electron && pnpm build"
 
 [tasks.server]
 description = "Start Python AI Server (Backend)"
-run = "uv run src/core/main.py"
+run = "uv run src/run_server.py"
 
 [tasks.start]
 description = "Start both Frontend and Backend (Parallel)"

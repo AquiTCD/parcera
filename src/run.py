@@ -35,9 +35,11 @@ class ParceraAvatarLocal(ParceraAvatarBase):
 
 async def main():
     load_dotenv()
+    load_dotenv(".env.config_path", override=True)
 
     # Load settings for engine management
-    settings = load_config_file("configs/settings.yaml")
+    config_path = os.environ.get("PARCERA_CONFIG_PATH", "configs/settings.default.yaml")
+    settings = load_config_file(config_path)
     active_engine = settings.get("active_engine", "voicevox")
     engine_cfg = settings.get("engines", {}).get(active_engine, {})
 
