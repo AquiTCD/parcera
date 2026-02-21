@@ -30,8 +30,30 @@ export const Settings: React.FC = () => {
     setStatus({ message: '保存中...', type: '' });
     const result = await window.electronAPI.saveSettings(settings);
     if (result.success) {
-      setStatus({ message: '設定を保存しました！', type: 'success' });
-      setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+      // Notify Python server to reload config immediately
+      let restartHelp = false;
+      try {
+        const port = settings.electron?.port || 8080;
+        const res = await fetch(`http://127.0.0.1:${port}/config/reload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings)
+        });
+        const data = await res.json();
+        if (data.restart_required) {
+          restartHelp = true;
+        }
+      } catch (e) {
+        console.warn('Failed to notify Python server for config reload:', e);
+      }
+
+      if (restartHelp) {
+        setStatus({ message: '⚠️ 保存完了：エンジンの変更を反映するにはアプリの再起動が必要です。', type: 'success' });
+        setTimeout(() => setStatus({ message: '', type: '' }), 6000);
+      } else {
+        setStatus({ message: '設定を保存しました！', type: 'success' });
+        setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+      }
     } else {
       setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
     }
