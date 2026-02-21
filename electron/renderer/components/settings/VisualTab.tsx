@@ -11,62 +11,75 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
       {renderTabHeader?.('体・アバター (Visual)')}
 
       <div style={{ display: 'flex', gap: '20px', flexDirection: 'column' }}>
-        <SettingGroup label="アバター画像ディレクトリ (Assets Path)">
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-            <div style={{ flex: 1 }}>
+        <SettingGroup label="アバター画像・透過設定 (Assets & Chroma Key)">
+          <div style={{ display: 'flex', gap: '15px' }}>
+            {/* USER Avatar Column */}
+            <div style={{ flex: 1, background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
               <InputSetting
-                label="USERアバター"
+                label="USERアバター パス"
                 placeholder="/assets/user"
                 value={settings.avatars?.user?.assets_dir ?? ''}
                 onChange={(val: string) => updateNested('avatars', 'user', { ...settings.avatars?.user, assets_dir: val })}
               />
               <button
                 onClick={() => handleSelectDir?.('user')}
-                style={{ marginTop: '5px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer' }}
+                style={{ marginTop: '5px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer', marginBottom: '15px' }}
               >
                 📁 フォルダ選択
               </button>
+
+              <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
+                <CheckboxSetting
+                  label="背景透過を有効にする"
+                  checked={settings.avatars?.user?.chroma_key_enabled ?? false}
+                  onChange={(checked: boolean) => updateNested('avatars', 'user', { ...settings.avatars?.user, chroma_key_enabled: checked })}
+                />
+                <select
+                  value={settings.avatars?.user?.chroma_key_color ?? 'green'}
+                  onChange={(e) => updateNested('avatars', 'user', { ...settings.avatars?.user, chroma_key_color: e.target.value })}
+                  style={{ ...inputStyle, marginTop: '10px' }}
+                  disabled={!settings.avatars?.user?.chroma_key_enabled}
+                >
+                  <option value="green">グリーンバック</option>
+                  <option value="blue">ブルーバック</option>
+                </select>
+              </div>
             </div>
-            <div style={{ flex: 1 }}>
+
+            {/* AI Avatar Column */}
+            <div style={{ flex: 1, background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
               <InputSetting
-                label="AIアバター"
+                label="AIアバター パス"
                 placeholder="/assets/ai"
                 value={settings.avatars?.ai?.assets_dir ?? ''}
                 onChange={(val: string) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, assets_dir: val })}
               />
               <button
                 onClick={() => handleSelectDir?.('ai')}
-                style={{ marginTop: '5px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer' }}
+                style={{ marginTop: '5px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer', marginBottom: '15px' }}
               >
                 📁 フォルダ選択
               </button>
+
+              <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
+                <CheckboxSetting
+                  label="背景透過を有効にする"
+                  checked={settings.avatars?.ai?.chroma_key_enabled ?? false}
+                  onChange={(checked: boolean) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, chroma_key_enabled: checked })}
+                />
+                <select
+                  value={settings.avatars?.ai?.chroma_key_color ?? 'green'}
+                  onChange={(e) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, chroma_key_color: e.target.value })}
+                  style={{ ...inputStyle, marginTop: '10px' }}
+                  disabled={!settings.avatars?.ai?.chroma_key_enabled}
+                >
+                  <option value="green">グリーンバック</option>
+                  <option value="blue">ブルーバック</option>
+                </select>
+              </div>
             </div>
           </div>
         </SettingGroup>
-
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>背景透過 (Chroma Key)</h3>
-          <CheckboxSetting
-            label="背景透過フィルタを有効にする"
-            checked={settings.chroma_key_enabled ?? true}
-            onChange={(checked) => updateNested?.('chroma_key_enabled' as any, '', checked)}
-          />
-          <div style={{ marginTop: '10px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>透過する色 (Target Color)</label>
-            <select
-              value={settings.chroma_key_color ?? 'green'}
-              onChange={(e) => updateNested?.('chroma_key_color' as any, '', e.target.value)}
-              style={inputStyle}
-              disabled={!(settings.chroma_key_enabled ?? true)}
-            >
-              <option value="green">グリーンバック (#00FF00)</option>
-              <option value="blue">ブルーバック (#0000FF)</option>
-            </select>
-          </div>
-          <small style={{ color: '#888', display: 'block', marginTop: '5px' }}>
-            ※画像に背景色が含まれている場合に自動で透過します。
-          </small>
-        </div>
 
         <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
           <WindowSettingsSection

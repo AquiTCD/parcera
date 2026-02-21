@@ -15,11 +15,22 @@ export const App: React.FC = () => {
     return window.electronAPI.onSettingsChanged(setSettings);
   }, []);
 
+  const getChromaSettings = () => {
+    const type = params.get('type') || 'user';
+    const avatarSettings = settings?.avatars?.[type as 'user' | 'ai'];
+    return {
+      enabled: avatarSettings?.chroma_key_enabled ?? false,
+      color: (avatarSettings?.chroma_key_color ?? 'green') as 'green' | 'blue'
+    };
+  };
+
+  const chroma = getChromaSettings();
+
   return (
     <>
       <ChromaKeyFilter
-        enabled={settings?.chroma_key_enabled ?? true}
-        color={settings?.chroma_key_color ?? 'green'}
+        enabled={chroma.enabled}
+        color={chroma.color}
       />
       {view === 'settings' ? <Settings /> : <Avatar />}
     </>
