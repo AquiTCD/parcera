@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import type { ParceraSettings } from '../../shared/types';
-import { GeneralTab } from './settings/GeneralTab';
 import { STTTab } from './settings/STTTab';
 import { LLMTab } from './settings/LLMTab';
 import { TTSTab } from './settings/TTSTab';
@@ -8,18 +7,17 @@ import { VisualTab } from './settings/VisualTab';
 import { SystemTab } from './settings/SystemTab';
 
 const TABS = [
-  { id: 'general', label: '一般 (General)' },
-  { id: 'stt', label: '耳・音声認識 (STT)' },
-  { id: 'llm', label: '頭脳・思考 (LLM)' },
-  { id: 'tts', label: '口・音声合成 (TTS)' },
-  { id: 'visual', label: '体・アバター (Visual)' },
-  { id: 'system', label: 'システム (System)' },
+  { id: 'stt', label: '耳・音声認識' },
+  { id: 'llm', label: '脳・思考' },
+  { id: 'tts', label: '口・音声合成' },
+  { id: 'visual', label: '体・アバター' },
+  { id: 'system', label: 'システム' },
 ];
 
 export const Settings: React.FC = () => {
   const [settings, setSettings] = useState<ParceraSettings | null>(null);
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({ message: '', type: '' });
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState('stt');
 
   useEffect(() => {
     window.electronAPI.getSettings().then(setSettings);
@@ -33,7 +31,7 @@ export const Settings: React.FC = () => {
       // Notify Python server to reload config immediately
       let restartHelp = false;
       try {
-        const port = settings.electron?.port || 8080;
+        const port = settings.electron?.port || 8676;
         const res = await fetch(`http://127.0.0.1:${port}/config/reload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -74,11 +72,7 @@ export const Settings: React.FC = () => {
       if (!prev) return prev;
       let newSettings = { ...prev };
 
-      if (activeTab === 'general') {
-        newSettings.verbose = defaultSettings.verbose;
-        newSettings.profile_mode = defaultSettings.profile_mode;
-        newSettings.log_level = defaultSettings.log_level;
-      } else if (activeTab === 'llm') {
+      if (activeTab === 'llm') {
         newSettings.llm = defaultSettings.llm;
       } else if (activeTab === 'stt') {
         newSettings.stt = defaultSettings.stt;
@@ -95,6 +89,9 @@ export const Settings: React.FC = () => {
           newSettings.electron = { ...newSettings.electron, windows: { ...prevWindows, ai: defaultSettings.electron.windows.ai, user: defaultSettings.electron.windows.user } };
         }
       } else if (activeTab === 'system') {
+        newSettings.verbose = defaultSettings.verbose;
+        newSettings.profile_mode = defaultSettings.profile_mode;
+        newSettings.log_level = defaultSettings.log_level;
         const prevWindows = newSettings.electron?.windows;
         newSettings.electron = { ...defaultSettings.electron, windows: prevWindows };
       }
@@ -227,10 +224,6 @@ export const Settings: React.FC = () => {
         {/* Content Area */}
         <div style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#1e1e1e' }}>
 
-          {/* ========== 1. 一般 (General) ========== */}
-          {activeTab === 'general' && (
-            <GeneralTab settings={settings} updateRoot={updateRoot} updateNested={updateNested} updateProvider={updateProvider} setStatus={setStatus} renderTabHeader={renderTabHeader} />
-          )}
 
           {/* ========== 2. LLM ========== */}
           {activeTab === 'llm' && (
@@ -318,7 +311,7 @@ export const Settings: React.FC = () => {
           onMouseOver={(e) => e.currentTarget.style.background = '#4fa8c7'}
           onMouseOut={(e) => e.currentTarget.style.background = '#61dafb'}
         >
-          保存する (Save)
+          保存する
         </button>
       </div>
     </div >
