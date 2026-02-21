@@ -6,19 +6,16 @@ import math
 logger = logging.getLogger(__name__)
 
 class ResponseWeightFilter:
-    def __init__(self, force_keywords=None, sensitivity="medium"):
+    def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium"):
         self.force_keywords = force_keywords or ["パルセラ", "だね", "どう", "教えて"]
+        self.ignore_sentences = ignore_sentences or []
         self.sensitivity = sensitivity.lower() if sensitivity else "medium"
 
         # Tuning presets: (midpoint, slope, max_prob)
-        # Probability P = max_prob / (1 + exp(-slope * (length - midpoint)))
-        # - midpoint: partial reaction point (P reaches approx max_prob/2)
-        # - slope: steepness of the curve
-        # - max_prob: ceiling probability
         self.presets = {
-            "high":   (10.0, 0.15, 0.95),  # Chatty: 10 chars -> 50%
-            "medium": (18.0, 0.15, 0.90),  # Natural: 20 chars -> 51% (Target)
-            "low":    (25.0, 0.15, 0.60),  # Quiet: 25 chars -> 30%
+            "high":   (10.0, 0.15, 0.95),  # Chatty
+            "medium": (18.0, 0.15, 0.90),  # Natural
+            "low":    (25.0, 0.15, 0.60),  # Quiet
         }
 
         preset = self.presets.get(self.sensitivity)
@@ -33,6 +30,13 @@ class ResponseWeightFilter:
         if not text:
             return False
 
+        # 0. Check Ignore Sentences (Skip if matches after normalization)
+        # Remove punctuation and whitespace for robust matching
+        normalized_text = re.sub(r'[^\w\sぁ-んァ-ヶー一-龠]|[\s]', '', text)
+        if normalized_text in self.ignore_sentences:
+            logger.info(f"Filter: Ignored scheduled sentence: {text} (normalized: {normalized_text})")
+            return False
+
         # 1. Check Force Keywords (Always 100%)
         for kw in self.force_keywords:
             if kw in text:
@@ -41,8 +45,6 @@ class ResponseWeightFilter:
 
         # 2. Probability by Length (Sigmoid Curve with Weighted Length)
         raw_len = len(text)
-        # Calculate weighted length: Kanji counts as 2 characters (approx 2 moras)
-        # to normalize reaction probability between Kanji-heavy and Hiragana-only inputs.
         kanji_len = len(re.findall(r'[一-龠]', text))
         length = raw_len + kanji_len
 

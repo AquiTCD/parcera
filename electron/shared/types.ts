@@ -42,6 +42,7 @@ export interface LLMProviderConfig {
 
 export interface STTSettings {
   provider?: string;
+  ignore_sentences?: string[];           // Phrases to ignore after STT
   providers?: {
     faster_whisper?: STTProviderConfig;
     google?: STTProviderConfig;

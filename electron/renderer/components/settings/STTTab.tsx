@@ -74,6 +74,14 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           onChange={(val) => updateRoot('force_keywords', typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [])}
         />
 
+        <InputSetting
+          label="無視するフレーズ (カンマ区切り、相槌など)"
+          type="text"
+          placeholder="うん, はい"
+          value={settings.stt?.ignore_sentences?.join(', ') ?? ''}
+          onChange={(val) => updateNested('stt', 'ignore_sentences', typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [])}
+        />
+
         <SettingGroup label="相槌・感度 (Response Sensitivity)">
           <select
             value={settings.response_sensitivity ?? 'medium'}

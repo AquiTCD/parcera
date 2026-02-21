@@ -67,7 +67,12 @@ class ParceraComponentFactory:
         # Filters setup
         force_keywords = self.config.get("force_keywords", ["パルセラ"])
         sensitivity = self.config.get("response_sensitivity", "medium")
-        response_filter = ResponseWeightFilter(force_keywords=force_keywords, sensitivity=sensitivity)
+        ignore_sentences = stt_cfg.get("ignore_sentences", ["うん", "はい"])
+        response_filter = ResponseWeightFilter(
+            force_keywords=force_keywords,
+            ignore_sentences=ignore_sentences,
+            sensitivity=sensitivity
+        )
 
         recognizer_instance = None
 
