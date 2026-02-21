@@ -42,12 +42,31 @@ function updateVisuals(): void {
       const db = 20 * Math.log10(Math.max(linearRms, 0.00001)); // floor at -100dB
 
       // Peak meter (0 to 12 blocks, -60dB to 0dB)
-      const meterSize = 12;
-      const normalizedLevel = Math.max(0, Math.min(1, (db + 60) / 60));
+      const meterSize = 15;
+      const dbRange = 60;
+      const normalizedLevel = Math.max(0, Math.min(1, (db + dbRange) / dbRange));
       const blocksOn = Math.floor(normalizedLevel * meterSize);
-      const meterBar = '█'.repeat(blocksOn) + '░'.repeat(meterSize - blocksOn);
 
-      statusDebug.innerText = `${state.persistentStatus}\n[${meterBar}] ${db.toFixed(1)}dB | Vowel: ${vowel}`;
+      const thresholdLevel = Math.max(0, Math.min(1, (state.threshold_db + dbRange) / dbRange));
+      const thresholdPos = Math.floor(thresholdLevel * meterSize);
+
+      let meterHtml = '';
+      for (let i = 0; i < meterSize; i++) {
+        if (i === thresholdPos) {
+          meterHtml += '<span style="color: #ff0; font-weight: bold;">|</span>';
+        } else if (i < blocksOn) {
+          let color = '#eee'; // Default White
+          if (db >= -3) color = '#f44'; // Peak Red
+          else if (db >= state.threshold_db) color = '#4f4'; // Active Green
+          else color = '#999'; // Below threshold Grey
+
+          meterHtml += `<span style="color: ${color}">█</span>`;
+        } else {
+          meterHtml += '<span style="color: #444">░</span>';
+        }
+      }
+
+      statusDebug.innerHTML = `${state.persistentStatus}<br>[${meterHtml}] ${db.toFixed(1)}dB | Vowel: ${vowel}`;
     }
   }
 
