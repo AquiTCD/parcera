@@ -3,8 +3,3 @@
 
 - パルセラ
 - Parcera
-- 陽
-- 陰
-- アキさん
-- Aivis
-- Kotoba Whisper
