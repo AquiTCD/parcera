@@ -52,10 +52,33 @@ body.is-locked {
   background: rgba(0, 0, 0, 0.05);
 }
 
-.controls-wrapper[data-corner="top-left"] { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; }
-.controls-wrapper[data-corner="top-right"] { top: 0; right: 0; align-items: flex-end; justify-content: flex-start; }
-.controls-wrapper[data-corner="bottom-left"] { bottom: 0; left: 0; align-items: flex-start; justify-content: flex-end; }
-.controls-wrapper[data-corner="bottom-right"] { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
+.controls-wrapper[data-corner="top-left"] {
+  top: 0;
+  left: 0;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.controls-wrapper[data-corner="top-right"] {
+  top: 0;
+  right: 0;
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+
+.controls-wrapper[data-corner="bottom-left"] {
+  bottom: 0;
+  left: 0;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.controls-wrapper[data-corner="bottom-right"] {
+  bottom: 0;
+  right: 0;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
 
 .control-button {
   opacity: 0;
@@ -94,12 +117,18 @@ body.is-locked {
   /* Idle Animation: Controlled via CSS Variables set in main.ts */
   animation: breathe var(--breathe-duration, 5s) ease-in-out infinite;
   pointer-events: none;
+
+  /* Chroma Key (Green Screen removal) */
+  filter: url(#chromakey-filter);
 }
 
 @keyframes breathe {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0) scale(1, 1);
   }
+
   50% {
     transform: translateY(var(--breathe-amplitude, 2px)) scale(var(--breathe-scale, 1.005), var(--breathe-scale, 1.005));
   }
@@ -110,6 +139,13 @@ body.is-locked {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

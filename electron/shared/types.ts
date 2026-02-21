@@ -15,6 +15,8 @@ export interface ParceraSettings {
   merge_request_threshold?: number;      // Seconds to merge consecutive requests
   response_sensitivity?: string;         // "high" | "medium" | "low"
   force_keywords?: string[];
+  chroma_key_enabled?: boolean;
+  chroma_key_color?: 'green' | 'blue';
   llm?: LLMSettings;
   stt?: STTSettings;
   tts?: TTSSettingsConfig;
@@ -125,7 +127,9 @@ export interface AvatarSettings {
   breathe_scale?: number;
   breathe_amplitude?: number;
   breathe_duration?: number;
-  [key: string]: AvatarConfig | boolean | number | undefined;
+  chroma_key_enabled?: boolean;
+  chroma_key_color?: 'green' | 'blue';
+  [key: string]: AvatarConfig | boolean | number | string | undefined;
 }
 
 export interface AvatarConfig {

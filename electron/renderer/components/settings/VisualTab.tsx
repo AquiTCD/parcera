@@ -44,6 +44,30 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
           </div>
         </SettingGroup>
 
+        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+          <h3 style={{ marginTop: 0, fontSize: '16px' }}>背景透過 (Chroma Key)</h3>
+          <CheckboxSetting
+            label="背景透過フィルタを有効にする"
+            checked={settings.chroma_key_enabled ?? true}
+            onChange={(checked) => updateNested?.('chroma_key_enabled' as any, '', checked)}
+          />
+          <div style={{ marginTop: '10px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>透過する色 (Target Color)</label>
+            <select
+              value={settings.chroma_key_color ?? 'green'}
+              onChange={(e) => updateNested?.('chroma_key_color' as any, '', e.target.value)}
+              style={inputStyle}
+              disabled={!(settings.chroma_key_enabled ?? true)}
+            >
+              <option value="green">グリーンバック (#00FF00)</option>
+              <option value="blue">ブルーバック (#0000FF)</option>
+            </select>
+          </div>
+          <small style={{ color: '#888', display: 'block', marginTop: '5px' }}>
+            ※画像に背景色が含まれている場合に自動で透過します。
+          </small>
+        </div>
+
         <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
           <WindowSettingsSection
             type="user"

@@ -141,7 +141,13 @@ export const Settings: React.FC = () => {
   };
 
   const updateNested = (section: keyof ParceraSettings, key: string, value: any) => {
-    setSettings((prev: ParceraSettings | null) => prev ? ({ ...prev, [section]: { ...(prev[section] as any), [key]: value } }) : null);
+    setSettings((prev: ParceraSettings | null) => {
+      if (!prev) return null;
+      if (key === '') {
+        return { ...prev, [section]: value };
+      }
+      return { ...prev, [section]: { ...(prev[section] as any), [key]: value } };
+    });
   };
 
   const updateProvider = (section: 'llm' | 'stt' | 'tts', providerName: string, key: string, value: any) => {
