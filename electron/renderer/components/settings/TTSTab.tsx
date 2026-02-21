@@ -60,7 +60,57 @@ export const TTSTab: React.FC<TabProps> = ({
     }
   }, [speakersError, googleError, setStatus]);
 
-  const handleFetchSpeakers = () => retrySpeakers();
+  const handleRestartEngine = async () => {
+    setStatus({ message: 'エンジンを起動・再起動中...', type: '' });
+    try {
+      // Get current local server port from settings
+      const port = settings.electron?.port || 8080;
+      const res = await fetch(`http://127.0.0.1:${port}/tts/restart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        setStatus({ message: 'エンジンを起動・再起動しました', type: 'success' });
+        // Give it a moment then refresh speakers
+        setTimeout(() => retrySpeakers(), 1000);
+      } else {
+        throw new Error(data.message || '再起動に失敗しました');
+      }
+    } catch (e: any) {
+      setStatus({ message: `起動エラー: ${e.message}`, type: 'error' });
+    }
+  };
+
+  const handleFetchSpeakers = async () => {
+    if (!settings) return;
+    setStatus({ message: 'キャラクターリストを取得中...', type: '' });
+    try {
+      const port = settings.electron?.port || 8080;
+      const res = await fetch(`http://127.0.0.1:${port}/tts/speakers?provider=${currentTTSProvider}`);
+      const data = await res.json();
+
+      if (data.status === 'error') {
+        throw new Error(data.message);
+      }
+
+      const processed = data.flatMap((speaker: any) =>
+        speaker.styles.map((style: any) => ({
+          id: style.id,
+          name: speaker.name,
+          styleName: style.name
+        }))
+      );
+
+      // Manually update SWR cache using its mutate function
+      retrySpeakers(processed);
+      setStatus({ message: 'キャラクターリストを更新しました', type: 'success' });
+    } catch (e: any) {
+      console.error(e);
+      setStatus({ message: '取得エラー: ' + e.message, type: 'error' });
+    }
+  };
   const handleFetchGoogleVoices = () => {
     if (!googleApiKey) {
       setStatus({ message: 'APIキーを入力してから、音声一覧を取得してください。', type: 'error' });
@@ -100,16 +150,23 @@ export const TTSTab: React.FC<TabProps> = ({
             value={settings.tts?.providers?.[currentTTSProvider]?.engine_path ?? ''}
             onChange={(val) => updateProvider('tts', currentTTSProvider, 'engine_path', val)}
           />
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <button
+              onClick={handleFetchSpeakers}
+              style={{
+                padding: '8px 16px',
+                background: '#3e3e42',
+                border: '1px solid #4d4d50',
+                color: '#fff',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              キャラクターリストを取得
+            </button>
+          </div>
           <SettingGroup label="キャラクター (Speaker/Style ID)">
-            <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-              <button
-                onClick={handleFetchSpeakers}
-                disabled={isFetchingTTS}
-                style={{ padding: '6px 12px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: isFetchingTTS ? 'wait' : 'pointer', fontSize: '13px' }}
-              >
-                エンジンからキャラ一覧を取得する
-              </button>
-            </div>
             <select
               value={settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.style_id ?? settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.speaker_id ?? ''}
               onChange={(e) => updateProvider('tts', currentTTSProvider, currentTTSProvider === 'aivisspeech' ? 'style_id' : 'speaker_id', Number(e.target.value))}
@@ -130,7 +187,7 @@ export const TTSTab: React.FC<TabProps> = ({
               )}
             </select>
           </SettingGroup>
-        </div>
+        </div >
       ) : currentTTSProvider === 'google' ? (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
           <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 設定</h3>
@@ -173,65 +230,69 @@ export const TTSTab: React.FC<TabProps> = ({
         </div>
       ) : null}
 
-      {(currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') && (
-        <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>共通音声パラメーター (ローカル系)</h3>
-          <InputSetting
-            label="話すスピード (Speed Scale)"
-            type="number"
-            step="0.05"
-            placeholder="1.25"
-            value={settings.tts?.settings?.speedScale ?? 1.25}
-            onChange={(val) => updateTTSSettings?.('speedScale', val)}
-          />
-          <InputSetting
-            label="抑揚 (Tempo Dynamic Scale)"
-            type="number"
-            step="0.1"
-            placeholder="0.7"
-            value={settings.tts?.settings?.tempoDynamicScale ?? 0.7}
-            onChange={(val) => updateTTSSettings?.('tempoDynamicScale', val)}
-          />
-          <InputSetting
-            label="音量 (Volume Scale) 0.0〜1.0"
-            type="number"
-            step="0.1"
-            placeholder="0.5"
-            value={settings.tts?.settings?.volumeScale ?? 0.5}
-            onChange={(val) => updateTTSSettings?.('volumeScale', val)}
-          />
-        </div>
-      )}
+      {
+        (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') && (
+          <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
+            <h3 style={{ marginTop: 0, fontSize: '16px' }}>共通音声パラメーター (ローカル系)</h3>
+            <InputSetting
+              label="話すスピード (Speed Scale)"
+              type="number"
+              step="0.05"
+              placeholder="1.25"
+              value={settings.tts?.settings?.speedScale ?? 1.25}
+              onChange={(val) => updateTTSSettings?.('speedScale', val)}
+            />
+            <InputSetting
+              label="抑揚 (Tempo Dynamic Scale)"
+              type="number"
+              step="0.1"
+              placeholder="0.7"
+              value={settings.tts?.settings?.tempoDynamicScale ?? 0.7}
+              onChange={(val) => updateTTSSettings?.('tempoDynamicScale', val)}
+            />
+            <InputSetting
+              label="音量 (Volume Scale) 0.0〜1.0"
+              type="number"
+              step="0.1"
+              placeholder="0.5"
+              value={settings.tts?.settings?.volumeScale ?? 0.5}
+              onChange={(val) => updateTTSSettings?.('volumeScale', val)}
+            />
+          </div>
+        )
+      }
 
-      {currentTTSProvider === 'google' && (
-        <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 音声パラメーター</h3>
-          <InputSetting
-            label="話すスピード (Speaking Rate)"
-            type="number"
-            step="0.05"
-            placeholder="1.25"
-            value={settings.tts?.providers?.google?.speaking_rate ?? 1.25}
-            onChange={(val) => updateProvider('tts', 'google', 'speaking_rate', val)}
-          />
-          <InputSetting
-            label="ピッチ調整 (Pitch) -20.0〜20.0"
-            type="number"
-            step="0.5"
-            placeholder="0.0"
-            value={settings.tts?.providers?.google?.pitch ?? 0.0}
-            onChange={(val) => updateProvider('tts', 'google', 'pitch', val)}
-          />
-          <InputSetting
-            label="音量ゲイン (Volume Gain dB) -96〜16"
-            type="number"
-            step="1"
-            placeholder="0.0"
-            value={settings.tts?.providers?.google?.volume_gain_db ?? 0.0}
-            onChange={(val) => updateProvider('tts', 'google', 'volume_gain_db', val)}
-          />
-        </div>
-      )}
-    </section>
+      {
+        currentTTSProvider === 'google' && (
+          <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
+            <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 音声パラメーター</h3>
+            <InputSetting
+              label="話すスピード (Speaking Rate)"
+              type="number"
+              step="0.05"
+              placeholder="1.25"
+              value={settings.tts?.providers?.google?.speaking_rate ?? 1.25}
+              onChange={(val) => updateProvider('tts', 'google', 'speaking_rate', val)}
+            />
+            <InputSetting
+              label="ピッチ調整 (Pitch) -20.0〜20.0"
+              type="number"
+              step="0.5"
+              placeholder="0.0"
+              value={settings.tts?.providers?.google?.pitch ?? 0.0}
+              onChange={(val) => updateProvider('tts', 'google', 'pitch', val)}
+            />
+            <InputSetting
+              label="音量ゲイン (Volume Gain dB) -96〜16"
+              type="number"
+              step="1"
+              placeholder="0.0"
+              value={settings.tts?.providers?.google?.volume_gain_db ?? 0.0}
+              onChange={(val) => updateProvider('tts', 'google', 'volume_gain_db', val)}
+            />
+          </div>
+        )
+      }
+    </section >
   );
 };

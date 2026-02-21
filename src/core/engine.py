@@ -51,4 +51,10 @@ class TTSEngineManager:
             logger.info("Stopping TTS Engine...")
             self.process.terminate()
             await self.process.wait()
+            self.process = None
             logger.info("TTS Engine stopped.")
+
+    async def restart(self):
+        logger.info("Restarting TTS Engine...")
+        await self.stop()
+        await self.start()
