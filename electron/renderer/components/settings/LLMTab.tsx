@@ -53,7 +53,7 @@ export const LLMTab: React.FC<TabProps> = ({
 
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('頭脳・思考 (LLM)')}
+      {renderTabHeader?.('脳・思考設定')}
 
       <SettingGroup label="使用するプロバイダ">
         <select
@@ -85,7 +85,7 @@ export const LLMTab: React.FC<TabProps> = ({
           }
         />
 
-        <SettingGroup label="2. モデル名">
+        <SettingGroup label="モデル名">
           <select
             value={(settings.llm?.providers as any)?.[currentLLMProvider]?.model ?? ''}
             onChange={(e) => updateProvider('llm', currentLLMProvider, 'model', e.target.value)}
@@ -108,7 +108,7 @@ export const LLMTab: React.FC<TabProps> = ({
         </SettingGroup>
 
         <InputSetting
-          label="温度 (Temperature) 0.0〜1.0"
+          label="ランダム性"
           type="number"
           step="0.1"
           placeholder="0.7"

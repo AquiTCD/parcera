@@ -10,7 +10,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
 
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('耳・音声認識 (STT & VAD)')}
+      {renderTabHeader?.('耳・音声認識')}
 
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
         <h3 style={{ marginTop: 0, fontSize: '16px' }}>VAD設定 (声の検出)</h3>
@@ -82,15 +82,15 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           onChange={(val) => updateNested('stt', 'ignore_sentences', typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [])}
         />
 
-        <SettingGroup label="相槌・感度 (Response Sensitivity)">
+        <SettingGroup label="相槌・感度">
           <select
             value={settings.response_sensitivity ?? 'medium'}
             onChange={(e) => updateRoot('response_sensitivity', e.target.value)}
             style={inputStyle}
           >
-            <option value="high">高い (High) - キーワードなしでも頻繁に反応</option>
-            <option value="medium">普通 (Medium) - 通常の会話</option>
-            <option value="low">低い (Low) - ほぼキーワードにしか反応しない</option>
+            <option value="high">高い - キーワードなしでも頻繁に反応</option>
+            <option value="medium">普通 - 通常の会話</option>
+            <option value="low">低い - ほぼキーワードにしか反応しない</option>
           </select>
         </SettingGroup>
 
@@ -130,7 +130,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           </SettingGroup>
           <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
             <div style={{ flex: 1 }}>
-              <SettingGroup label="演算デバイス (Device)">
+              <SettingGroup label="演算デバイス">
                 <select
                   value={(settings.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
                   onChange={(e) => updateProvider('stt', 'faster_whisper', 'device', e.target.value)}
@@ -144,7 +144,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
               </SettingGroup>
             </div>
             <div style={{ flex: 1 }}>
-              <SettingGroup label="量子化 (Compute Type)">
+              <SettingGroup label="量子化">
                 <select
                   value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
                   onChange={(e) => updateProvider('stt', 'faster_whisper', 'compute_type', e.target.value)}

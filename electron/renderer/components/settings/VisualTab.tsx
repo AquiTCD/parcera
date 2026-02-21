@@ -8,10 +8,10 @@ import { WindowSettingsSection } from './WindowSettingsSection';
 export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTabHeader, handleSelectDir }) => {
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('体・アバター (Visual)')}
+      {renderTabHeader?.('体・アバター')}
 
       <div style={{ display: 'flex', gap: '20px', flexDirection: 'column' }}>
-        <SettingGroup label="アバター画像・透過設定 (Assets & Chroma Key)">
+        <SettingGroup label="アバター画像・透過設定">
           <div style={{ display: 'flex', gap: '15px' }}>
             {/* USER Avatar Column */}
             <div style={{ flex: 1, background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
@@ -103,11 +103,11 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
         />
       </div>
 
-      <SettingGroup label="呼吸アニメーション設定 (Breathe)">
+      <SettingGroup label="呼吸アニメーション設定">
         <div style={{ display: 'flex', gap: '10px' }}>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="縮尺最大値 (Max Scale)"
+              label="縮尺最大値"
               type="number"
               placeholder="1.01"
               value={settings.avatars?.breathe_scale ?? ''}
@@ -116,7 +116,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
           </div>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="振幅最大値 (Max Amplitude px)"
+              label="振幅最大値 (px)"
               type="number"
               placeholder="5"
               value={settings.avatars?.breathe_amplitude ?? ''}
@@ -125,7 +125,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
           </div>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="周期基準値 (Base Duration ms)"
+              label="周期基準値 (ms)"
               type="number"
               placeholder="4000"
               value={settings.avatars?.breathe_duration ?? ''}

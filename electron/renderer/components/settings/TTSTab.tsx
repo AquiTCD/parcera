@@ -64,7 +64,7 @@ export const TTSTab: React.FC<TabProps> = ({
     setStatus({ message: 'エンジンを起動・再起動中...', type: '' });
     try {
       // Get current local server port from settings
-      const port = settings.electron?.port || 8080;
+      const port = settings.electron?.port || 8676;
       const res = await fetch(`http://127.0.0.1:${port}/tts/restart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,7 +87,7 @@ export const TTSTab: React.FC<TabProps> = ({
     if (!settings) return;
     setStatus({ message: 'キャラクターリストを取得中...', type: '' });
     try {
-      const port = settings.electron?.port || 8080;
+      const port = settings.electron?.port || 8676;
       const res = await fetch(`http://127.0.0.1:${port}/tts/speakers?provider=${currentTTSProvider}`);
       const data = await res.json();
 
@@ -121,7 +121,7 @@ export const TTSTab: React.FC<TabProps> = ({
 
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('口・音声合成 (TTS)')}
+      {renderTabHeader?.('声・発音設定')}
 
       <SettingGroup label="使用するTTSプロバイダ">
         <select
@@ -166,7 +166,7 @@ export const TTSTab: React.FC<TabProps> = ({
               キャラクターリストを取得
             </button>
           </div>
-          <SettingGroup label="キャラクター (Speaker/Style ID)">
+          <SettingGroup label="キャラクター">
             <select
               value={settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.style_id ?? settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.speaker_id ?? ''}
               onChange={(e) => updateProvider('tts', currentTTSProvider, currentTTSProvider === 'aivisspeech' ? 'style_id' : 'speaker_id', Number(e.target.value))}
@@ -206,7 +206,7 @@ export const TTSTab: React.FC<TabProps> = ({
               </button>
             }
           />
-          <SettingGroup label="2. 音声名 (Voice)">
+          <SettingGroup label="プロバイダー">
             <select
               value={settings.tts?.providers?.google?.voice ?? 'ja-JP-Neural2-B'}
               onChange={(e) => updateProvider('tts', 'google', 'voice', e.target.value)}
@@ -233,9 +233,9 @@ export const TTSTab: React.FC<TabProps> = ({
       {
         (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') && (
           <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
-            <h3 style={{ marginTop: 0, fontSize: '16px' }}>共通音声パラメーター (ローカル系)</h3>
+            <h3 style={{ marginTop: 0, fontSize: '16px' }}>共通音声パラメーター</h3>
             <InputSetting
-              label="話すスピード (Speed Scale)"
+              label="話すスピード"
               type="number"
               step="0.05"
               placeholder="1.25"
@@ -243,7 +243,7 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateTTSSettings?.('speedScale', val)}
             />
             <InputSetting
-              label="抑揚 (Tempo Dynamic Scale)"
+              label="抑揚"
               type="number"
               step="0.1"
               placeholder="0.7"
@@ -251,7 +251,7 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateTTSSettings?.('tempoDynamicScale', val)}
             />
             <InputSetting
-              label="音量 (Volume Scale) 0.0〜1.0"
+              label="音量 0.0〜1.0"
               type="number"
               step="0.1"
               placeholder="0.5"
@@ -267,7 +267,7 @@ export const TTSTab: React.FC<TabProps> = ({
           <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
             <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 音声パラメーター</h3>
             <InputSetting
-              label="話すスピード (Speaking Rate)"
+              label="話すスピード"
               type="number"
               step="0.05"
               placeholder="1.25"
@@ -275,7 +275,7 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateProvider('tts', 'google', 'speaking_rate', val)}
             />
             <InputSetting
-              label="ピッチ調整 (Pitch) -20.0〜20.0"
+              label="ピッチ調整 -20.0〜20.0"
               type="number"
               step="0.5"
               placeholder="0.0"
@@ -283,7 +283,7 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateProvider('tts', 'google', 'pitch', val)}
             />
             <InputSetting
-              label="音量ゲイン (Volume Gain dB) -96〜16"
+              label="音量ゲイン (dB) -96〜16"
               type="number"
               step="1"
               placeholder="0.0"
