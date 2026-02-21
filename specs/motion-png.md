@@ -15,7 +15,7 @@ Version: 1.3.0 (Feb 2026 Comprehensive Edition)
 - **Node.js**: v24 (Active LTS) / **pnpm** (Package Manager)
 - **Frontend**: Vite + Electron (TypeScript)
 - **Engine**: Python 3.11+ (`uv` managed)
-- **Communication**: WebSocket (Port 8080) / Web Audio API
+- **Communication**: WebSocket (Port 8676) / Web Audio API
 
 ### 2.2 システム構成
 - **Brain (Python Engine)**:
@@ -52,7 +52,7 @@ vad:
 
 # Electron Application Settings
 electron:
-  port: 8080  # WebSocket URL is auto-derived: ws://localhost:{port}/ws
+  port: 8676  # WebSocket URL is auto-derived: ws://localhost:{port}/ws
   ai_audio_sample_rate: 16000  # Hz — must match TTS engine output
   windows:
     ai: { width: 400, height: 400, alwaysOnTop: true }
