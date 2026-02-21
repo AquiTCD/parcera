@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import { Settings } from '../components/Settings';
+
 // Setup Electron Mock BEFORE any imports that might use it
 const mockElectron = {
   getSettings: vi.fn(),
@@ -14,8 +16,6 @@ const mockElectron = {
 (window as any).electronAPI = mockElectron;
 vi.stubGlobal('electronAPI', mockElectron);
 
-import { Settings } from '../components/Settings';
-
 // Mock fetch
 global.fetch = vi.fn().mockResolvedValue({
   json: async () => ({ success: true })
@@ -27,17 +27,10 @@ const dummySettings = {
   llm: { provider: 'gemini', providers: { gemini: {} } },
   stt: { provider: 'faster_whisper', providers: { faster_whisper: {} } },
   tts: { provider: 'voicevox', providers: { voicevox: {} } },
-  electron: { port: 8080, windows: { user: {}, ai: {} } }
+  electron: { port: 8676, windows: { user: {}, ai: {} } }
 };
 
 describe('Settings Integration Test', () => {
-  let Settings;
-
-  beforeAll(async () => {
-    const mod = await import('@/components/Settings');
-    Settings = mod.Settings;
-  });
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockElectron.getSettings.mockResolvedValue(dummySettings);
@@ -64,7 +57,24 @@ describe('Settings Integration Test', () => {
     fireEvent.click(tab);
 
     await waitFor(() => {
-      expect(screen.getByText(/USERアバター/)).toBeInTheDocument();
+      expect(screen.getByText(/アバター画像・透過設定/)).toBeInTheDocument();
+    });
+  });
+
+  it('calls saveSettings when save button is clicked', async () => {
+    mockElectron.saveSettings.mockResolvedValue({ success: true });
+    render(<Settings />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/ローディング/)).not.toBeInTheDocument();
+    });
+
+    const saveButton = screen.getByText(/保存する/);
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockElectron.saveSettings).toHaveBeenCalled();
+      expect(screen.getByText(/設定を保存しました/)).toBeInTheDocument();
     });
   });
 });
