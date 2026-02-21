@@ -97,8 +97,8 @@ electron:
   port: 8080 # WebSocket Server Port
   ai_audio_sample_rate: 16000  # [Hz] Must match TTS engine output sample rate used in Python.
   windows:
-    ai: { width: 400, height: 400, alwaysOnTop: true }
-    user: { width: 400, height: 400, alwaysOnTop: true }
+    ai: { width: 400, height: 400, x: 400, y: 0, alwaysOnTop: true, locked: true }
+    user: { width: 400, height: 400, x: 0, y: 0, alwaysOnTop: true, locked: true }
 
 # ==========================================
 # Avatar Visual Definitions

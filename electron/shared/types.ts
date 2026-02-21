@@ -95,6 +95,7 @@ export interface VADSettings {
   volume_db_threshold?: number;
   silence_duration_threshold?: number;
   max_duration?: number;
+  start_muted?: boolean;
 }
 
 export interface ElectronSettings {
@@ -106,11 +107,17 @@ export interface ElectronSettings {
 export interface WindowConfig {
   width?: number;
   height?: number;
+  x?: number;        // Saved X position
+  y?: number;        // Saved Y position
   alwaysOnTop?: boolean;
+  locked?: boolean;  // Window drag lock
+  control_corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 }
 
 export interface AvatarSettings {
   show_debug?: boolean;
+  user?: AvatarConfig;
+  ai?: AvatarConfig;
   blink_interval_min?: number;
   blink_interval_max?: number;
   mouth_hold_time?: number;

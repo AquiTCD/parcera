@@ -15,6 +15,13 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
         <h3 style={{ marginTop: 0, fontSize: '16px' }}>VAD設定 (声の検出)</h3>
 
+        <CheckboxSetting
+          label="起動時にマイクをデフォルトでミュートにする"
+          checked={settings.vad?.start_muted ?? false}
+          onChange={(checked) => updateNested('vad', 'start_muted', checked)}
+          style={{ marginBottom: '20px' }}
+        />
+
         <div className="form-group" style={{ marginBottom: '15px' }}>
           <label style={{ display: 'block', marginBottom: '5px' }}>音声アクティビティ検出 (VAD) / 音量閾値 (dB)</label>
           <div style={{ display: 'flex', alignItems: 'center' }}>

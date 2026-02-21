@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import yaml from 'js-yaml';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
 
@@ -20,6 +20,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 //
 
 process.env['APP_ROOT'] = path.join(__dirname, '..');
+
+// Avoids needing a user click to start AudioContext/Media
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 export const VITE_DEV_SERVER_URL: string | undefined = process.env['VITE_DEV_SERVER_URL'];
 export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist');
@@ -77,13 +80,29 @@ function broadcastSettingsReload(): void {
     win.webContents.send('settings-changed', settings);
   }
 
-  // Apply alwaysOnTop dynamically
-  if (userWindow) {
-    userWindow.setAlwaysOnTop(settings.electron?.windows?.user?.alwaysOnTop ?? false);
-  }
-  if (aiWindow) {
-    aiWindow.setAlwaysOnTop(settings.electron?.windows?.ai?.alwaysOnTop ?? false);
-  }
+  // Apply window bounds and alwaysOnTop dynamically
+  const applyConfig = (win: BrowserWindow | null, type: 'user' | 'ai') => {
+    if (!win || win.isDestroyed()) return;
+    const cfg = settings.electron?.windows?.[type];
+    if (!cfg) return;
+
+    if (cfg.alwaysOnTop !== undefined) win.setAlwaysOnTop(cfg.alwaysOnTop);
+
+    // Apply bounds only if values are provided
+    const bounds: Partial<Electron.Rectangle> = {};
+    if (cfg.x !== undefined) bounds.x = Math.round(cfg.x);
+    if (cfg.y !== undefined) bounds.y = Math.round(cfg.y);
+    if (cfg.width !== undefined) bounds.width = Math.round(cfg.width);
+    if (cfg.height !== undefined) bounds.height = Math.round(cfg.height);
+
+    if (Object.keys(bounds).length > 0) {
+      const current = win.getBounds();
+      win.setBounds({ ...current, ...bounds });
+    }
+  };
+
+  applyConfig(userWindow, 'user');
+  applyConfig(aiWindow, 'ai');
 }
 
 store.onDidAnyChange((newValue, oldValue) => {
@@ -98,6 +117,8 @@ function createAvatarWindow(type: string): BrowserWindow {
   const win = new BrowserWindow({
     width: winCfg.width,
     height: winCfg.height,
+    x: winCfg.x,
+    y: winCfg.y,
     alwaysOnTop: winCfg.alwaysOnTop,
     transparent: true,
     frame: false,
@@ -165,7 +186,98 @@ ipcMain.on('resize-window', (event, width: number, height: number) => {
   }
 });
 
+ipcMain.handle('save-window-bounds', async (event, type: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return { success: false, error: 'Window not found' };
+
+  try {
+    const bounds = win.getBounds();
+    const currentSettings = loadSettings();
+    const typeKey = type as 'user' | 'ai';
+
+    // Ensure the structure exists
+    if (!currentSettings.electron) currentSettings.electron = {};
+    if (!currentSettings.electron.windows) currentSettings.electron.windows = {};
+    if (!currentSettings.electron.windows[typeKey]) currentSettings.electron.windows[typeKey] = {};
+
+    currentSettings.electron.windows[typeKey].x = bounds.x;
+    currentSettings.electron.windows[typeKey].y = bounds.y;
+
+    // Save to store
+    store.store = currentSettings;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('get-window-bounds', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return null;
+  return win.getBounds();
+});
+
+ipcMain.handle('get-avatar-window-bounds', async (_event, type: 'user' | 'ai') => {
+  const win = type === 'user' ? userWindow : aiWindow;
+  if (!win || win.isDestroyed()) return null;
+  return win.getBounds();
+});
+
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'parcera-asset', privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true } }
+]);
+
 app.whenReady().then(() => {
+  // Register protocol to handle local file access
+  protocol.handle('parcera-asset', async (request) => {
+    try {
+      // We want to extract the path accurately.
+      // request.url is "parcera-asset://host/pathname"
+      // URL objects lowercase the host. Let's use a regex on the original URL to preserve case.
+      const match = request.url.match(/^parcera-asset:\/\/+(.*)$/i);
+      if (!match) return new Response('Bad Request', { status: 400 });
+
+      let filePath = decodeURIComponent(match[1]);
+
+      // Ensure absolute path on Mac/Linux (starts with /)
+      if (!filePath.startsWith('/') && process.platform !== 'win32') {
+        filePath = '/' + filePath;
+      }
+
+      // On Windows, if it's "/C:/...", strip the leading slash
+      if (process.platform === 'win32' && filePath.startsWith('/') && filePath.includes(':')) {
+        filePath = filePath.slice(1);
+      }
+
+      // console.log('[Parcera] Protocol attempting to serve:', filePath);
+
+      if (!fs.existsSync(filePath)) {
+        // console.warn('[Parcera] File not found by protocol:', filePath);
+        return new Response('Not Found', { status: 404 });
+      }
+
+      const buffer = fs.readFileSync(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+      };
+
+      return new Response(buffer, {
+        headers: {
+          'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    } catch (e) {
+      console.error('[Parcera] Protocol error:', e);
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  });
+
   userWindow = createAvatarWindow('user');
   aiWindow = createAvatarWindow('ai');
 

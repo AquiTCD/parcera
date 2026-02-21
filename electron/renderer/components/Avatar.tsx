@@ -13,7 +13,10 @@ console.log('[Parcera] Avatar Type Initialized:', state.avatarType);
 export const Avatar: React.FC = () => {
   const avatarImageRef = useRef<HTMLImageElement>(null);
   const statusDebugRef = useRef<HTMLDivElement>(null);
-  const [initialized, setInitialized] = useState(false);
+  const micTrackRef = useRef<MediaStreamTrack | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [controlCorner, setControlCorner] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
 
   // Helper to update status directly in UI to avoid full component re-renders
   const updateStatus = (text: string) => {
@@ -27,7 +30,16 @@ export const Avatar: React.FC = () => {
     }
   }, []);
 
-  // Settings Handling
+  // Sync lock state with body class (Side effect for external system)
+  useEffect(() => {
+    if (isLocked) {
+      document.body.classList.add('is-locked');
+    } else {
+      document.body.classList.remove('is-locked');
+    }
+  }, [isLocked]);
+
+  // Settings Handling & Initialization
   useEffect(() => {
     const applySettings = (settings: ParceraSettings) => {
       state.settings = settings;
@@ -46,68 +58,98 @@ export const Avatar: React.FC = () => {
 
       // Avatar image
       const avatarConfig = settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
-      const assetsDir = avatarConfig?.assets_dir || `/assets/${state.avatarType}`;
+      const rawPath = avatarConfig?.assets_dir || `/assets/${state.avatarType}`;
+      const assetsDir = window.electronAPI.resolveLocalPath(rawPath);
+
       if (avatarImageRef.current) {
         avatarImageRef.current.src = `${assetsDir}/base.png`;
       }
 
-      // Ref: Removed automatic resize to match image naturalWidth/Height
-      // because it causes unexpected UI jumps when saving settings.
+      // Mute sync across windows
+      const newMuted = settings.vad?.start_muted ?? false;
+      setIsMuted(newMuted);
+      if (micTrackRef.current) {
+        micTrackRef.current.enabled = !newMuted;
+      }
+
+      const winConf = settings.electron?.windows?.[state.avatarType];
+      if (winConf?.control_corner) {
+        setControlCorner(winConf.control_corner);
+      }
+
+      if (winConf?.locked !== undefined) {
+        setIsLocked(winConf.locked);
+      }
     };
 
-    window.electronAPI.getSettings().then((settings: ParceraSettings) => {
-      applySettings(settings);
+    window.electronAPI.getSettings().then((s: ParceraSettings) => {
+      applySettings(s);
       updateStatus('Settings Loaded');
     }).catch((e: any) => {
       console.error('Settings error:', e);
-      if (avatarImageRef.current) {
-        avatarImageRef.current.src = `/assets/${state.avatarType}/base.png`;
-      }
       updateStatus('Using Defaults');
     });
 
-    window.electronAPI.onSettingsChanged((settings: ParceraSettings) => {
-      applySettings(settings);
+    return window.electronAPI.onSettingsChanged((s: ParceraSettings) => {
+      applySettings(s);
       updateStatus('Settings Reloaded');
       console.log('[Parcera] Settings hot-reloaded');
     });
   }, []);
 
-  const handleInteraction = async (e: React.MouseEvent | React.TouchEvent) => {
-    if (initialized) return;
-    e.stopPropagation();
+  // Audio/Mic Startup
+  useEffect(() => {
+    let active = true;
 
-    setInitialized(true);
+    const startup = async () => {
+      if (!active) return;
+      updateStatus('Initializing Audio...');
+      initAudioContext();
+      const ctx = getContext();
+      if (!ctx || ctx.state === 'closed') return;
+      if (ctx.state === 'suspended') await ctx.resume();
 
-    updateStatus('Initializing Audio...');
-    initAudioContext();
-    const ctx = getContext();
-    if (!ctx) return;
-    if (ctx.state === 'suspended') await ctx.resume();
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
 
-    // Microphone
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      });
-      const micSource = ctx.createMediaStreamSource(stream);
-      const analyser = getAnalyser();
+        const track = stream.getAudioTracks()[0];
+        micTrackRef.current = track;
 
-      if (state.avatarType === 'user') {
-        if (analyser) micSource.connect(analyser);
-        updateStatus('User Mic Active');
-      } else {
-        await setupMicStreaming(micSource);
-        updateStatus('AI System Listening...');
+        // Apply initial settings from fetch
+        const s = await window.electronAPI.getSettings();
+        const initialMute = s.vad?.start_muted ?? false;
+        const winConf = s.electron?.windows?.[state.avatarType];
+
+        if (winConf?.locked) setIsLocked(true);
+        if (winConf?.control_corner) setControlCorner(winConf.control_corner);
+
+        setIsMuted(initialMute);
+        track.enabled = !initialMute;
+
+        const micSource = ctx.createMediaStreamSource(stream);
+        const analyser = getAnalyser();
+
+        if (state.avatarType === 'user') {
+          if (analyser) micSource.connect(analyser);
+          updateStatus('User Mic Active');
+        } else {
+          await setupMicStreaming(micSource);
+          updateStatus('AI System Listening...');
+        }
+      } catch (err) {
+        console.error('Mic Access Denied:', err);
+        updateStatus('Mic Error');
       }
-    } catch (err) {
-      console.error('Mic Access Denied:', err);
-      updateStatus('Mic Error: ' + (err instanceof Error ? err.message : String(err)));
-    }
 
-    if (state.avatarType === 'ai') startWebSocket();
-    updateStatus('System Live');
-  };
+      if (state.avatarType === 'ai') startWebSocket();
+      if (active) updateStatus('System Live');
+    };
+
+    startup();
+    return () => { active = false; };
+  }, []);
 
   const handleImageError = () => {
     if (!avatarImageRef.current) return;
@@ -116,30 +158,33 @@ export const Avatar: React.FC = () => {
     else if (src.endsWith('/o.png')) avatarImageRef.current.src = src.replace('/o.png', '/u.png');
   };
 
+  const toggleMute = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (micTrackRef.current) micTrackRef.current.enabled = !nextMuted;
+
+    const s = await window.electronAPI.getSettings();
+    if (!s.vad) s.vad = {};
+    s.vad.start_muted = nextMuted;
+    await window.electronAPI.saveSettings(s);
+  };
+
+  const toggleLock = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextLocked = !isLocked;
+    setIsLocked(nextLocked);
+
+    const s = await window.electronAPI.getSettings();
+    if (!s.electron) s.electron = {};
+    if (!s.electron.windows) s.electron.windows = {};
+    if (!s.electron.windows[state.avatarType]) s.electron.windows[state.avatarType] = {};
+    s.electron.windows[state.avatarType]!.locked = nextLocked;
+    await window.electronAPI.saveSettings(s);
+  };
+
   return (
     <>
-      {!initialized && (
-        <div
-          id="interaction-layer"
-          onClick={handleInteraction}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            zIndex: 999,
-            cursor: 'pointer',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ color: 'white', background: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '10px', fontFamily: 'sans-serif' }}>
-            Click anywhere to start Avatar
-          </div>
-        </div>
-      )}
       <div className="avatar-container">
         <img
           ref={avatarImageRef}
@@ -167,6 +212,26 @@ export const Avatar: React.FC = () => {
           }}
         >
           Initializing...
+        </div>
+
+        <div className="controls-wrapper" data-corner={controlCorner}>
+          <button
+            className={`control-button ${isLocked ? 'active' : ''}`}
+            onClick={toggleLock}
+            title={isLocked ? "移動ロックを解除" : "位置をロック"}
+          >
+            {isLocked ? '🔒' : '🔓'}
+          </button>
+
+          {state.avatarType === 'user' && (
+            <button
+              className={`control-button ${isMuted ? 'active' : ''}`}
+              onClick={toggleMute}
+              title={isMuted ? "マイクはミュートされています" : "マイクはオンです"}
+            >
+              {isMuted ? '🔇' : '🎤'}
+            </button>
+          )}
         </div>
       </div>
     </>

@@ -7,8 +7,8 @@ body {
   -webkit-app-region: drag;
 }
 
-#interaction-layer {
-  -webkit-app-region: no-drag;
+body.is-locked {
+  -webkit-app-region: no-drag !important;
 }
 
 #app {
@@ -31,6 +31,55 @@ body {
   justify-content: flex-start;
   align-items: flex-start;
   cursor: pointer;
+}
+
+.controls-wrapper {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  width: 40px;
+  min-height: 80px;
+  padding: 6px;
+  box-sizing: border-box;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.controls-wrapper:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.controls-wrapper[data-corner="top-left"] { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; }
+.controls-wrapper[data-corner="top-right"] { top: 0; right: 0; align-items: flex-end; justify-content: flex-start; }
+.controls-wrapper[data-corner="bottom-left"] { bottom: 0; left: 0; align-items: flex-start; justify-content: flex-end; }
+.controls-wrapper[data-corner="bottom-right"] { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; }
+
+.control-button {
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s, transform 0.1s !important;
+  background: rgba(40, 40, 40, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.control-button.active {
+  background: rgba(255, 50, 50, 0.8);
+}
+
+.controls-wrapper:hover .control-button {
+  opacity: 1;
 }
 
 .avatar-main {
