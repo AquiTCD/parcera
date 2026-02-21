@@ -107,7 +107,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
         <div style={{ display: 'flex', gap: '10px' }}>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="縮尺 (Scale)"
+              label="縮尺最大値 (Max Scale)"
               type="number"
               placeholder="1.01"
               value={settings.avatars?.breathe_scale ?? ''}
@@ -116,7 +116,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
           </div>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="振幅 (Amplitude px)"
+              label="振幅最大値 (Max Amplitude px)"
               type="number"
               placeholder="5"
               value={settings.avatars?.breathe_amplitude ?? ''}
@@ -125,7 +125,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
           </div>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="周期 (Duration ms)"
+              label="周期基準値 (Base Duration ms)"
               type="number"
               placeholder="4000"
               value={settings.avatars?.breathe_duration ?? ''}

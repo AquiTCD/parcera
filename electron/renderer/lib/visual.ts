@@ -21,15 +21,47 @@ let isBlinking = false;
 let currentMouthFile = 'base.png';
 let mouthHoldTimer = 0;
 
+// Natural Breathing State
+let breatheTime = 0;
+let lastFrameTime = performance.now();
+
 // --- Public API ---
 export function initVisual(imageEl: HTMLImageElement, debugEl: HTMLElement): void {
   avatarImage = imageEl;
   statusDebug = debugEl;
+  lastFrameTime = performance.now(); // Reset on init
   updateVisuals();
 }
 
 // --- Animation Loop (called every frame) ---
 function updateVisuals(): void {
+  const now = performance.now();
+  const deltaTime = (now - lastFrameTime) / 1000; // seconds
+  lastFrameTime = now;
+
+  // --- Natural Breathing Calculation ---
+  const duration = state.settings.avatars?.breathe_duration || 5000;
+  const bScale = state.settings.avatars?.breathe_scale || 1.005;
+  const bAmp = state.settings.avatars?.breathe_amplitude || 2;
+
+  // Speed: mapping duration (ms) to radian progress.
+  // Base cycle speed (e.g. 5000ms = 0.2Hz = 1.25 rad/sec)
+  const speedScale = (2 * Math.PI) / (duration / 1000);
+  breatheTime += deltaTime * speedScale;
+
+  // Fluctuating wave: sin(t) + 0.5 * sin(t * GOLDEN_RATIO)
+  // Max possible value is ~1.5, min is ~-1.5
+  const wave = Math.sin(breatheTime) + 0.5 * Math.sin(breatheTime * 1.618);
+  const normalizedWave = wave / 1.5;
+
+  const currentY = (normalizedWave + 1) * 0.5 * bAmp; // 0 to bAmp
+  const currentScale = 1 + (Math.max(0, normalizedWave) * (bScale - 1)); // 1 to bScale
+
+  if (avatarImage) {
+    avatarImage.style.setProperty('--breathe-offset-y', `${currentY}px`);
+    avatarImage.style.setProperty('--breathe-current-scale', `${currentScale}`);
+  }
+
   const rms = getRMS();
   const vowel = rms > state.threshold ? (getVowel() || '?') : '-';
 
@@ -71,18 +103,18 @@ function updateVisuals(): void {
   }
 
   let targetFile = 'base.png';
-  const now = Date.now();
+  const nowMs = Date.now(); // Blinking still uses Date.now() for ease of timer comparison with Date.now() + duration
 
   // --- Blinking ---
-  if (now > blinkTimer) {
+  if (nowMs > blinkTimer) {
     if (!isBlinking) {
       isBlinking = true;
-      blinkTimer = now + BLINK_CLOSE_DURATION;
+      blinkTimer = nowMs + BLINK_CLOSE_DURATION;
     } else {
       isBlinking = false;
       const min = state.settings.avatars?.blink_interval_min || DEFAULT_BLINK_MIN;
       const max = state.settings.avatars?.blink_interval_max || DEFAULT_BLINK_MAX;
-      blinkTimer = now + min + Math.random() * (max - min);
+      blinkTimer = nowMs + min + Math.random() * (max - min);
     }
   }
 
@@ -92,14 +124,14 @@ function updateVisuals(): void {
     // --- Mouth (lip-sync with hold timer) ---
     const holdTime = state.settings.avatars?.mouth_hold_time || DEFAULT_MOUTH_HOLD;
 
-    if (now > mouthHoldTimer) {
+    if (nowMs > mouthHoldTimer) {
       let nextMouth = 'base.png';
       if (rms > state.threshold && vowel && vowel !== '?') {
         nextMouth = `${vowel}.png`;
       }
       if (nextMouth !== currentMouthFile) {
         currentMouthFile = nextMouth;
-        mouthHoldTimer = now + holdTime;
+        mouthHoldTimer = nowMs + holdTime;
       }
     }
     targetFile = currentMouthFile;

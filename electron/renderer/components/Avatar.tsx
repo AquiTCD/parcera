@@ -14,9 +14,21 @@ export const Avatar: React.FC = () => {
   const avatarImageRef = useRef<HTMLImageElement>(null);
   const statusDebugRef = useRef<HTMLDivElement>(null);
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [viewMode, setViewMode] = useState<'standard' | 'wide'>('standard');
   const [isLocked, setIsLocked] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [controlCorner, setControlCorner] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'v') {
+        setVisible(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Helper to update status directly in UI to avoid full component re-renders
   const updateStatus = (text: string) => {
@@ -155,8 +167,14 @@ export const Avatar: React.FC = () => {
   const handleImageError = () => {
     if (!avatarImageRef.current) return;
     const src = avatarImageRef.current.src;
-    if (src.endsWith('/e.png')) avatarImageRef.current.src = src.replace('/e.png', '/a.png');
-    else if (src.endsWith('/o.png')) avatarImageRef.current.src = src.replace('/o.png', '/u.png');
+    if (src.endsWith('/e.png')) {
+      avatarImageRef.current.src = src.replace('/e.png', '/a.png');
+    } else if (src.endsWith('/o.png')) {
+      avatarImageRef.current.src = src.replace('/o.png', '/u.png');
+    } else {
+      // Fatal error: set opacity as visual feedback
+      avatarImageRef.current.style.opacity = '0.5';
+    }
   };
 
   const toggleMute = async (e: React.MouseEvent) => {
@@ -186,7 +204,10 @@ export const Avatar: React.FC = () => {
 
   return (
     <>
-      <div className="avatar-container">
+      <div
+        className={`avatar-container ${!visible ? 'hidden' : ''} ${viewMode === 'wide' ? 'wide-view' : ''}`}
+        data-testid="avatar-container"
+      >
         <img
           ref={avatarImageRef}
           id="avatar-image"
