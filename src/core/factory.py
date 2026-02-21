@@ -80,19 +80,43 @@ class ParceraComponentFactory:
             fw_cfg = providers.get("faster_whisper", {})
             vad_cfg = self.config.get("vad", {})
             whisper_vad_filter = fw_cfg.get("whisper_vad_filter", False)
+            device = fw_cfg.get("device", "cpu")
+            compute_type = fw_cfg.get("compute_type", "int8")
 
-            # Note: KotobaWhisperRecognizer already includes the wrapper logic internally
-            return KotobaWhisperRecognizer(
-                model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
-                device=fw_cfg.get("device", "cpu"),
-                compute_type=fw_cfg.get("compute_type", "int8"),
-                initial_prompt_path="prompts/stt_initial_prompt.md",
-                response_filter=response_filter,
-                whisper_vad_filter=whisper_vad_filter,
-                on_recognized_callback=on_recognized_callback,
-                is_busy_handler=is_busy_handler,
-                debug=self.config.verbose
-            )
+            # Safety check: mps does not support int8
+            if device == "mps" and compute_type == "int8":
+                logger.info("STT: Detected 'mps' with 'int8'. Forcing 'float16' for Apple Silicon compatibility.")
+                compute_type = "float16"
+
+            try:
+                # Note: KotobaWhisperRecognizer already includes the wrapper logic internally
+                return KotobaWhisperRecognizer(
+                    model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
+                    device=device,
+                    compute_type=compute_type,
+                    initial_prompt_path="prompts/stt_initial_prompt.md",
+                    response_filter=response_filter,
+                    whisper_vad_filter=whisper_vad_filter,
+                    on_recognized_callback=on_recognized_callback,
+                    is_busy_handler=is_busy_handler,
+                    debug=self.config.verbose
+                )
+            except Exception as e:
+                if device == "mps":
+                    logger.warning(f"STT: Failed to load Faster-Whisper on 'mps' ({e}). Falling back to 'cpu'...")
+                    return KotobaWhisperRecognizer(
+                        model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
+                        device="cpu",
+                        compute_type="int8",
+                        initial_prompt_path="prompts/stt_initial_prompt.md",
+                        response_filter=response_filter,
+                        whisper_vad_filter=whisper_vad_filter,
+                        on_recognized_callback=on_recognized_callback,
+                        is_busy_handler=is_busy_handler,
+                        debug=self.config.verbose
+                    )
+                else:
+                    raise e
 
         elif provider == "google":
             google_cfg = providers.get("google", {})

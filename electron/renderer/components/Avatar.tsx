@@ -191,8 +191,8 @@ export const Avatar: React.FC = () => {
           ref={avatarImageRef}
           id="avatar-image"
           className="avatar-main"
-          src=""
           onError={handleImageError}
+          draggable={false}
         />
         <div
           ref={statusDebugRef}

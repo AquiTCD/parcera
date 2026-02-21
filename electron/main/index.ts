@@ -131,7 +131,7 @@ function createAvatarWindow(type: string): BrowserWindow {
     },
   });
 
-  win.webContents.openDevTools({ mode: 'detach' });
+  // win.webContents.openDevTools({ mode: 'detach' });
 
   if (process.platform === 'darwin') {
     win.setWindowButtonVisibility(false);
@@ -315,7 +315,7 @@ function createSettingsWindow() {
     },
   });
 
-  win.webContents.openDevTools({ mode: 'detach' });
+  // win.webContents.openDevTools({ mode: 'detach' });
 
   const url = VITE_DEV_SERVER_URL
     ? `${VITE_DEV_SERVER_URL}?type=settings`
