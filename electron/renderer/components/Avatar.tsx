@@ -46,6 +46,7 @@ export const Avatar: React.FC = () => {
 
       // Unified threshold: dB → RMS×100
       const volumeDb = settings.vad?.volume_db_threshold ?? -20;
+      state.threshold_db = volumeDb;
       state.threshold = Math.pow(10, volumeDb / 20) * 100;
 
       // Breathe animation CSS variables
