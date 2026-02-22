@@ -154,6 +154,28 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+
+# Middleware to gracefully handle WebSocketDisconnect that aiavatar library doesn't catch.
+# Without this, normal client disconnections (page reloads, reconnects) log as ERROR in uvicorn.
+from starlette.websockets import WebSocketDisconnect
+
+class WebSocketDisconnectMiddleware:
+    """ASGI middleware that catches WebSocketDisconnect to prevent noisy ERROR logs."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "websocket":
+            try:
+                await self.app(scope, receive, send)
+            except WebSocketDisconnect as e:
+                logger.info(f"WebSocket disconnected: code={e.code}, reason='{e.reason or ''}'")
+        else:
+            await self.app(scope, receive, send)
+
+app.add_middleware(WebSocketDisconnectMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
