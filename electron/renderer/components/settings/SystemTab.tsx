@@ -1,8 +1,8 @@
 import React from 'react';
-import { TabProps, inputStyle } from './types';
-import { SettingGroup } from './controls/SettingGroup';
+import { TabProps } from './types';
 import { InputSetting } from './controls/InputSetting';
 import { CheckboxSetting } from './controls/CheckboxSetting';
+import { SelectSetting } from './controls/SelectSetting';
 
 export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updateRoot, updateNested, renderTabHeader }) => {
   return (
@@ -12,20 +12,17 @@ export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
         <h3 style={{ marginTop: 0, fontSize: '16px' }}>デバッグ・ログ設定</h3>
 
-        <SettingGroup
+        <SelectSetting
           label="ログ出力レベル"
           description="WARNING 以上のレベルは INFO レベルの内容も含まれます。"
-        >
-          <select
-            value={settings.log_level ?? defaultSettings?.log_level ?? 'INFO'}
-            onChange={(e) => updateRoot('log_level', e.target.value)}
-            style={inputStyle}
-          >
-            <option value="INFO">INFO (基本のみ: 正常・エラー)</option>
-            <option value="WARNING">WARNING (標準: INFO + 警告)</option>
-            <option value="DEBUG">DEBUG (開発用: すべて出力)</option>
-          </select>
-        </SettingGroup>
+          value={settings.log_level ?? defaultSettings?.log_level ?? 'INFO'}
+          onChange={(val) => updateRoot('log_level', val)}
+          options={[
+            { value: 'INFO', label: 'INFO (基本のみ: 正常・エラー)' },
+            { value: 'WARNING', label: 'WARNING (標準: INFO + 警告)' },
+            { value: 'DEBUG', label: 'DEBUG (開発用: すべて出力)' }
+          ]}
+        />
 
         <CheckboxSetting
           label="パフォーマンス計測ログを表示 ([PERF])"
@@ -48,22 +45,19 @@ export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
           />
         </div>
 
-        <SettingGroup
+        <SelectSetting
           label="内部音声サンプリングレート (Hz)"
           description="TTS出力と合わせる必要があります。標準は16000Hzです。"
-        >
-          <select
-            value={settings.electron?.ai_audio_sample_rate ?? defaultSettings?.electron?.ai_audio_sample_rate ?? 16000}
-            onChange={(e) => updateNested('electron', 'ai_audio_sample_rate', Number(e.target.value))}
-            style={inputStyle}
-          >
-            <option value={16000}>16,000 Hz (TTS標準)</option>
-            <option value={24000}>24,000 Hz</option>
-            <option value={32000}>32,000 Hz</option>
-            <option value={44100}>44,100 Hz (CD音質)</option>
-            <option value={48000}>48,000 Hz (DVD音質)</option>
-          </select>
-        </SettingGroup>
+          value={settings.electron?.ai_audio_sample_rate ?? defaultSettings?.electron?.ai_audio_sample_rate ?? 16000}
+          onChange={(val) => updateNested('electron', 'ai_audio_sample_rate', Number(val))}
+          options={[
+            { value: 16000, label: '16,000 Hz (TTS標準)' },
+            { value: 24000, label: '24,000 Hz' },
+            { value: 32000, label: '32,000 Hz' },
+            { value: 44100, label: '44,100 Hz (CD音質)' },
+            { value: 48000, label: '48,000 Hz (DVD音質)' }
+          ]}
+        />
       </div>
     </section>
   );

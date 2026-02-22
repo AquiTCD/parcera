@@ -1,9 +1,9 @@
 import React from 'react';
-import { TabProps, inputStyle } from './types';
-import { SettingGroup } from './controls/SettingGroup';
+import useSWR from 'swr';
+import { TabProps } from './types';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
-import useSWR from 'swr';
+import { SelectSetting } from './controls/SelectSetting';
 
 export const TTSTab: React.FC<TabProps> = ({
   settings,
@@ -82,7 +82,6 @@ export const TTSTab: React.FC<TabProps> = ({
         }))
       );
 
-      // Manually update SWR cache using its mutate function
       retrySpeakers(processed);
       setStatus({ message: 'キャラクターリストを更新しました', type: 'success' });
     } catch (e: any) {
@@ -102,17 +101,16 @@ export const TTSTab: React.FC<TabProps> = ({
     <section className="animate-fade-in">
       {renderTabHeader?.('音声出力（口）')}
 
-      <SettingGroup label="使用するTTSプロバイダ">
-        <select
-          value={settings.tts?.provider ?? defaultSettings?.tts?.provider ?? 'aivisspeech'}
-          onChange={(e) => updateNested('tts', 'provider', e.target.value)}
-          style={inputStyle}
-        >
-          <option value="aivisspeech">AivisSpeech (ローカル推奨)</option>
-          <option value="voicevox">VOICEVOX (ローカル)</option>
-          <option value="google">Google Cloud TTS</option>
-        </select>
-      </SettingGroup>
+      <SelectSetting
+        label="使用するTTSプロバイダ"
+        value={settings.tts?.provider ?? defaultSettings?.tts?.provider ?? 'aivisspeech'}
+        onChange={(val) => updateNested('tts', 'provider', val)}
+        options={[
+          { value: 'aivisspeech', label: 'AivisSpeech (ローカル推奨)' },
+          { value: 'voicevox', label: 'VOICEVOX (ローカル)' },
+          { value: 'google', label: 'Google Cloud TTS' }
+        ]}
+      />
 
       {(currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') ? (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
@@ -132,7 +130,7 @@ export const TTSTab: React.FC<TabProps> = ({
             onChange={(val) => updateProvider('tts', currentTTSProvider, 'engine_path', val)}
           />
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', marginBottom: '15px' }}>
             <button
               onClick={handleFetchSpeakers}
               style={{
@@ -147,27 +145,17 @@ export const TTSTab: React.FC<TabProps> = ({
               キャラクターリストを取得
             </button>
           </div>
-          <SettingGroup label="キャラクター">
-            <select
-              value={settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.style_id ?? settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.speaker_id ?? ''}
-              onChange={(e) => updateProvider('tts', currentTTSProvider, currentTTSProvider === 'aivisspeech' ? 'style_id' : 'speaker_id', Number(e.target.value))}
-              style={inputStyle}
-              disabled={isFetchingTTS || !speakersInfo || speakersInfo.length === 0}
-            >
-              {isFetchingTTS ? (
-                <option value="">キャラクターを取得中...</option>
-              ) : speakersInfo && speakersInfo.length > 0 ? (
-                <>
-                  <option value="">-- 指定なし (デフォルト) --</option>
-                  {speakersInfo.map((spk: { id: number; name: string; styleName: string }) => (
-                    <option key={`${spk.name}-${spk.id}`} value={spk.id}>{spk.name} ({spk.styleName}) - ID:{spk.id}</option>
-                  ))}
-                </>
-              ) : (
-                <option value="">(取得失敗: エンジンの起動を確認してください)</option>
-              )}
-            </select>
-          </SettingGroup>
+
+          <SelectSetting
+            label="キャラクター"
+            value={settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.style_id ?? settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.speaker_id ?? ''}
+            onChange={(val) => updateProvider('tts', currentTTSProvider, currentTTSProvider === 'aivisspeech' ? 'style_id' : 'speaker_id', Number(val))}
+            disabled={isFetchingTTS || !speakersInfo || speakersInfo.length === 0}
+            options={isFetchingTTS ? [{ value: '', label: 'キャラクターを取得中...' }] : (speakersInfo && speakersInfo.length > 0 ? [
+              { value: '', label: '-- 指定なし (デフォルト) --' },
+              ...speakersInfo.map((spk: any) => ({ value: spk.id, label: `${spk.name} (${spk.styleName}) - ID:${spk.id}` }))
+            ] : [{ value: '', label: '(取得失敗: エンジンの起動を確認してください)' }])}
+          />
         </div >
       ) : currentTTSProvider === 'google' ? (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
@@ -187,27 +175,16 @@ export const TTSTab: React.FC<TabProps> = ({
               </button>
             }
           />
-          <SettingGroup label="プロバイダー">
-            <select
-              value={settings.tts?.providers?.google?.voice ?? defaultSettings?.tts?.providers?.google?.voice ?? 'ja-JP-Neural2-B'}
-              onChange={(e) => updateProvider('tts', 'google', 'voice', e.target.value)}
-              style={inputStyle}
-              disabled={isFetchingGoogleVoice || !googleVoices || googleVoices.length === 0}
-            >
-              {isFetchingGoogleVoice ? (
-                <option value="">音声を取得中...</option>
-              ) : googleVoices && googleVoices.length > 0 ? (
-                <>
-                  <option value="">-- 指定なし (デフォルト) --</option>
-                  {googleVoices.map((v: { id: string; gender: string }) => (
-                    <option key={v.id} value={v.id}>{v.id} ({v.gender})</option>
-                  ))}
-                </>
-              ) : (
-                <option value="">(取得失敗: APIキーを確認してください)</option>
-              )}
-            </select>
-          </SettingGroup>
+          <SelectSetting
+            label="プロバイダー"
+            value={settings.tts?.providers?.google?.voice ?? defaultSettings?.tts?.providers?.google?.voice ?? 'ja-JP-Neural2-B'}
+            onChange={(val) => updateProvider('tts', 'google', 'voice', val)}
+            disabled={isFetchingGoogleVoice || !googleVoices || googleVoices.length === 0}
+            options={isFetchingGoogleVoice ? [{ value: '', label: '音声を取得中...' }] : (googleVoices && googleVoices.length > 0 ? [
+              { value: '', label: '-- 指定なし (デフォルト) --' },
+              ...googleVoices.map((v: any) => ({ value: v.id, label: `${v.id} (${v.gender})` }))
+            ] : [{ value: '', label: '(取得失敗: APIキーを確認してください)' }])}
+          />
         </div>
       ) : null}
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { ParceraSettings } from '../../../shared/types';
 import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
-import { inputStyle } from './types';
+import { SelectSetting } from './controls/SelectSetting';
 
 interface WindowSettingsSectionProps {
   type: 'user' | 'ai';
@@ -48,7 +48,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
       <div style={{ marginTop: '12px', marginBottom: '12px' }}>
         <button
           onClick={async () => {
-            const bounds = await window.electronAPI.getAvatarWindowBounds(type);
+            const bounds = await (window as any).electronAPI.getAvatarWindowBounds(type);
             if (bounds) {
               updateNested('electron', 'windows', {
                 ...settings.electron?.windows,
@@ -125,21 +125,18 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
         </div>
       </div>
 
-      <div>
-        <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: '#ccc' }}>
-          操作ボタンの表示位置
-        </label>
-        <select
-          value={winParams.control_corner ?? defaultWinParams.control_corner ?? 'bottom-right'}
-          onChange={(e) => updateWinParam('control_corner', e.target.value)}
-          style={inputStyle}
-        >
-          <option value="top-left">左上</option>
-          <option value="top-right">右上</option>
-          <option value="bottom-left">左下</option>
-          <option value="bottom-right">右下</option>
-        </select>
-      </div>
+      <SelectSetting
+        label="操作ボタンの表示位置"
+        value={winParams.control_corner ?? defaultWinParams.control_corner ?? 'bottom-right'}
+        onChange={(val) => updateWinParam('control_corner', val)}
+        options={[
+          { value: 'top-left', label: '左上' },
+          { value: 'top-right', label: '右上' },
+          { value: 'bottom-left', label: '左下' },
+          { value: 'bottom-right', label: '右下' }
+        ]}
+        labelStyle={{ fontSize: '12px', color: '#ccc' }}
+      />
     </div>
   );
 };

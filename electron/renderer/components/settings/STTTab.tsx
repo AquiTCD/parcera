@@ -1,9 +1,10 @@
 import React from 'react';
-import { TabProps, inputStyle } from './types';
-import { SettingGroup } from './controls/SettingGroup';
+import { TabProps } from './types';
 import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
+import { SelectSetting } from './controls/SelectSetting';
+import { SettingGroup } from './controls/SettingGroup';
 
 export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
   const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
@@ -88,17 +89,16 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           onChange={(val) => updateNested('stt', 'ignore_sentences', typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [])}
         />
 
-        <SettingGroup label="応答頻度">
-          <select
-            value={settings.response_sensitivity ?? defaultSettings?.response_sensitivity ?? 'medium'}
-            onChange={(e) => updateRoot('response_sensitivity', e.target.value)}
-            style={inputStyle}
-          >
-            <option value="high">高い - 頻繁に反応</option>
-            <option value="medium">普通 - 通常の会話</option>
-            <option value="low">低い - 短い発話にはあまり反応しない</option>
-          </select>
-        </SettingGroup>
+        <SelectSetting
+          label="応答頻度"
+          value={settings.response_sensitivity ?? defaultSettings?.response_sensitivity ?? 'medium'}
+          onChange={(val) => updateRoot('response_sensitivity', val)}
+          options={[
+            { value: 'high', label: '高い - 頻繁に反応' },
+            { value: 'medium', label: '普通 - 通常の会話' },
+            { value: 'low', label: '低い - 短い発話にはあまり反応しない' }
+          ]}
+        />
 
         <InputSetting
           label="発話の結合待機時間 (秒)"
@@ -111,17 +111,16 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
         />
       </div>
 
-      <SettingGroup label="使用するSTTプロバイダ">
-        <select
-          value={settings.stt?.provider ?? defaultSettings?.stt?.provider ?? 'faster_whisper'}
-          onChange={(e) => updateNested('stt', 'provider', e.target.value)}
-          style={inputStyle}
-        >
-          <option value="faster_whisper">Faster Whisper (ローカル推奨)</option>
-          <option value="google">Google Cloud STT</option>
-          <option value="azure">Azure Speech to Text</option>
-        </select>
-      </SettingGroup>
+      <SelectSetting
+        label="使用するSTTプロバイダ"
+        value={settings.stt?.provider ?? defaultSettings?.stt?.provider ?? 'faster_whisper'}
+        onChange={(val) => updateNested('stt', 'provider', val)}
+        options={[
+          { value: 'faster_whisper', label: 'Faster Whisper (ローカル推奨)' },
+          { value: 'google', label: 'Google Cloud STT' },
+          { value: 'azure', label: 'Azure Speech to Text' }
+        ]}
+      />
 
       {currentSTTProvider === 'faster_whisper' && (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
@@ -134,31 +133,29 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           />
           <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
             <div style={{ flex: 1 }}>
-              <SettingGroup label="演算デバイス">
-                <select
-                  value={(settings.stt?.providers?.faster_whisper as any)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
-                  onChange={(e) => updateProvider('stt', 'faster_whisper', 'device', e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="auto">Auto</option>
-                  <option value="cpu">CPU</option>
-                  <option value="cuda">CUDA (NVIDIA GPU)</option>
-                  <option value="mps">MPS (Apple Silicon)</option>
-                </select>
-              </SettingGroup>
+              <SelectSetting
+                label="演算デバイス"
+                value={(settings.stt?.providers?.faster_whisper as any)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
+                onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'cpu', label: 'CPU' },
+                  { value: 'cuda', label: 'CUDA (NVIDIA GPU)' },
+                  { value: 'mps', label: 'MPS (Apple Silicon)' }
+                ]}
+              />
             </div>
             <div style={{ flex: 1 }}>
-              <SettingGroup label="量子化">
-                <select
-                  value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
-                  onChange={(e) => updateProvider('stt', 'faster_whisper', 'compute_type', e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="default">デフォルト</option>
-                  <option value="int8">int8 (推奨 / 軽量)</option>
-                  <option value="float16">float16 (高精度GPU用)</option>
-                </select>
-              </SettingGroup>
+              <SelectSetting
+                label="量子化"
+                value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
+                onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
+                options={[
+                  { value: 'default', label: 'デフォルト' },
+                  { value: 'int8', label: 'int8 (推奨 / 軽量)' },
+                  { value: 'float16', label: 'float16 (高精度GPU用)' }
+                ]}
+              />
             </div>
           </div>
           <CheckboxSetting
@@ -216,33 +213,30 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
             value={(settings.stt?.providers?.azure as any)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'azure', 'api_key', val)}
           />
-          <SettingGroup label="リージョン (Region)">
-            <select
-              value={(settings.stt?.providers?.azure as any)?.region ?? (defaultSettings?.stt?.providers?.azure as any)?.region ?? 'japaneast'}
-              onChange={(e) => updateProvider('stt', 'azure', 'region', e.target.value)}
-              style={{ ...inputStyle, marginBottom: '10px' }}
-            >
-              <option value="japaneast">Japan East (東日本)</option>
-              <option value="japanwest">Japan West (西日本)</option>
-              <option value="eastus">East US (米国東部)</option>
-              <option value="westus">West US (米国西部)</option>
-              <option value="southeastasia">Southeast Asia (東南アジア)</option>
-              <option value="westeurope">West Europe (西欧)</option>
-              <option value="custom">-- 手入力 (カスタム) --</option>
-            </select>
-            {((settings.stt?.providers?.azure as any)?.region &&
-              !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure as any)?.region)) && (
-                <InputSetting
-                  label="カスタムリージョン名"
-                  placeholder="例: centralus"
-                  defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.region}
-                  value={(settings.stt?.providers?.azure as any)?.region}
-                  onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
-                />
-              )}
-            {/* Show manual input if user explicitly selects 'custom' or is already using one not in list */}
-            {/* Simple toggle: if it's not in the common list, show the text input */}
-          </SettingGroup>
+          <SelectSetting
+            label="リージョン (Region)"
+            value={(settings.stt?.providers?.azure as any)?.region ?? (defaultSettings?.stt?.providers?.azure as any)?.region ?? 'japaneast'}
+            onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
+            options={[
+              { value: 'japaneast', label: 'Japan East (東日本)' },
+              { value: 'japanwest', label: 'Japan West (西日本)' },
+              { value: 'eastus', label: 'East US (米国東部)' },
+              { value: 'westus', label: 'West US (米国西部)' },
+              { value: 'southeastasia', label: 'Southeast Asia (東南アジア)' },
+              { value: 'westeurope', label: 'West Europe (西欧)' },
+              { value: 'custom', label: '-- 手入力 (カスタム) --' }
+            ]}
+          />
+          {((settings.stt?.providers?.azure as any)?.region &&
+            !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure as any)?.region)) && (
+              <InputSetting
+                label="カスタムリージョン名"
+                placeholder="例: centralus"
+                defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.region}
+                value={(settings.stt?.providers?.azure as any)?.region}
+                onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
+              />
+            )}
           <InputSetting
             label="言語"
             defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.language}

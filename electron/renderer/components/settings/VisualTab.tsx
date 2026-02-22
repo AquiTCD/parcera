@@ -1,8 +1,9 @@
 import React from 'react';
-import { TabProps, inputStyle } from './types';
+import { TabProps } from './types';
 import { SettingGroup } from './controls/SettingGroup';
 import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
+import { SelectSetting } from './controls/SelectSetting';
 import { WindowSettingsSection } from './WindowSettingsSection';
 
 export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, renderTabHeader, handleSelectDir }) => {
@@ -42,15 +43,17 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
                   checked={settings.avatars?.user?.chroma_key_enabled}
                   onChange={(checked: boolean) => updateNested('avatars', 'user', { ...settings.avatars?.user, chroma_key_enabled: checked })}
                 />
-                <select
+                <SelectSetting
+                  label="クロマキー色"
                   value={settings.avatars?.user?.chroma_key_color ?? defaultSettings?.avatars?.user?.chroma_key_color ?? 'green'}
-                  onChange={(e) => updateNested('avatars', 'user', { ...settings.avatars?.user, chroma_key_color: e.target.value })}
-                  style={{ ...inputStyle, marginTop: '10px' }}
+                  onChange={(val) => updateNested('avatars', 'user', { ...settings.avatars?.user, chroma_key_color: val })}
                   disabled={!settings.avatars?.user?.chroma_key_enabled}
-                >
-                  <option value="green">グリーンバック</option>
-                  <option value="blue">ブルーバック</option>
-                </select>
+                  options={[
+                    { value: 'green', label: 'グリーンバック' },
+                    { value: 'blue', label: 'ブルーバック' }
+                  ]}
+                  style={{ marginTop: '10px' }}
+                />
               </div>
             </div>
 
@@ -83,15 +86,17 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
                   checked={settings.avatars?.ai?.chroma_key_enabled}
                   onChange={(checked: boolean) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, chroma_key_enabled: checked })}
                 />
-                <select
+                <SelectSetting
+                  label="クロマキー色"
                   value={settings.avatars?.ai?.chroma_key_color ?? defaultSettings?.avatars?.ai?.chroma_key_color ?? 'green'}
-                  onChange={(e) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, chroma_key_color: e.target.value })}
-                  style={{ ...inputStyle, marginTop: '10px' }}
+                  onChange={(val) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, chroma_key_color: val })}
                   disabled={!settings.avatars?.ai?.chroma_key_enabled}
-                >
-                  <option value="green">グリーンバック</option>
-                  <option value="blue">ブルーバック</option>
-                </select>
+                  options={[
+                    { value: 'green', label: 'グリーンバック' },
+                    { value: 'blue', label: 'ブルーバック' }
+                  ]}
+                  style={{ marginTop: '10px' }}
+                />
               </div>
             </div>
           </div>
