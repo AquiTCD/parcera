@@ -25,13 +25,11 @@ export const InputSetting: React.FC<InputSettingProps> = ({
   step,
   labelStyle
 }) => {
+  const inputId = React.useId();
   // Use local state to handle trailing decimals in number inputs seamlessly
-  // If value is empty/undefined, fall back to literal empty string here.
-  // The actual display value will be managed in useEffect if defaultValue is provided.
   const [localValue, setLocalValue] = useState<string>(String(value ?? ''));
 
   useEffect(() => {
-    // If external value is explicitly set (not null/undefined/empty string), use it
     const effectiveValue = (value !== undefined && value !== null && value !== '')
       ? value
       : (defaultValue ?? '');
@@ -39,7 +37,6 @@ export const InputSetting: React.FC<InputSettingProps> = ({
     if (type === 'number') {
       const parsedLocal = parseFloat(localValue);
       const parsedIncoming = parseFloat(String(effectiveValue));
-      // Only override local typing if the incoming external value actually differs in quantity
       if (isNaN(parsedLocal) || parsedLocal !== parsedIncoming) {
         setLocalValue(String(effectiveValue));
       }
@@ -53,7 +50,10 @@ export const InputSetting: React.FC<InputSettingProps> = ({
     setLocalValue(raw);
 
     if (type === 'number') {
-      onChange(Number(raw));
+      const num = Number(raw);
+      if (!isNaN(num)) {
+        onChange(num);
+      }
     } else {
       onChange(raw);
     }
@@ -62,8 +62,9 @@ export const InputSetting: React.FC<InputSettingProps> = ({
   const displayPlaceholder = placeholder || (defaultValue !== undefined ? String(defaultValue) : undefined);
 
   return (
-    <SettingGroup label={label} description={description} labelStyle={labelStyle}>
+    <SettingGroup label={label} description={description} labelStyle={labelStyle} contentId={inputId}>
       <input
+        id={inputId}
         type={type}
         placeholder={displayPlaceholder}
         value={localValue}

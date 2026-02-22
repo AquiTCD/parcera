@@ -20,11 +20,13 @@ export const PasswordSetting: React.FC<PasswordSettingProps> = ({
   buttonAction
 }) => {
   const [show, setShow] = useState(false);
+  const inputId = React.useId();
 
   return (
-    <SettingGroup label={label} description={description}>
+    <SettingGroup label={label} description={description} contentId={inputId}>
       <div style={{ display: 'flex', gap: '5px' }}>
         <input
+          id={inputId}
           type={show ? "text" : "password"}
           placeholder={placeholder}
           value={value ?? ''}

@@ -4,10 +4,14 @@ export const SettingGroup: React.FC<{
   label: string;
   description?: string;
   children: React.ReactNode;
-  labelStyle?: React.CSSProperties
-}> = ({ label, description, children, labelStyle }) => (
+  labelStyle?: React.CSSProperties;
+  contentId?: string;
+}> = ({ label, description, children, labelStyle, contentId }) => (
   <div className="form-group" style={{ marginBottom: '15px' }}>
-    <label style={{ display: 'block', marginBottom: description ? '2px' : '5px', ...labelStyle }}>
+    <label
+      htmlFor={contentId}
+      style={{ display: 'block', marginBottom: description ? '2px' : '5px', ...labelStyle }}
+    >
       {label}
     </label>
     {description && (
@@ -15,6 +19,8 @@ export const SettingGroup: React.FC<{
         {description}
       </small>
     )}
-    {children}
+    <div id={contentId ? undefined : undefined}>
+      {children}
+    </div>
   </div>
 );
