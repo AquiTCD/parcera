@@ -11,7 +11,11 @@ class ParceraAvatarBase:
         self.config = ParceraConfig()
 
         # Reset conversation history on startup unless persistence is enabled
-        persist_history = self.config.get("llm_persist_history", False)
+        llm_cfg = self.config.get("llm", {})
+        provider = llm_cfg.get("provider", "gemini")
+        provider_cfg = llm_cfg.get("providers", {}).get(provider, {})
+        persist_history = provider_cfg.get("persist_history", False)
+
         if not persist_history and os.path.exists("aiavatar.db"):
             try:
                 os.remove("aiavatar.db")

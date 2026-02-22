@@ -333,6 +333,18 @@ function createSettingsWindow() {
 ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => {
   try {
     store.store = newSettings;
+
+    // Notify Python server to reload config immediately
+    const port = newSettings.electron?.port || 8676;
+    const url = `http://127.0.0.1:${port}/config/reload`;
+
+    // Fire and forget, or wait briefly. Main process doesn't want to hang.
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSettings)
+    }).catch(e => console.warn('[Parcera] Python reload notification failed (likely server not running):', e.message));
+
     return { success: true };
   } catch (e) {
     console.error('Failed to save settings:', e);

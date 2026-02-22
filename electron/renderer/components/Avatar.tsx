@@ -18,6 +18,7 @@ export const Avatar: React.FC = () => {
   const [viewMode, setViewMode] = useState<'standard' | 'wide'>('standard');
   const [isLocked, setIsLocked] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [mode, setMode] = useState<'soliloquy' | 'conversation'>('soliloquy');
   const [controlCorner, setControlCorner] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
 
   useEffect(() => {
@@ -93,6 +94,9 @@ export const Avatar: React.FC = () => {
       if (winConf?.locked !== undefined) {
         setIsLocked(winConf.locked);
       }
+
+      const newMode = settings.user_profile?.mode || 'soliloquy';
+      setMode(newMode);
     };
 
     window.electronAPI.getSettings().then((s: ParceraSettings) => {
@@ -182,11 +186,26 @@ export const Avatar: React.FC = () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
     if (micTrackRef.current) micTrackRef.current.enabled = !nextMuted;
+    updateStatus(nextMuted ? 'Muted' : 'Mic Active');
 
     const s = await window.electronAPI.getSettings();
     if (!s.vad) s.vad = {};
     s.vad.start_muted = nextMuted;
     await window.electronAPI.saveSettings(s);
+  };
+
+  const toggleMode = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const s = await window.electronAPI.getSettings();
+    if (!s.user_profile) s.user_profile = {};
+
+    const currentMode = s.user_profile.mode || 'soliloquy';
+    const nextMode = currentMode === 'soliloquy' ? 'conversation' : 'soliloquy';
+
+    updateStatus(`Mode: ${nextMode}`);
+    s.user_profile.mode = nextMode;
+    await window.electronAPI.saveSettings(s);
+    // Note: applySettings via onSettingsChanged will update the local UI state
   };
 
   const toggleLock = async (e: React.MouseEvent) => {
@@ -244,6 +263,17 @@ export const Avatar: React.FC = () => {
           >
             {isLocked ? '🔒' : '🔓'}
           </button>
+
+          {state.avatarType === 'ai' && (
+            <button
+              className={`control-button ${mode === 'conversation' ? 'active' : ''}`}
+              onClick={toggleMode}
+              style={{ fontSize: '14px' }}
+              title={mode === 'conversation' ? "対話モード (おしゃべり中)" : "独り言モード (見守り中)"}
+            >
+              {mode === 'conversation' ? '💬' : '👁️'}
+            </button>
+          )}
 
           {state.avatarType === 'user' && (
             <button
