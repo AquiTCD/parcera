@@ -14,13 +14,19 @@ from routers.config_router import create_config_router
 from routers.tts_router import create_tts_router
 
 logger = logging.getLogger(__name__)
+chat_logger = logging.getLogger("parcera.chat")
 
+# ─── Chat Logger Colors ───
+C_USER = "\033[1;36m"  # Bold Cyan
+C_AI = "\033[1;32m"    # Bold Green
+C_RESET = "\033[0m"
 
 class ParceraServer(ParceraAvatarBase):
     def __init__(self):
         super().__init__()
         self.config.setup_logging()
         self.tts_engine_manager = None
+
 
         # Track current providers for hot-swapping
         self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
@@ -65,6 +71,8 @@ class ParceraServer(ParceraAvatarBase):
             start_time = time.time()
             logger.info(f"[PERF] STT Recognized: '{text}' at {start_time:.3f}")
 
+        chat_logger.info(f"{C_USER}[USER]: {text}{C_RESET}")
+
         # Dynamic Merge Threshold
         length = len(text)
         dynamic_threshold = max(0.5, min(1.5, 0.5 + (length * 0.05)))
@@ -93,8 +101,8 @@ class ParceraServer(ParceraAvatarBase):
             self.set_busy(aiavatar_response.session_id, False)
             if self.config.profile_mode:
                 logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")
-            else:
-                logger.info(f"AI: Response Final: {sts_response.text}")
+
+            chat_logger.info(f"{C_AI}[AI]:   {sts_response.text}{C_RESET}")
 
         if sts_response.type == "chunk":
             if self.config.profile_mode:

@@ -11,6 +11,7 @@
 export interface ParceraSettings {
   verbose?: boolean;
   profile_mode?: boolean;
+  simple_log?: boolean;                  // If true, only chat logs are shown in terminal
   log_level?: string;                    // "DEBUG" | "INFO" | "WARNING" | "ERROR"
   merge_request_threshold?: number;      // Seconds to merge consecutive requests
   response_sensitivity?: string;         // "high" | "medium" | "low"

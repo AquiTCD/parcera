@@ -2,7 +2,8 @@
 # ==========================================
 verbose: false         # Show detailed debug logs
 profile_mode: false    # Enable performance logging ([PERF]) to measure latency
-log_level: "INFO"      # Logging level: DEBUG, INFO, WARNING (Includes INFO), ERROR
+simple_log: true       # If true, only chat logs are shown in terminal
+log_level: "INFO"      # Logging level: DEBUG, INFO, WARNING, ERROR
 merge_request_threshold: 0.6  # [Seconds] Wait time after STT before LLM starts. Combined with VAD silence, defines total gap.
 response_sensitivity: "medium"  # "high" | "medium" | "low" - Controls how often AI responds to non-keyword speech
 force_keywords:       # AI will always respond if these keywords are detected

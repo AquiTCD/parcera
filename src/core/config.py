@@ -143,6 +143,13 @@ class ParceraConfig:
 
     def setup_logging(self):
         log_level_str = self.get("log_level", "INFO").upper()
+        simple_log = self.get("simple_log", False)
+
+        # If simple_log is ON, we force the system level to CRITICAL to silence everything,
+        # but our specialized filter will still allow parcera.chat logs.
+        effective_level = log_level_str
+        if simple_log:
+            effective_level = "CRITICAL"
 
         class CumulativeLevelFilter(logging.Filter):
             def __init__(self, mode):
@@ -150,28 +157,45 @@ class ParceraConfig:
                 self.mode = mode
 
             def filter(self, record):
-                if self.mode == "INFO":
-                    return record.levelno == logging.INFO or record.levelno >= logging.ERROR
-                if self.mode == "WARNING":
-                    return record.levelno >= logging.INFO
+                # Always allow chat logs to pass through regardless of the global level
+                if record.name == "parcera.chat":
+                    return True
+
                 if self.mode == "DEBUG":
                     return True
+                if self.mode == "INFO":
+                    return record.levelno >= logging.INFO
+                if self.mode == "WARNING":
+                    return record.levelno >= logging.WARNING
+                if self.mode == "CRITICAL":
+                    return record.levelno >= logging.CRITICAL
                 return record.levelno >= logging.INFO
 
+        # Specialized format for simple_log
+        log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        if simple_log:
+            # Much cleaner format for chat focus
+            log_format = '%(message)s'
+
         logging.basicConfig(
-            level=logging.DEBUG if log_level_str == "DEBUG" else logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            level=logging.DEBUG if effective_level == "DEBUG" else logging.INFO,
+            format=log_format,
             force=True
         )
 
         root_logger = logging.getLogger()
         for handler in root_logger.handlers:
-            handler.addFilter(CumulativeLevelFilter(log_level_str))
+            handler.addFilter(CumulativeLevelFilter(effective_level))
 
+        # Silence noisy libraries
         logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("uvicorn").setLevel(logging.INFO)
+        logging.getLogger("uvicorn").setLevel(logging.WARNING if simple_log else logging.INFO)
 
-        logger.info(f"Logging initialized at {log_level_str} level (Cumulative Mode)")
+        if simple_log:
+            print("\n✨ Parcera Simple Log Mode: ON (Chat only) ✨\n")
+        else:
+            logger.info(f"Logging initialized at {log_level_str} level (Cumulative Mode)")
+
 
     @property
     def verbose(self) -> bool:

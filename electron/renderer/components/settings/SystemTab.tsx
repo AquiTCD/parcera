@@ -14,14 +14,23 @@ export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
 
         <SelectSetting
           label="ログ出力レベル"
-          description="WARNING 以上のレベルは INFO レベルの内容も含まれます。"
+          description="標準的なログレベル設定です。下に行くほど詳細になります。"
           value={settings.log_level ?? defaultSettings?.log_level ?? 'INFO'}
           onChange={(val) => updateRoot('log_level', val)}
           options={[
-            { value: 'INFO', label: 'INFO (基本のみ: 正常・エラー)' },
-            { value: 'WARNING', label: 'WARNING (標準: INFO + 警告)' },
-            { value: 'DEBUG', label: 'DEBUG (開発用: すべて出力)' }
+            { value: 'INFO', label: 'INFO (標準: 正常動作・エラー)' },
+            { value: 'WARNING', label: 'WARNING (少なめ: 警告・エラーのみ)' },
+            { value: 'ERROR', label: 'ERROR (最小: エラー発生時のみ)' },
+            { value: 'DEBUG', label: 'DEBUG (開発用: すべてのデバッグ出力)' }
           ]}
+        />
+
+        <CheckboxSetting
+          label="シンプルログモード (会話のみ表示)"
+          description="システムログを非表示にし、ターミナルには会話ログのみを表示します。"
+          defaultValue={defaultSettings?.simple_log}
+          checked={settings.simple_log}
+          onChange={(checked) => updateRoot('simple_log', checked)}
         />
 
         <CheckboxSetting
