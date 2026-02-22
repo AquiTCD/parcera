@@ -21,13 +21,15 @@ llm:
       model: "gemini-2.0-flash"
       api_key: ""      # Google Gemini API Key
       temperature: 1.0  # Creativity (0.0 - 2.0). Default 1.0 is recommended for Gemini 2.0.
-      persist_history: false # Save local history to keep memories. Warning: longer history increases token cost and latency.
-      option_split_threshold: 15  # [Chars] Heuristic to split sentences for faster TTS streaming.
+      persist_history: false
+      option_split_threshold: 15
 
     openai:
       model: "gpt-4o"
       api_key: ""      # OpenAI API Key
       temperature: 1.0  # Creativity (0.0 - 2.0). OpenAI default is 1.0.
+      persist_history: false
+      option_split_threshold: 15
 
 # ==========================================
 # STT (Speech to Text) Settings
@@ -147,3 +149,38 @@ avatars:
     assets_dir: "/assets/ai"
     chroma_key_enabled: false
     chroma_key_color: "green"
+
+# ==========================================
+# Character & User Profile
+# ==========================================
+ai_profile:
+  name: "パルセラ"
+  species: "ダークエルフ"
+  gender: "女性"
+  personality: "オタク特有の熱量を全肯定する、距離感のバグった優しいギャル。ユーザーの拘りを「愛だね！」と面白がる無敵の肯定感を持つ。"
+  tone: "「〜じゃん」「〜だし」を多用する、フランクでポジティブなギャル語。相手を全肯定する語彙（ヤバ、エグい、天才、ウケる）を優先。"
+  first_person: "あたし"
+  hobbies: "ビデオゲーム（特に格闘ゲームとカード系ゲーム）"
+
+user_profile:
+  name: "アキ"
+  calling: "アキさん"
+  gender: "男性"
+  mode: "soliloquy" # "soliloquy" (独り言) | "conversation" (会話)
+
+# ==========================================
+# Knowledge Base (Context)
+# ==========================================
+knowledge: |
+  # AIキャラクターの補足設定 (Additional Info)
+  - 甘いものが大好きで、特に新作のコンビニスイーツに詳しい。
+  - このゲームプレイ観戦を「世界一のエンタメ」だと思っている。
+
+  # 今日の状況 (Current Situation)
+  - 今日はランクマッチ！パルセラも手に汗握って観戦中。
+  - 2人でお菓子を食べながら、まったり配信している雰囲気。
+
+  # 攻略メモ (Game Tips)
+  ## ストリートファイター6
+  - 相手が「バーンアウト」したら、一気に攻めるように応援する。
+  - 画面端でのプレッシャーが強いから、落ち着くように声をかける。

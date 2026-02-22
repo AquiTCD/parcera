@@ -5,8 +5,10 @@ import { LLMTab } from './settings/LLMTab';
 import { TTSTab } from './settings/TTSTab';
 import { VisualTab } from './settings/VisualTab';
 import { SystemTab } from './settings/SystemTab';
+import { AIProfileTab } from './settings/AIProfileTab';
 
 const TABS = [
+  { id: 'profile', label: 'キャラクター設定' },
   { id: 'stt', label: '音声認識（耳）' },
   { id: 'llm', label: '思考・返答（頭脳）' },
   { id: 'tts', label: '音声出力（口）' },
@@ -18,7 +20,7 @@ export const Settings: React.FC = () => {
   const [settings, setSettings] = useState<ParceraSettings | null>(null);
   const [defaultSettings, setDefaultSettings] = useState<ParceraSettings | null>(null);
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({ message: '', type: '' });
-  const [activeTab, setActiveTab] = useState('stt');
+  const [activeTab, setActiveTab] = useState('profile');
 
   useEffect(() => {
     window.electronAPI.getSettings().then(setSettings);
@@ -94,6 +96,10 @@ export const Settings: React.FC = () => {
         newSettings.log_level = defaultSettings.log_level;
         const prevWindows = newSettings.electron?.windows;
         newSettings.electron = { ...defaultSettings.electron, windows: prevWindows };
+      } else if (activeTab === 'profile') {
+        newSettings.ai_profile = defaultSettings.ai_profile;
+        newSettings.user_profile = defaultSettings.user_profile;
+        newSettings.knowledge = defaultSettings.knowledge;
       }
       return newSettings;
     });
@@ -224,6 +230,18 @@ export const Settings: React.FC = () => {
         {/* Content Area */}
         <div style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#1e1e1e' }}>
 
+          {/* ========== 1. Profile ========== */}
+          {activeTab === 'profile' && (
+            <AIProfileTab
+              settings={settings}
+              defaultSettings={defaultSettings || undefined}
+              updateNested={updateNested}
+              updateRoot={updateRoot}
+              updateProvider={updateProvider}
+              setStatus={setStatus}
+              renderTabHeader={renderTabHeader}
+            />
+          )}
 
           {/* ========== 2. LLM ========== */}
           {activeTab === 'llm' && (

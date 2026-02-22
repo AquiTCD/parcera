@@ -136,6 +136,7 @@ export const LLMTab: React.FC<TabProps> = ({
           onChange={(checked) => updateProvider('llm', currentLLMProvider, 'persist_history', checked)}
         />
       </div>
+
     </section>
   );
 };

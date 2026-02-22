@@ -21,6 +21,9 @@ export interface ParceraSettings {
   vad?: VADSettings;
   electron?: ElectronSettings;
   avatars?: AvatarSettings;
+  ai_profile?: AIProfileSettings;
+  user_profile?: UserProfileSettings;
+  knowledge?: string;
 }
 
 export interface LLMSettings {
@@ -137,6 +140,23 @@ export interface AvatarConfig {
   assets_dir?: string;
   chroma_key_enabled?: boolean;
   chroma_key_color?: 'green' | 'blue';
+}
+
+export interface AIProfileSettings {
+  name?: string;
+  species?: string;
+  gender?: string;
+  personality?: string;
+  tone?: string;
+  first_person?: string;
+  hobbies?: string;
+}
+
+export interface UserProfileSettings {
+  name?: string;
+  calling?: string;
+  gender?: string;
+  mode?: 'soliloquy' | 'conversation';
 }
 
 // ─── Application Types ───

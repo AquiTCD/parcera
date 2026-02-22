@@ -69,8 +69,48 @@ class ParceraConfig:
             self.settings = deep_merge(defaults, user_settings)
 
             # ALWAYS re-load Prompts from disk (they are not in settings dict)
-            system_prompt = load_text_file("prompts/system_prompt.md")
-            context_prompt = load_text_file("prompts/context_prompt.md")
+            system_prompt_template = load_text_file("prompts/system_prompt.md")
+            context_prompt_template = load_text_file("prompts/context_prompt.md")
+
+            # 4. Fill Placeholders in Prompts
+            ai_profile = self.get("ai_profile", {})
+            user_profile = self.get("user_profile", {})
+            knowledge = self.get("knowledge", "")
+            mode = user_profile.get("mode", "soliloquy")
+
+            # Combine initial params (Base set)
+            fill_params = {
+                **ai_profile,
+                "userName": user_profile.get("name", ""),
+                "userCalling": user_profile.get("calling", ""),
+                "userGender": user_profile.get("gender", ""),
+                "mode": mode,
+                "knowledge": knowledge
+            }
+
+            # Load mode-specific action guidelines and base situations
+            guidelines_file = f"prompts/action_guidelines_{mode}.md"
+            action_guidelines = load_text_file(guidelines_file)
+
+            # Define default situations per mode (In English for higher precision)
+            if mode == "soliloquy":
+                default_situation = f"{fill_params['userName']} is fully immersed in gaming right in front of you, occasionally muttering thoughts aloud. You are a 'side-by-side observer (観戦者)', watching the same screen together, and providing enthusiastic reactions or support."
+            else:
+                default_situation = f"You are enjoying an active conversation with {fill_params['userName']} while they are gaming or streaming. You are a 'supportive partner' who balances natural dialogue with reacting to their gameplay, maintaining a fun and interactive atmosphere."
+
+            fill_params["situation"] = default_situation
+            fill_params["actionGuidelines"] = action_guidelines
+
+            # Simple string replacement for ${key} in both prompts
+            def fill_placeholders(text: str, params: dict) -> str:
+                if not text: return ""
+                for key, value in params.items():
+                    text = text.replace(f"${{{key}}}", str(value) if value is not None else "")
+                return text
+
+            system_prompt = fill_placeholders(system_prompt_template, fill_params)
+            context_prompt = fill_placeholders(context_prompt_template, fill_params)
+
             self.full_system_prompt = f"{system_prompt}\n\n{context_prompt}" if context_prompt else system_prompt
 
             # Re-apply logging if it was already initialized
