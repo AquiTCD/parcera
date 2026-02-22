@@ -1,8 +1,10 @@
 import os
+import json
 import yaml
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 def load_text_file(path: str) -> str:
     if os.path.exists(path):
@@ -10,7 +12,6 @@ def load_text_file(path: str) -> str:
             return f.read().strip()
     return ""
 
-import json
 
 def load_config_file(path: str) -> dict:
     if os.path.exists(path):
@@ -19,6 +20,7 @@ def load_config_file(path: str) -> dict:
                 return json.load(f)
             return yaml.safe_load(f)
     return {}
+
 
 def deep_merge(base: dict, update: dict) -> dict:
     """Recursively merge two dictionaries."""
@@ -29,6 +31,33 @@ def deep_merge(base: dict, update: dict) -> dict:
         else:
             result[key] = value
     return result
+
+
+def _fill_placeholders(text: str, params: dict) -> str:
+    """Replace ${key} patterns in text with values from params."""
+    if not text:
+        return ""
+    for key, value in params.items():
+        text = text.replace(f"${{{key}}}", str(value) if value is not None else "")
+    return text
+
+
+def _get_default_situation(mode: str, user_name: str) -> str:
+    """Return a mode-specific situation description (in English for precision)."""
+    if mode == "soliloquy":
+        return (
+            f"{user_name} is fully immersed in gaming right in front of you, "
+            "occasionally muttering thoughts aloud. You are a 'side-by-side observer "
+            "(観戦者)', watching the same screen together, and providing enthusiastic "
+            "reactions or support."
+        )
+    return (
+        f"You are enjoying an active conversation with {user_name} while they are "
+        "gaming or streaming. You are a 'supportive partner' who balances natural "
+        "dialogue with reacting to their gameplay, maintaining a fun and interactive "
+        "atmosphere."
+    )
+
 
 class ParceraConfig:
     def __init__(self, settings_path: str = None):
@@ -42,131 +71,103 @@ class ParceraConfig:
     def refresh(self, new_settings: dict = None):
         """Reload settings and prompts. Use disk if new_settings is None."""
         try:
-            # 1. Load Defaults as the foundation
-            # Search for defaults relative to the script location or project root
-            defaults_path = os.path.join(os.getcwd(), "configs/settings.default.yaml")
-            defaults = load_config_file(defaults_path)
-
-            # 2. Load/Received User Settings
-            user_settings = {}
-            if new_settings:
-                # Direct update from memory (e.g. from POST body)
-                user_settings = new_settings
-                if os.path.exists(self.settings_path):
-                    self.last_mtime = os.path.getmtime(self.settings_path) # Sync mtime
-            else:
-                # Disk update
-                if not os.path.exists(self.settings_path):
-                    logger.debug(f"User settings file not found: {self.settings_path}")
-                else:
-                    current_mtime = os.path.getmtime(self.settings_path)
-                    if current_mtime <= self.last_mtime:
-                        return False
-                    user_settings = load_config_file(self.settings_path)
-                    self.last_mtime = current_mtime
-
-            # 3. Deep Merge: User settings override defaults
-            self.settings = deep_merge(defaults, user_settings)
-
-            # ALWAYS re-load Prompts from disk (they are not in settings dict)
-            system_prompt_template = load_text_file("prompts/system_prompt.md")
-            context_prompt_template = load_text_file("prompts/context_prompt.md")
-
-            # 4. Fill Placeholders in Prompts
-            ai_profile = self.get("ai_profile", {})
-            user_profile = self.get("user_profile", {})
-            knowledge = self.get("knowledge", "")
-            mode = user_profile.get("mode", "soliloquy")
-
-            # Combine initial params (Base set)
-            fill_params = {
-                **ai_profile,
-                "userName": user_profile.get("name", ""),
-                "userCalling": user_profile.get("calling", ""),
-                "userGender": user_profile.get("gender", ""),
-                "mode": mode,
-                "knowledge": knowledge
-            }
-
-            # Load mode-specific action guidelines and base situations
-            guidelines_file = f"prompts/action_guidelines_{mode}.md"
-            action_guidelines = load_text_file(guidelines_file)
-
-            # Define default situations per mode (In English for higher precision)
-            if mode == "soliloquy":
-                default_situation = f"{fill_params['userName']} is fully immersed in gaming right in front of you, occasionally muttering thoughts aloud. You are a 'side-by-side observer (観戦者)', watching the same screen together, and providing enthusiastic reactions or support."
-            else:
-                default_situation = f"You are enjoying an active conversation with {fill_params['userName']} while they are gaming or streaming. You are a 'supportive partner' who balances natural dialogue with reacting to their gameplay, maintaining a fun and interactive atmosphere."
-
-            fill_params["situation"] = default_situation
-            fill_params["actionGuidelines"] = action_guidelines
-
-            # Simple string replacement for ${key} in both prompts
-            def fill_placeholders(text: str, params: dict) -> str:
-                if not text: return ""
-                for key, value in params.items():
-                    text = text.replace(f"${{{key}}}", str(value) if value is not None else "")
-                return text
-
-            system_prompt = fill_placeholders(system_prompt_template, fill_params)
-            context_prompt = fill_placeholders(context_prompt_template, fill_params)
-
-            self.full_system_prompt = f"{system_prompt}\n\n{context_prompt}" if context_prompt else system_prompt
-
-            # 5. Build STT Initial Prompt
-            force_keywords = self.get("force_keywords", [])
-            stt_cfg = self.get("stt", {})
-            dict_cfg = stt_cfg.get("dictionary", {})
-            specific_keywords = dict_cfg.get("specific_keywords", [])
-
-            all_keywords = sorted(list(set(force_keywords + specific_keywords)))
-            keyword_str = ", ".join(all_keywords)
-
-            ai_name = fill_params.get("name", "AI")
-            self.full_stt_prompt = f"私は{ai_name}です。{keyword_str}。"
-
-            # Re-apply logging if it was already initialized
+            self._load_settings(new_settings)
+            self._build_prompts()
+            self._build_stt_prompt()
             self.setup_logging()
             return True
         except Exception as e:
             logger.error(f"Error refreshing config: {e}")
         return False
 
+    def _load_settings(self, new_settings: dict = None):
+        """Load defaults, then overlay user settings (from memory or disk)."""
+        defaults_path = os.path.join(os.getcwd(), "configs/settings.default.yaml")
+        defaults = load_config_file(defaults_path)
+
+        user_settings = {}
+        if new_settings:
+            user_settings = new_settings
+            if os.path.exists(self.settings_path):
+                self.last_mtime = os.path.getmtime(self.settings_path)
+        else:
+            if not os.path.exists(self.settings_path):
+                logger.debug(f"User settings file not found: {self.settings_path}")
+            else:
+                current_mtime = os.path.getmtime(self.settings_path)
+                if current_mtime <= self.last_mtime:
+                    return  # No change on disk
+                user_settings = load_config_file(self.settings_path)
+                self.last_mtime = current_mtime
+
+        self.settings = deep_merge(defaults, user_settings)
+
+    def _build_prompts(self):
+        """Load prompt templates from disk and fill placeholders."""
+        system_template = load_text_file("prompts/system_prompt.md")
+        context_template = load_text_file("prompts/context_prompt.md")
+
+        ai_profile = self.get("ai_profile", {})
+        user_profile = self.get("user_profile", {})
+        mode = user_profile.get("mode", "soliloquy")
+
+        fill_params = {
+            **ai_profile,
+            "userName": user_profile.get("name", ""),
+            "userCalling": user_profile.get("calling", ""),
+            "userGender": user_profile.get("gender", ""),
+            "mode": mode,
+            "knowledge": self.get("knowledge", ""),
+            "situation": _get_default_situation(mode, user_profile.get("name", "")),
+            "actionGuidelines": load_text_file(f"prompts/action_guidelines_{mode}.md"),
+        }
+
+        system_prompt = _fill_placeholders(system_template, fill_params)
+        context_prompt = _fill_placeholders(context_template, fill_params)
+
+        self.full_system_prompt = (
+            f"{system_prompt}\n\n{context_prompt}" if context_prompt else system_prompt
+        )
+
+    def _build_stt_prompt(self):
+        """Build the initial STT prompt from keywords."""
+        force_keywords = self.get("force_keywords", [])
+        stt_cfg = self.get("stt", {})
+        specific_keywords = stt_cfg.get("dictionary", {}).get("specific_keywords", [])
+
+        all_keywords = sorted(set(force_keywords + specific_keywords))
+        keyword_str = ", ".join(all_keywords)
+
+        ai_name = self.get("ai_profile", {}).get("name", "AI")
+        self.full_stt_prompt = f"私は{ai_name}です。{keyword_str}。"
+
     def setup_logging(self):
         log_level_str = self.get("log_level", "INFO").upper()
 
-        # Define custom cumulative filter based on user request
         class CumulativeLevelFilter(logging.Filter):
             def __init__(self, mode):
                 super().__init__()
                 self.mode = mode
 
             def filter(self, record):
-                # INFO: INFO(20) + ERROR(40) only. Skip WARNING(30).
                 if self.mode == "INFO":
                     return record.levelno == logging.INFO or record.levelno >= logging.ERROR
-                # WARNING: INFO(20) + WARNING(30) + ERROR(40)
                 if self.mode == "WARNING":
                     return record.levelno >= logging.INFO
-                # DEBUG: DEBUG(10) + above (All)
                 if self.mode == "DEBUG":
                     return True
-                # Fallback to standard INFO threshold
                 return record.levelno >= logging.INFO
 
-        # Configure root logger at DEBUG to allow all logs through to the filter
         logging.basicConfig(
             level=logging.DEBUG if log_level_str == "DEBUG" else logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             force=True
         )
 
-        # Apply specific filtering logic
         root_logger = logging.getLogger()
         for handler in root_logger.handlers:
             handler.addFilter(CumulativeLevelFilter(log_level_str))
 
-        # Silence some noisy loggers
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("uvicorn").setLevel(logging.INFO)
 

@@ -124,7 +124,7 @@ def test_get_tts_speakers_with_temp_start(client):
             MagicMock(status_code=200, json=lambda: [{"name": "Temp Speaker"}]) # Second check after start
         ]
 
-        with patch("src.run_server.TTSEngineManager") as MockManager:
+        with patch("routers.tts_router.TTSEngineManager") as MockManager:
             mock_manager = MockManager.return_value
             mock_manager.start = AsyncMock()
             mock_manager.stop = AsyncMock()
