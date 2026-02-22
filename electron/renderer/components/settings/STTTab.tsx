@@ -198,12 +198,33 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
             value={(settings.stt?.providers?.azure as any)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'azure', 'api_key', val)}
           />
-          <InputSetting
-            label="リージョン"
-            defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.region}
-            value={(settings.stt?.providers?.azure as any)?.region}
-            onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
-          />
+          <SettingGroup label="リージョン (Region)">
+            <select
+              value={(settings.stt?.providers?.azure as any)?.region ?? (defaultSettings?.stt?.providers?.azure as any)?.region ?? 'japaneast'}
+              onChange={(e) => updateProvider('stt', 'azure', 'region', e.target.value)}
+              style={{ ...inputStyle, marginBottom: '10px' }}
+            >
+              <option value="japaneast">Japan East (東日本)</option>
+              <option value="japanwest">Japan West (西日本)</option>
+              <option value="eastus">East US (米国東部)</option>
+              <option value="westus">West US (米国西部)</option>
+              <option value="southeastasia">Southeast Asia (東南アジア)</option>
+              <option value="westeurope">West Europe (西欧)</option>
+              <option value="custom">-- 手入力 (カスタム) --</option>
+            </select>
+            {((settings.stt?.providers?.azure as any)?.region &&
+              !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure as any)?.region)) && (
+                <InputSetting
+                  label="カスタムリージョン名"
+                  placeholder="例: centralus"
+                  defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.region}
+                  value={(settings.stt?.providers?.azure as any)?.region}
+                  onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
+                />
+              )}
+            {/* Show manual input if user explicitly selects 'custom' or is already using one not in list */}
+            {/* Simple toggle: if it's not in the common list, show the text input */}
+          </SettingGroup>
           <InputSetting
             label="言語"
             defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.language}
