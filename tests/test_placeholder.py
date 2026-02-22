@@ -11,7 +11,7 @@ def test_placeholder_filling():
     # We need to handle multiple open calls for different files
     def get_mock_file_open(settings_content):
         def mock_file_open(path, *args, **kwargs):
-            if "settings.default.yaml" in path:
+            if "settings.default.yaml" in path or "test_settings.yaml" in path:
                 return mock_open(read_data=settings_content).return_value
             if "system_prompt.md" in path:
                 return mock_open(read_data=system_prompt_md).return_value
@@ -36,8 +36,9 @@ knowledge: "Some fact"
 """
 
     with patch("os.path.exists", return_value=True):
-        with patch("builtins.open", side_effect=get_mock_file_open(settings_base)):
-            config = ParceraConfig()
+        with patch("os.path.getmtime", return_value=123.456):
+            with patch("builtins.open", side_effect=get_mock_file_open(settings_base)):
+                config = ParceraConfig(settings_path="test_settings.yaml")
 
             assert "I am TestAI" in config.full_system_prompt
             assert "You are UserA" in config.full_system_prompt
