@@ -5,7 +5,7 @@ import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 
-export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
+export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
   const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
 
   return (
@@ -17,7 +17,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
 
         <CheckboxSetting
           label="起動時にマイクをミュートにする"
-          checked={settings.vad?.start_muted ?? false}
+          defaultValue={defaultSettings?.vad?.start_muted}
+          checked={settings.vad?.start_muted}
           onChange={(checked) => updateNested('vad', 'start_muted', checked)}
           style={{ marginBottom: '20px' }}
         />
@@ -32,11 +33,11 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
               min="-60"
               max="0"
               step="1"
-              value={settings.vad?.volume_db_threshold ?? -20}
+              value={settings.vad?.volume_db_threshold ?? defaultSettings?.vad?.volume_db_threshold ?? -20}
               onChange={(e) => updateNested('vad', 'volume_db_threshold', Number(e.target.value))}
               style={{ flex: 1, marginRight: '15px' }}
             />
-            <span style={{ width: '50px', textAlign: 'right' }}>{settings.vad?.volume_db_threshold ?? -20} dB</span>
+            <span style={{ width: '50px', textAlign: 'right' }}>{settings.vad?.volume_db_threshold ?? defaultSettings?.vad?.volume_db_threshold ?? -20} dB</span>
           </div>
         </SettingGroup>
 
@@ -47,8 +48,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
               description="短くすると反応が早まりますが、文章が細切れになるリスクがあります。"
               type="number"
               step="0.1"
-              placeholder="0.4"
-              value={settings.vad?.silence_duration_threshold ?? 0.4}
+              defaultValue={defaultSettings?.vad?.silence_duration_threshold}
+              value={settings.vad?.silence_duration_threshold}
               onChange={(val) => updateNested('vad', 'silence_duration_threshold', val)}
             />
           </div>
@@ -58,8 +59,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
               description="環境音などで録音が止まらなくなった際の強制終了時間"
               type="number"
               step="1.0"
-              placeholder="15.0"
-              value={settings.vad?.max_duration ?? 15.0}
+              defaultValue={defaultSettings?.vad?.max_duration}
+              value={settings.vad?.max_duration}
               onChange={(val) => updateNested('vad', 'max_duration', val)}
             />
           </div>
@@ -73,8 +74,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           label="強制応答キーワード"
           description="カンマ区切りで複数指定可能です。"
           type="text"
-          placeholder="パルセラ"
-          value={settings.force_keywords?.join(', ') ?? ''}
+          defaultValue={defaultSettings?.force_keywords?.join(', ')}
+          value={settings.force_keywords?.join(', ')}
           onChange={(val) => updateRoot('force_keywords', typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [])}
         />
 
@@ -82,14 +83,14 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           label="無視するフレーズ"
           description="カンマ区切りで複数指定可能です。"
           type="text"
-          placeholder="うん, はい"
-          value={settings.stt?.ignore_sentences?.join(', ') ?? ''}
+          defaultValue={defaultSettings?.stt?.ignore_sentences?.join(', ')}
+          value={settings.stt?.ignore_sentences?.join(', ')}
           onChange={(val) => updateNested('stt', 'ignore_sentences', typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [])}
         />
 
         <SettingGroup label="応答頻度">
           <select
-            value={settings.response_sensitivity ?? 'medium'}
+            value={settings.response_sensitivity ?? defaultSettings?.response_sensitivity ?? 'medium'}
             onChange={(e) => updateRoot('response_sensitivity', e.target.value)}
             style={inputStyle}
           >
@@ -104,15 +105,15 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           description="文字化した後に続きを待つ時間。これと無音時間の合計が、AIが考え始めるまでの『間』になります。"
           type="number"
           step="0.1"
-          placeholder="0.6"
-          value={settings.merge_request_threshold ?? 0.6}
+          defaultValue={defaultSettings?.merge_request_threshold}
+          value={settings.merge_request_threshold}
           onChange={(val) => updateRoot('merge_request_threshold', val)}
         />
       </div>
 
       <SettingGroup label="使用するSTTプロバイダ">
         <select
-          value={currentSTTProvider}
+          value={settings.stt?.provider ?? defaultSettings?.stt?.provider ?? 'faster_whisper'}
           onChange={(e) => updateNested('stt', 'provider', e.target.value)}
           style={inputStyle}
         >
@@ -125,20 +126,17 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
       {currentSTTProvider === 'faster_whisper' && (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
           <h3 style={{ marginTop: 0, fontSize: '16px' }}>Faster Whisper 設定</h3>
-          <SettingGroup label="モデル (HuggingFace形式)">
-            <input
-              type="text"
-              placeholder="longisland3/kotoba-whisper-v2.2-faster"
-              value={(settings.stt?.providers?.faster_whisper as any)?.model ?? 'longisland3/kotoba-whisper-v2.2-faster'}
-              onChange={(e) => updateProvider('stt', 'faster_whisper', 'model', e.target.value)}
-              style={inputStyle}
-            />
-          </SettingGroup>
+          <InputSetting
+            label="モデル (HuggingFace形式)"
+            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.model}
+            value={(settings.stt?.providers?.faster_whisper as any)?.model}
+            onChange={(val) => updateProvider('stt', 'faster_whisper', 'model', val)}
+          />
           <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
             <div style={{ flex: 1 }}>
               <SettingGroup label="演算デバイス">
                 <select
-                  value={(settings.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
+                  value={(settings.stt?.providers?.faster_whisper as any)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
                   onChange={(e) => updateProvider('stt', 'faster_whisper', 'device', e.target.value)}
                   style={inputStyle}
                 >
@@ -152,7 +150,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
             <div style={{ flex: 1 }}>
               <SettingGroup label="量子化">
                 <select
-                  value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
+                  value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
                   onChange={(e) => updateProvider('stt', 'faster_whisper', 'compute_type', e.target.value)}
                   style={inputStyle}
                 >
@@ -166,7 +164,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           <CheckboxSetting
             label="Whisper内蔵VADを使用"
             description="長文向けの設定（短文が無視されるリスクがあります）"
-            checked={(settings.stt?.providers?.faster_whisper as any)?.whisper_vad_filter ?? false}
+            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
+            checked={(settings.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
             onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
           />
         </div>
@@ -183,8 +182,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           />
           <InputSetting
             label="言語"
-            placeholder="ja-JP"
-            value={(settings.stt?.providers?.google as any)?.language ?? 'ja-JP'}
+            defaultValue={(defaultSettings?.stt?.providers?.google as any)?.language}
+            value={(settings.stt?.providers?.google as any)?.language}
             onChange={(val) => updateProvider('stt', 'google', 'language', val)}
           />
         </div>
@@ -201,14 +200,14 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
           />
           <InputSetting
             label="リージョン"
-            placeholder="eastus"
-            value={(settings.stt?.providers?.azure as any)?.region ?? ''}
+            defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.region}
+            value={(settings.stt?.providers?.azure as any)?.region}
             onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
           />
           <InputSetting
             label="言語"
-            placeholder="ja-JP"
-            value={(settings.stt?.providers?.azure as any)?.language ?? 'ja-JP'}
+            defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.language}
+            value={(settings.stt?.providers?.azure as any)?.language}
             onChange={(val) => updateProvider('stt', 'azure', 'language', val)}
           />
         </div>

@@ -8,6 +8,7 @@ import useSWR from 'swr';
 
 export const LLMTab: React.FC<TabProps> = ({
   settings,
+  defaultSettings,
   updateNested,
   updateProvider,
   setStatus,
@@ -15,6 +16,7 @@ export const LLMTab: React.FC<TabProps> = ({
 }) => {
   const currentLLMProvider = settings.llm?.provider || 'gemini';
   const apiKey = (settings.llm?.providers as any)?.[currentLLMProvider]?.api_key;
+  const defaultProviderSettings = (defaultSettings?.llm?.providers as any)?.[currentLLMProvider];
 
   const { data: llmModels, error, isValidating: isFetchingLLM, mutate } = useSWR(
     apiKey ? ['llmModels', currentLLMProvider, apiKey] : null,
@@ -57,7 +59,7 @@ export const LLMTab: React.FC<TabProps> = ({
 
       <SettingGroup label="使用するプロバイダ">
         <select
-          value={settings.llm?.provider ?? 'gemini'}
+          value={settings.llm?.provider ?? defaultSettings?.llm?.provider ?? 'gemini'}
           onChange={(e) => updateNested('llm', 'provider', e.target.value)}
           style={inputStyle}
         >
@@ -112,28 +114,25 @@ export const LLMTab: React.FC<TabProps> = ({
           description="0.0〜2.0で指定。0に近いほど事実に基づいた正確な回答に、1.0を超えると独創的で多様な表現になります。"
           type="number"
           step="0.1"
-          placeholder="0.7"
-          value={(settings.llm?.providers as any)?.[currentLLMProvider]?.temperature ?? 0.7}
+          defaultValue={defaultProviderSettings?.temperature}
+          value={(settings.llm?.providers as any)?.[currentLLMProvider]?.temperature}
           onChange={(val) => updateProvider('llm', currentLLMProvider, 'temperature', val)}
         />
 
-        <SettingGroup
+        <InputSetting
           label="文章の分割文字数 (ストリーミング)"
           description="音声合成を早く開始するための最小文字数の目安です。"
-        >
-          <input
-            type="number"
-            placeholder="15"
-            value={(settings.llm?.providers as any)?.[currentLLMProvider]?.option_split_threshold ?? 15}
-            onChange={(e) => updateProvider('llm', currentLLMProvider, 'option_split_threshold', Number(e.target.value))}
-            style={inputStyle}
-          />
-        </SettingGroup>
+          type="number"
+          defaultValue={defaultProviderSettings?.option_split_threshold}
+          value={(settings.llm?.providers as any)?.[currentLLMProvider]?.option_split_threshold}
+          onChange={(val) => updateProvider('llm', currentLLMProvider, 'option_split_threshold', val)}
+        />
 
         <CheckboxSetting
           label="会話履歴を保存して記憶を保持する"
           description="会話履歴を保存して過去の記憶を保持します。※履歴が長くなると、消費トークン増大やレスポンス低下の原因になります。"
-          checked={(settings.llm?.providers as any)?.[currentLLMProvider]?.persist_history ?? false}
+          defaultValue={defaultProviderSettings?.persist_history}
+          checked={(settings.llm?.providers as any)?.[currentLLMProvider]?.persist_history}
           onChange={(checked) => updateProvider('llm', currentLLMProvider, 'persist_history', checked)}
         />
       </div>

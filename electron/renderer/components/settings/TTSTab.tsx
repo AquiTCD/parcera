@@ -7,6 +7,7 @@ import useSWR from 'swr';
 
 export const TTSTab: React.FC<TabProps> = ({
   settings,
+  defaultSettings,
   updateNested,
   updateProvider,
   updateTTSSettings,
@@ -14,8 +15,9 @@ export const TTSTab: React.FC<TabProps> = ({
   renderTabHeader
 }) => {
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
+  const defaultProviderSettings = (defaultSettings?.tts?.providers as any)?.[currentTTSProvider];
   const ttsSettingsUrl = settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.api_url;
-  const rawUrl = ttsSettingsUrl || (currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021');
+  const rawUrl = ttsSettingsUrl || defaultProviderSettings?.api_url || (currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021');
   const url = rawUrl.replace(/\/$/, '');
 
   const { data: speakersInfo, error: speakersError, isValidating: isFetchingTTS, mutate: retrySpeakers } = useSWR(
@@ -60,29 +62,6 @@ export const TTSTab: React.FC<TabProps> = ({
     }
   }, [speakersError, googleError, setStatus]);
 
-  const handleRestartEngine = async () => {
-    setStatus({ message: 'エンジンを起動・再起動中...', type: '' });
-    try {
-      // Get current local server port from settings
-      const port = settings.electron?.port || 8676;
-      const res = await fetch(`http://127.0.0.1:${port}/tts/restart`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        setStatus({ message: 'エンジンを起動・再起動しました', type: 'success' });
-        // Give it a moment then refresh speakers
-        setTimeout(() => retrySpeakers(), 1000);
-      } else {
-        throw new Error(data.message || '再起動に失敗しました');
-      }
-    } catch (e: any) {
-      setStatus({ message: `起動エラー: ${e.message}`, type: 'error' });
-    }
-  };
-
   const handleFetchSpeakers = async () => {
     if (!settings) return;
     setStatus({ message: 'キャラクターリストを取得中...', type: '' });
@@ -125,7 +104,7 @@ export const TTSTab: React.FC<TabProps> = ({
 
       <SettingGroup label="使用するTTSプロバイダ">
         <select
-          value={settings.tts?.provider ?? 'aivisspeech'}
+          value={settings.tts?.provider ?? defaultSettings?.tts?.provider ?? 'aivisspeech'}
           onChange={(e) => updateNested('tts', 'provider', e.target.value)}
           style={inputStyle}
         >
@@ -140,16 +119,16 @@ export const TTSTab: React.FC<TabProps> = ({
           <h3 style={{ marginTop: 0, fontSize: '16px' }}>{currentTTSProvider === 'aivisspeech' ? 'AivisSpeech' : currentTTSProvider === 'voicevox' ? 'VOICEVOX' : currentTTSProvider} エンジン設定</h3>
           <InputSetting
             label="エンジンのAPI URL"
-            description={currentTTSProvider === 'aivisspeech' ? "デフォルト: http://127.0.0.1:10101" : "デフォルト: http://127.0.0.1:50021"}
-            placeholder={currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021'}
-            value={settings.tts?.providers?.[currentTTSProvider]?.api_url ?? ''}
+            description={`デフォルト: ${defaultProviderSettings?.api_url}`}
+            defaultValue={defaultProviderSettings?.api_url}
+            value={settings.tts?.providers?.[currentTTSProvider]?.api_url}
             onChange={(val) => updateProvider('tts', currentTTSProvider, 'api_url', val)}
           />
           <InputSetting
             label="エンジン起動パス"
             description="空なら自動起動しません。例: /Applications/.../run"
-            placeholder="/Applications/.../run"
-            value={settings.tts?.providers?.[currentTTSProvider]?.engine_path ?? ''}
+            defaultValue={defaultProviderSettings?.engine_path}
+            value={settings.tts?.providers?.[currentTTSProvider]?.engine_path}
             onChange={(val) => updateProvider('tts', currentTTSProvider, 'engine_path', val)}
           />
 
@@ -210,7 +189,7 @@ export const TTSTab: React.FC<TabProps> = ({
           />
           <SettingGroup label="プロバイダー">
             <select
-              value={settings.tts?.providers?.google?.voice ?? 'ja-JP-Neural2-B'}
+              value={settings.tts?.providers?.google?.voice ?? defaultSettings?.tts?.providers?.google?.voice ?? 'ja-JP-Neural2-B'}
               onChange={(e) => updateProvider('tts', 'google', 'voice', e.target.value)}
               style={inputStyle}
               disabled={isFetchingGoogleVoice || !googleVoices || googleVoices.length === 0}
@@ -240,8 +219,8 @@ export const TTSTab: React.FC<TabProps> = ({
               label="話速 (スピード)"
               type="number"
               step="0.05"
-              placeholder="1.25"
-              value={settings.tts?.settings?.speedScale ?? 1.25}
+              defaultValue={defaultSettings?.tts?.settings?.speedScale}
+              value={settings.tts?.settings?.speedScale}
               onChange={(val) => updateTTSSettings?.('speedScale', val)}
             />
             <InputSetting
@@ -249,17 +228,17 @@ export const TTSTab: React.FC<TabProps> = ({
               description="声の抑揚（メロディ）の強弱。0にすると棒読みになり、大きくすると感情表現が豊かになります。"
               type="number"
               step="0.1"
-              placeholder="0.7"
-              value={settings.tts?.settings?.intonationScale ?? 0.7}
+              defaultValue={defaultSettings?.tts?.settings?.intonationScale}
+              value={settings.tts?.settings?.intonationScale}
               onChange={(val) => updateTTSSettings?.('intonationScale', val)}
             />
             <InputSetting
               label="出力音量"
-              description="範囲: 0.0〜1.0 (標準: 0.5)"
+              description={`範囲: 0.0〜1.0 (標準: ${defaultSettings?.tts?.settings?.volumeScale ?? 1.0})`}
               type="number"
               step="0.1"
-              placeholder="0.5"
-              value={settings.tts?.settings?.volumeScale ?? 0.5}
+              defaultValue={defaultSettings?.tts?.settings?.volumeScale}
+              value={settings.tts?.settings?.volumeScale}
               onChange={(val) => updateTTSSettings?.('volumeScale', val)}
             />
           </div>
@@ -274,8 +253,8 @@ export const TTSTab: React.FC<TabProps> = ({
               label="話速 (スピード)"
               type="number"
               step="0.05"
-              placeholder="1.25"
-              value={settings.tts?.providers?.google?.speaking_rate ?? 1.25}
+              defaultValue={defaultSettings?.tts?.providers?.google?.speaking_rate}
+              value={settings.tts?.providers?.google?.speaking_rate}
               onChange={(val) => updateProvider('tts', 'google', 'speaking_rate', val)}
             />
             <InputSetting
@@ -283,8 +262,8 @@ export const TTSTab: React.FC<TabProps> = ({
               description="-20.0〜20.0"
               type="number"
               step="0.5"
-              placeholder="0.0"
-              value={settings.tts?.providers?.google?.pitch ?? 0.0}
+              defaultValue={defaultSettings?.tts?.providers?.google?.pitch}
+              value={settings.tts?.providers?.google?.pitch}
               onChange={(val) => updateProvider('tts', 'google', 'pitch', val)}
             />
             <InputSetting
@@ -292,13 +271,13 @@ export const TTSTab: React.FC<TabProps> = ({
               description="-96〜16"
               type="number"
               step="1"
-              placeholder="0.0"
-              value={settings.tts?.providers?.google?.volume_gain_db ?? 0.0}
+              defaultValue={defaultSettings?.tts?.providers?.google?.volume_gain_db}
+              value={settings.tts?.providers?.google?.volume_gain_db}
               onChange={(val) => updateProvider('tts', 'google', 'volume_gain_db', val)}
             />
           </div>
         )
       }
-    </section >
+    </section>
   );
 };

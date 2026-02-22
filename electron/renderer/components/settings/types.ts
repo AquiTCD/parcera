@@ -3,6 +3,7 @@ import React from 'react';
 
 export interface TabProps {
   settings: ParceraSettings;
+  defaultSettings?: ParceraSettings;
   updateRoot: (key: keyof ParceraSettings, value: any) => void;
   updateNested: (category: keyof ParceraSettings, key: string, value: any) => void;
   updateProvider: (category: 'llm' | 'stt' | 'tts', providerName: string, key: string, value: any) => void;

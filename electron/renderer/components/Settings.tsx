@@ -16,11 +16,13 @@ const TABS = [
 
 export const Settings: React.FC = () => {
   const [settings, setSettings] = useState<ParceraSettings | null>(null);
+  const [defaultSettings, setDefaultSettings] = useState<ParceraSettings | null>(null);
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({ message: '', type: '' });
   const [activeTab, setActiveTab] = useState('stt');
 
   useEffect(() => {
     window.electronAPI.getSettings().then(setSettings);
+    window.electronAPI.getDefaultSettings().then(setDefaultSettings);
   }, []);
 
   const handleSave = async () => {
@@ -61,8 +63,6 @@ export const Settings: React.FC = () => {
     const tabLabel = TABS.find(t => t.id === activeTab)?.label;
     if (!window.confirm(`「${tabLabel}」のタブ設定を初期値に戻しますか？\n(「保存する」を押すまで確定しません)`)) return;
 
-    setStatus({ message: '初期値を取得中...', type: '' });
-    const defaultSettings: ParceraSettings = await window.electronAPI.getDefaultSettings();
     if (!defaultSettings) {
       setStatus({ message: 'エラー: 初期値を取得できませんでした', type: 'error' });
       return;
@@ -229,6 +229,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'llm' && (
             <LLMTab
               settings={settings}
+              defaultSettings={defaultSettings || undefined}
               updateProvider={updateProvider}
               updateNested={updateNested}
               updateRoot={updateRoot}
@@ -241,6 +242,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'stt' && (
             <STTTab
               settings={settings}
+              defaultSettings={defaultSettings || undefined}
               updateRoot={updateRoot}
               updateNested={updateNested}
               updateProvider={updateProvider}
@@ -253,6 +255,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'tts' && (
             <TTSTab
               settings={settings}
+              defaultSettings={defaultSettings || undefined}
               updateRoot={updateRoot}
               updateNested={updateNested}
               updateProvider={updateProvider}
@@ -265,6 +268,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'visual' && (
             <VisualTab
               settings={settings}
+              defaultSettings={defaultSettings || undefined}
               updateRoot={updateRoot}
               updateNested={updateNested}
               updateProvider={updateProvider}
@@ -278,6 +282,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'system' && (
             <SystemTab
               settings={settings}
+              defaultSettings={defaultSettings || undefined}
               updateRoot={updateRoot}
               updateNested={updateNested}
               updateProvider={updateProvider}

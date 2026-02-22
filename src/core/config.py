@@ -20,6 +20,16 @@ def load_config_file(path: str) -> dict:
             return yaml.safe_load(f)
     return {}
 
+def deep_merge(base: dict, update: dict) -> dict:
+    """Recursively merge two dictionaries."""
+    result = base.copy()
+    for key, value in update.items():
+        if isinstance(value, dict) and key in result and isinstance(result[key], dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
 class ParceraConfig:
     def __init__(self, settings_path: str = None):
         if settings_path is None:
@@ -32,17 +42,31 @@ class ParceraConfig:
     def refresh(self, new_settings: dict = None):
         """Reload settings and prompts. Use disk if new_settings is None."""
         try:
+            # 1. Load Defaults as the foundation
+            # Search for defaults relative to the script location or project root
+            defaults_path = os.path.join(os.getcwd(), "configs/settings.default.yaml")
+            defaults = load_config_file(defaults_path)
+
+            # 2. Load/Received User Settings
+            user_settings = {}
             if new_settings:
                 # Direct update from memory (e.g. from POST body)
-                self.settings = new_settings
-                self.last_mtime = os.path.getmtime(self.settings_path) # Sync mtime to avoid immediate re-read
+                user_settings = new_settings
+                if os.path.exists(self.settings_path):
+                    self.last_mtime = os.path.getmtime(self.settings_path) # Sync mtime
             else:
                 # Disk update
-                current_mtime = os.path.getmtime(self.settings_path)
-                if current_mtime <= self.last_mtime:
-                    return False
-                self.settings = load_config_file(self.settings_path)
-                self.last_mtime = current_mtime
+                if not os.path.exists(self.settings_path):
+                    logger.debug(f"User settings file not found: {self.settings_path}")
+                else:
+                    current_mtime = os.path.getmtime(self.settings_path)
+                    if current_mtime <= self.last_mtime:
+                        return False
+                    user_settings = load_config_file(self.settings_path)
+                    self.last_mtime = current_mtime
+
+            # 3. Deep Merge: User settings override defaults
+            self.settings = deep_merge(defaults, user_settings)
 
             # ALWAYS re-load Prompts from disk (they are not in settings dict)
             system_prompt = load_text_file("prompts/system_prompt.md")
@@ -98,7 +122,7 @@ class ParceraConfig:
 
     @property
     def verbose(self) -> bool:
-        return self.get("verbose", False) or self.get("log_level") == "DEBUG"
+        return self.get("log_level") == "DEBUG"
 
     @property
     def profile_mode(self) -> bool:

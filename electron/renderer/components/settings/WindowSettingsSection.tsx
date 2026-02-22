@@ -7,11 +7,13 @@ import { inputStyle } from './types';
 interface WindowSettingsSectionProps {
   type: 'user' | 'ai';
   settings: ParceraSettings;
+  defaultSettings?: ParceraSettings;
   updateNested: (category: keyof ParceraSettings, key: string, value: any) => void;
 }
 
-export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ type, settings, updateNested }) => {
+export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ type, settings, defaultSettings, updateNested }) => {
   const winParams = settings.electron?.windows?.[type] || {};
+  const defaultWinParams = defaultSettings?.electron?.windows?.[type] || {};
   const labelPrefix = type === 'user' ? 'USER' : 'AI';
 
   const updateWinParam = (key: string, value: any) => {
@@ -29,14 +31,16 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
 
       <CheckboxSetting
         label="常に最前面に表示する"
-        checked={winParams.alwaysOnTop ?? false}
+        defaultValue={defaultWinParams.alwaysOnTop}
+        checked={winParams.alwaysOnTop}
         onChange={(checked: boolean) => updateWinParam('alwaysOnTop', checked)}
         labelStyle={{ fontSize: '13px' }}
       />
 
       <CheckboxSetting
         label="起動時にウィンドウ位置をロックする"
-        checked={winParams.locked ?? false}
+        defaultValue={defaultWinParams.locked}
+        checked={winParams.locked}
         onChange={(checked: boolean) => updateWinParam('locked', checked)}
         labelStyle={{ fontSize: '13px' }}
       />
@@ -80,7 +84,8 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
           <InputSetting
             label="X座標"
             type="number"
-            value={winParams.x ?? ''}
+            defaultValue={defaultWinParams.x}
+            value={winParams.x}
             onChange={(val: number) => updateWinParam('x', val)}
             labelStyle={{ fontSize: '12px' }}
           />
@@ -89,7 +94,8 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
           <InputSetting
             label="Y座標"
             type="number"
-            value={winParams.y ?? ''}
+            defaultValue={defaultWinParams.y}
+            value={winParams.y}
             onChange={(val: number) => updateWinParam('y', val)}
             labelStyle={{ fontSize: '12px' }}
           />
@@ -101,8 +107,8 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
           <InputSetting
             label="幅"
             type="number"
-            placeholder={type === 'user' ? '300' : '400'}
-            value={winParams.width ?? ''}
+            defaultValue={defaultWinParams.width}
+            value={winParams.width}
             onChange={(val: number) => updateWinParam('width', val)}
             labelStyle={{ fontSize: '12px' }}
           />
@@ -111,8 +117,8 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
           <InputSetting
             label="高さ"
             type="number"
-            placeholder={type === 'user' ? '300' : '400'}
-            value={winParams.height ?? ''}
+            defaultValue={defaultWinParams.height}
+            value={winParams.height}
             onChange={(val: number) => updateWinParam('height', val)}
             labelStyle={{ fontSize: '12px' }}
           />
@@ -124,7 +130,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
           操作ボタンの表示位置
         </label>
         <select
-          value={winParams.control_corner ?? 'bottom-right'}
+          value={winParams.control_corner ?? defaultWinParams.control_corner ?? 'bottom-right'}
           onChange={(e) => updateWinParam('control_corner', e.target.value)}
           style={inputStyle}
         >

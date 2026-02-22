@@ -2,8 +2,9 @@ import React from 'react';
 import { TabProps, inputStyle } from './types';
 import { SettingGroup } from './controls/SettingGroup';
 import { InputSetting } from './controls/InputSetting';
+import { CheckboxSetting } from './controls/CheckboxSetting';
 
-export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNested, renderTabHeader }) => {
+export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updateRoot, updateNested, renderTabHeader }) => {
   return (
     <section className="animate-fade-in">
       {renderTabHeader?.('システム')}
@@ -16,7 +17,7 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
           description="WARNING 以上のレベルは INFO レベルの内容も含まれます。"
         >
           <select
-            value={settings.log_level ?? 'INFO'}
+            value={settings.log_level ?? defaultSettings?.log_level ?? 'INFO'}
             onChange={(e) => updateRoot('log_level', e.target.value)}
             style={inputStyle}
           >
@@ -26,17 +27,12 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
           </select>
         </SettingGroup>
 
-        <div className="form-group">
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={settings.profile_mode ?? false}
-              onChange={(e) => updateRoot('profile_mode', e.target.checked)}
-              style={{ marginRight: '10px' }}
-            />
-            パフォーマンス計測ログを表示 ([PERF])
-          </label>
-        </div>
+        <CheckboxSetting
+          label="パフォーマンス計測ログを表示 ([PERF])"
+          defaultValue={defaultSettings?.profile_mode}
+          checked={settings.profile_mode}
+          onChange={(checked) => updateRoot('profile_mode', checked)}
+        />
       </div>
 
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
@@ -46,8 +42,8 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
             label="WebSocket ポート番号"
             description="通信に使用するポート番号です。変更後はアプリの再起動が必要です。"
             type="number"
-            placeholder="8676"
-            value={settings.electron?.port ?? 8676}
+            defaultValue={defaultSettings?.electron?.port}
+            value={settings.electron?.port}
             onChange={(val) => updateNested('electron', 'port', val)}
           />
         </div>
@@ -57,7 +53,7 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
           description="TTS出力と合わせる必要があります。標準は16000Hzです。"
         >
           <select
-            value={settings.electron?.ai_audio_sample_rate ?? 16000}
+            value={settings.electron?.ai_audio_sample_rate ?? defaultSettings?.electron?.ai_audio_sample_rate ?? 16000}
             onChange={(e) => updateNested('electron', 'ai_audio_sample_rate', Number(e.target.value))}
             style={inputStyle}
           >

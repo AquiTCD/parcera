@@ -19,12 +19,14 @@ llm:
   providers:
     gemini:
       model: "gemini-2.0-flash"
+      api_key: ""      # Google Gemini API Key
       temperature: 1.0  # Creativity (0.0 - 2.0). Default 1.0 is recommended for Gemini 2.0.
       persist_history: false # Save local history to keep memories. Warning: longer history increases token cost and latency.
       option_split_threshold: 15  # [Chars] Heuristic to split sentences for faster TTS streaming.
 
     openai:
       model: "gpt-4o"
+      api_key: ""      # OpenAI API Key
       temperature: 1.0  # Creativity (0.0 - 2.0). OpenAI default is 1.0.
 
 # ==========================================
@@ -32,6 +34,10 @@ llm:
 # ==========================================
 stt:
   provider: "faster_whisper" # Active Provider: "faster_whisper", "google", "azure"
+  ignore_sentences: # Phrases to ignore (e.g., "うん", "はい"). Comma-separated in UI.
+    - うん
+    - はい
+    - ごめん
 
   providers:
     faster_whisper:
@@ -39,6 +45,15 @@ stt:
       device: "cpu"       # Computation device: "cuda" (NVIDIA GPU) or "cpu"
       compute_type: "int8" # Quantization: "float16" (GPU only) or "int8" (CPU friendly/Local recommended)
       whisper_vad_filter: false # Use Whisper's internal VAD. Recommended for long speech, but may skip short phrases.
+
+    google:
+      api_key: ""
+      language: "ja-JP"
+
+    azure:
+      api_key: ""
+      region: ""
+      language: "ja-JP"
 
 # ==========================================
 # TTS (Text to Speech) Settings
@@ -48,29 +63,28 @@ tts:
 
   # Common settings applied to compatible engines (Voicevox-based)
   settings:
-    speedScale: 1.25       # Speech speed. Adjusted to match current user setting.
-    intonationScale: 0.7 # Intonation variance (0.0 - 2.0). 0 for monotonic, higher for expressive melody.
-    volumeScale: 0.50      # Output volume (Range: 0.0 - 1.0, Default: 0.5)
-    prePhonemeLength: 0.0  # [Seconds] Silence before speech
-    postPhonemeLength: 0.20 # [Seconds] Silence after speech
+    speedScale: 1.0        # Speech speed (Standard: 1.0)
+    intonationScale: 1.0   # Intonation variance (0.0 - 2.0). Standard: 1.0.
+    volumeScale: 1.0       # Output volume (Standard: 1.0)
+    prePhonemeLength: 0.1  # [Seconds] Silence before speech (Standard: 0.1)
+    postPhonemeLength: 0.1 # [Seconds] Silence after speech (Standard: 0.1)
 
   providers:
     # AivisSpeech (Local App)
     aivisspeech:
       api_url: "http://127.0.0.1:10101"
       engine_path: "/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run"
-      # speaker_id: 888753760 # Anneli
-      style_id: 345585728 # るな
+      style_id: 0 # Anneli (Standard)
 
     # VOICEVOX (Local App)
     voicevox:
       api_url: "http://127.0.0.1:50021"
       engine_path: "/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run"
-      # speaker_id: 3 # ずんだもん (Standard)
-      speaker_id: 90 # ぞん子
+      speaker_id: 3 # ずんだもん (Standard)
 
     # Google Cloud TTS
     google:
+      api_key: ""
       language: "ja-JP"
       voice: "ja-JP-Neural2-B" # (Neural2) A:LowKey, B:StandardFemale, C:StandardMale, D:StandardMale
       speaking_rate: 1.0 # Google Cloud TTS native speed default is 1.0.
@@ -84,6 +98,7 @@ vad:
   volume_db_threshold: -20.0 # [dB] Sensitivity. Adjusted for noise; higher values make it less sensitive.
   silence_duration_threshold: 0.4 # [Seconds] Shorter is faster, but may segment sentences. (Response tempo gate 1)
   max_duration: 15.0 # [Seconds] Safety cutoff to stop recording in noisy environments.
+  start_muted: false # [Boolean] Whether to start with the microphone muted.
 
 # ==========================================
 # Electron Application Settings
@@ -92,23 +107,41 @@ electron:
   port: 8676 # WebSocket Server Port. Changing this requires an app restart.
   ai_audio_sample_rate: 16000  # [Hz] Must match TTS engine output sample rate used in Python.
   windows:
-    ai: { width: 400, height: 400, x: 400, y: 0, alwaysOnTop: true, locked: false }
-    user: { width: 400, height: 400, x: 0, y: 0, alwaysOnTop: true, locked: true }
+    ai:
+      width: 400
+      height: 400
+      x: 400
+      y: 0
+      alwaysOnTop: true
+      locked: false
+      control_corner: "bottom-right"
+    user:
+      width: 400
+      height: 400
+      x: 0
+      y: 0
+      alwaysOnTop: true
+      locked: false
+      control_corner: "bottom-right"
 
 # ==========================================
 # Avatar Visual Definitions
 # ==========================================
 avatars:
-  show_debug: true       # Show VAD status / Volume bars overlay
+  show_debug: false       # Show VAD status / Volume bars overlay
   blink_interval_min: 5000 # [ms] Minimum time between blinks
   blink_interval_max: 15000 # [ms] Maximum time between blinks
   mouth_hold_time: 120    # [ms] Minimum duration to hold a mouth shape (prevents flickering)
-  breathe_scale: 1.005    # Scaling width for breathing animation (1.0 = no animation)
-  breathe_amplitude: 2    # [px] Vertical movement width for breathing
-  breathe_duration: 5000  # [ms] Reference period for one breath cycle
+  breathe_scale: 1.008    # Scaling width for breathing animation (1.0 = no animation)
+  breathe_amplitude: 3    # [px] Vertical movement width for breathing
+  breathe_duration: 4500  # [ms] Reference period for one breath cycle
   user:
     name: "User"
     assets_dir: "/assets/user"
+    chroma_key_enabled: false
+    chroma_key_color: "green"
   ai:
     name: "AI"
     assets_dir: "/assets/ai"
+    chroma_key_enabled: false
+    chroma_key_color: "green"

@@ -33,8 +33,8 @@ class ParceraComponentFactory:
             service_instance = FixedGeminiService(
                 gemini_api_key=api_key,
                 model=gemini_cfg.get("model", "gemini-2.0-flash"),
-                temperature=float(gemini_cfg.get("temperature", 0.7)),
-                option_split_threshold=int(gemini_cfg.get("option_split_threshold", 20)),
+                temperature=float(gemini_cfg.get("temperature", 1.0)),
+                option_split_threshold=int(gemini_cfg.get("option_split_threshold", 15)),
                 system_prompt=self.config.full_system_prompt,
                 profile_mode=self.config.profile_mode,
                 debug=self.config.verbose
@@ -49,7 +49,7 @@ class ParceraComponentFactory:
             service_instance = ChatGPTService(
                 openai_api_key=api_key,
                 model=openai_cfg.get("model", "gpt-4o"),
-                temperature=float(openai_cfg.get("temperature", 0.7)),
+                temperature=float(openai_cfg.get("temperature", 1.0)),
                 system_prompt=self.config.full_system_prompt,
             )
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
@@ -65,9 +65,9 @@ class ParceraComponentFactory:
         providers = stt_cfg.get("providers", {})
 
         # Filters setup
-        force_keywords = self.config.get("force_keywords", ["パルセラ"])
+        force_keywords = self.config.get("force_keywords", ["パルセラ", "Parcera", "教えて"])
         sensitivity = self.config.get("response_sensitivity", "medium")
-        ignore_sentences = stt_cfg.get("ignore_sentences", ["うん", "はい"])
+        ignore_sentences = stt_cfg.get("ignore_sentences", ["うん", "はい", "ごめん"])
         response_filter = ResponseWeightFilter(
             force_keywords=force_keywords,
             ignore_sentences=ignore_sentences,
@@ -163,9 +163,9 @@ class ParceraComponentFactory:
 
         # Common settings
         tts_settings = tts_cfg.get("settings", {
-             'speedScale': 1.25,
-             'intonationScale': 0.7,
-             'volumeScale': 0.50,
+             'speedScale': 1.0,
+             'intonationScale': 1.0,
+             'volumeScale': 1.0,
         })
 
         if provider in ["voicevox", "aivisspeech"]:
@@ -198,7 +198,7 @@ class ParceraComponentFactory:
         vad_cfg = self.config.get("vad", {})
         threshold = volume_db_threshold if volume_db_threshold is not None else vad_cfg.get("volume_db_threshold", -20.0)
 
-        silence_duration = vad_cfg.get("silence_duration_threshold", 0.6)
+        silence_duration = vad_cfg.get("silence_duration_threshold", 0.4)
         logger.info(f"VAD Config: Threshold={threshold}dB, Silence={silence_duration}s, MaxDur={vad_cfg.get('max_duration', 15.0)}")
 
         return StandardSpeechDetector(

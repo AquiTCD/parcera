@@ -15,8 +15,6 @@ export interface ParceraSettings {
   merge_request_threshold?: number;      // Seconds to merge consecutive requests
   response_sensitivity?: string;         // "high" | "medium" | "low"
   force_keywords?: string[];
-  chroma_key_enabled?: boolean;
-  chroma_key_color?: 'green' | 'blue';
   llm?: LLMSettings;
   stt?: STTSettings;
   tts?: TTSSettingsConfig;
