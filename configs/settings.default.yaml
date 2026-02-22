@@ -52,7 +52,7 @@ stt:
 
     azure:
       api_key: ""
-      region: ""
+      region: "japaneast"
       language: "ja-JP"
 
 # ==========================================
