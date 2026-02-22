@@ -131,6 +131,7 @@ const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
 const RECONNECT_MAX_RETRIES = 10;
 let reconnectAttempt = 0;
+let closingIntentionally = false;
 
 async function checkServerHealth(port: number): Promise<boolean> {
   try {
@@ -138,6 +139,23 @@ async function checkServerHealth(port: number): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+/** Cleanly close the existing WebSocket (if any) before opening a new one. */
+function closeExistingSocket(): void {
+  if (socket) {
+    closingIntentionally = true;
+    try {
+      socket.onclose = null; // prevent triggering reconnect
+      socket.onerror = null;
+      socket.onmessage = null;
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(1000, 'Reconnecting'); // Normal closure
+      }
+    } catch (_) { /* already closed */ }
+    socket = null;
+    closingIntentionally = false;
   }
 }
 
@@ -156,6 +174,9 @@ export function startWebSocket(): void {
   if (state.avatarType !== 'ai') return;
 
   initPlaybackRoute(); // wire analyser→destination once
+
+  // Close any stale connection before opening a new one
+  closeExistingSocket();
 
   const port = state.settings.electron?.port || 8080;
 
@@ -195,6 +216,7 @@ export function startWebSocket(): void {
     };
 
     socket.onclose = () => {
+      if (closingIntentionally) return; // Don't reconnect if we closed on purpose
       logStatus('AI Connection Lost');
       scheduleReconnect();
     };

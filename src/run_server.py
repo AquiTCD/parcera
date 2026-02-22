@@ -4,19 +4,33 @@ import os
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import httpx
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from aiavatar.adapter.websocket.server import AIAvatarWebSocketServer, WebSocketSessionData
+from aiavatar.adapter.websocket.server import AIAvatarWebSocketServer
 from core.avatar import ParceraAvatarBase
 from core.engine import TTSEngineManager
 from core.config import load_config_file
+from routers.config_router import create_config_router
+from routers.tts_router import create_tts_router
 
 logger = logging.getLogger(__name__)
+chat_logger = logging.getLogger("parcera.chat")
+
+# ─── Chat Logger Colors ───
+C_USER = "\033[1;36m"  # Bold Cyan
+C_AI = "\033[1;32m"    # Bold Green
+C_RESET = "\033[0m"
 
 class ParceraServer(ParceraAvatarBase):
-    def __init__(self, google_api_key: str = None):
-        super().__init__(google_api_key)
+    def __init__(self):
+        super().__init__()
         self.config.setup_logging()
+        self.tts_engine_manager = None
+
+
+        # Track current providers for hot-swapping
+        self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
+        self.current_tts_provider = self.config.get("tts", {}).get("provider", "aivisspeech")
 
         self.aiavatar_server = AIAvatarWebSocketServer(
             llm=self.llm,
@@ -25,106 +39,151 @@ class ParceraServer(ParceraAvatarBase):
             tts=self.tts,
             merge_request_threshold=self.config.get("merge_request_threshold", 3.0),
             debug=self.config.verbose,
-            voice_recorder_enabled=False  # Disable audio recording
+            voice_recorder_enabled=False
         )
 
-        # Hook STT recognized callback to send "thinking" signal and manage state
-        async def on_recognized(session_id, text):
-            # [PERF] Measure response latency if profile mode is enabled
-            if self.config.profile_mode:
-                import time
-                start_time = time.time()
-                logger.info(f"[PERF] STT Recognized: '{text}' at {start_time:.3f}")
-
-            # 1. Dynamic Merge Threshold
-            # Cap at 1.5s to avoid over-merging short utterances into long responses
-            length = len(text)
-            # 1 char = 0.5s, 22 chars = 1.5s (max)
-            dynamic_threshold = max(0.5, min(1.5, 0.5 + (length * 0.05)))
-            self.aiavatar_server.merge_request_threshold = dynamic_threshold
-            logger.debug(f"Dynamic Merge Threshold: {dynamic_threshold:.2f} (len: {length})")
-
-            # 2. First-Wins: Mark as busy so subsequent STT for this session is ignored
-            self.set_busy(session_id, True)
-
-            if session_id in self.aiavatar_server.websockets:
-                ws = self.aiavatar_server.websockets[session_id]
-                try:
-                    await ws.send_json({
-                        "type": "thinking",
-                        "session_id": session_id,
-                        "text": text
-                    })
-                    logger.debug(f"Sent 'thinking' signal for session {session_id}")
-                except Exception as e:
-                    logger.error(f"Error sending 'thinking' signal: {e}")
-
+        # Attach callbacks (One-time)
         if hasattr(self.stt, "on_recognized_callback"):
-            self.stt.on_recognized_callback = on_recognized
+            self.stt.on_recognized_callback = self.on_recognized
+        self.aiavatar_server.on_response(self.on_response)
 
-        @self.aiavatar_server.on_response
-        async def on_response(aiavatar_response, sts_response):
-            # [PERF] Log response timing if profile mode is enabled
+        # Initial sync
+        self._sync_to_server()
+
+    def _sync_to_server(self):
+        """Update components and specific settings on the server instance (useful after hot-swapping)."""
+        if hasattr(self.stt, "on_recognized_callback"):
+            self.stt.on_recognized_callback = self.on_recognized
+
+        self.aiavatar_server.llm = self.llm
+        self.aiavatar_server.stt = self.stt
+        self.aiavatar_server.tts = self.tts
+        self.aiavatar_server.vad = self.vad
+
+    async def on_recognized(self, session_id, text):
+        # Hot-reload config if changed (backup mechanism)
+        if self.config.refresh():
+            self.apply_runtime_config()
+            logger.info("Config hot-reloaded automatically during recognition.")
+
+        if self.config.profile_mode:
+            import time
+            start_time = time.time()
+            logger.info(f"[PERF] STT Recognized: '{text}' at {start_time:.3f}")
+
+        chat_logger.info(f"{C_USER}[USER]: {text}{C_RESET}")
+
+        # Dynamic Merge Threshold
+        length = len(text)
+        dynamic_threshold = max(0.5, min(1.5, 0.5 + (length * 0.05)))
+        self.aiavatar_server.merge_request_threshold = dynamic_threshold
+
+        # First-Wins: Mark as busy
+        self.set_busy(session_id, True)
+
+        if session_id in self.aiavatar_server.websockets:
+            ws = self.aiavatar_server.websockets[session_id]
+            try:
+                await ws.send_json({
+                    "type": "thinking",
+                    "session_id": session_id,
+                    "text": text
+                })
+            except Exception as e:
+                logger.error(f"Error sending 'thinking' signal: {e}")
+
+    async def on_response(self, aiavatar_response, sts_response):
+        if self.config.profile_mode:
+            import time
+            now = time.time()
+
+        if sts_response.type == "final":
+            self.set_busy(aiavatar_response.session_id, False)
             if self.config.profile_mode:
-                import time
-                now = time.time()
+                logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")
 
-            # Reset busy state when final response is done
-            if sts_response.type == "final":
-                self.set_busy(aiavatar_response.session_id, False)
-                logger.debug(f"Reset busy state for session {aiavatar_response.session_id}")
-                if self.config.profile_mode:
-                    logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")
-                else:
-                    logger.info(f"AI: Response Final: {sts_response.text}")
+            chat_logger.info(f"{C_AI}[AI]:   {sts_response.text}{C_RESET}")
 
-            if sts_response.type == "chunk":
-                if self.config.profile_mode:
-                    logger.info(f"[PERF] Response Chunk (TTS Start): '{sts_response.text}' at {now:.3f}")
-                else:
-                    logger.debug(f"AI: Response Chunk: {sts_response.text}")
-            elif sts_response.type == "final":
-                pass # Already logged above
+        if sts_response.type == "chunk":
+            if self.config.profile_mode:
+                logger.info(f"[PERF] Response Chunk (TTS Start): '{sts_response.text}' at {now:.3f}")
 
-# Global instances
+    def apply_runtime_config(self):
+        """Apply non-structural settings (prompts, thresholds) to current components."""
+        if hasattr(self.llm, "system_message"):
+            self.llm.system_message = self.config.full_system_prompt
+
+        if hasattr(self.vad, "volume_db_threshold"):
+            new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
+            self.vad.volume_db_threshold = new_threshold
+
+
+# ─── Initialization ─────────────────────────────────────────
+
 load_dotenv()
+load_dotenv(".env.config_path", override=True)
 parcera_server = ParceraServer()
+
+
+def _get_server():
+    """Accessor for routers to reference the global server instance."""
+    return parcera_server
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Server is ready and warming up Gemini...")
 
-    settings = parcera_server.config.settings # Use loaded config from server instance
-
-    # New TTS Config Structure
+    settings = parcera_server.config.settings
     tts_cfg = settings.get("tts", {})
     provider = tts_cfg.get("provider", "aivisspeech")
     provider_cfg = tts_cfg.get("providers", {}).get(provider, {})
 
     tts_api_url = provider_cfg.get("api_url", "http://127.0.0.1:10101")
-    # engine_path is optional in settings.yaml now, but good to handle if present
     tts_engine_path = provider_cfg.get("engine_path")
 
-    # Only start engine manager if path is provided
-    engine_manager = None
     if tts_engine_path:
-        engine_manager = TTSEngineManager(tts_engine_path, tts_api_url)
-        await engine_manager.start()
+        parcera_server.tts_engine_manager = TTSEngineManager(tts_engine_path, tts_api_url)
+        await parcera_server.tts_engine_manager.start()
+        parcera_server.current_tts_provider = provider
 
-    # Warm-up components
     asyncio.create_task(parcera_server.warmup())
 
     yield
 
     # Shutdown
     await parcera_server.cleanup()
-    if engine_manager:
-        await engine_manager.stop()
+    if parcera_server.tts_engine_manager:
+        await parcera_server.tts_engine_manager.stop()
+
+
+# ─── FastAPI App ─────────────────────────────────────────────
 
 app = FastAPI(lifespan=lifespan)
 
-# Add CORS middleware
+
+# Middleware to gracefully handle WebSocketDisconnect that aiavatar library doesn't catch.
+# Without this, normal client disconnections (page reloads, reconnects) log as ERROR in uvicorn.
+from starlette.websockets import WebSocketDisconnect
+
+class WebSocketDisconnectMiddleware:
+    """ASGI middleware that catches WebSocketDisconnect to prevent noisy ERROR logs."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "websocket":
+            try:
+                await self.app(scope, receive, send)
+            except WebSocketDisconnect as e:
+                logger.info(f"WebSocket disconnected: code={e.code}, reason='{e.reason or ''}'")
+        else:
+            await self.app(scope, receive, send)
+
+app.add_middleware(WebSocketDisconnectMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -133,7 +192,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check endpoint
+
 @app.get("/health")
 async def health_check():
     tts_ok = False
@@ -151,11 +210,16 @@ async def health_check():
         pass
     return {"status": "ok", "tts_engine": tts_ok}
 
-# Use AIAvatarWebSocketServer's standard router
+
+# Register routers
+app.include_router(create_config_router(_get_server))
+app.include_router(create_tts_router(_get_server))
 app.include_router(parcera_server.aiavatar_server.get_websocket_router())
+
 
 if __name__ == "__main__":
     import uvicorn
-    settings = load_config_file("configs/settings.yaml")
-    port = settings.get("electron", {}).get("port", 8080)
+    config_path = os.environ.get("PARCERA_CONFIG_PATH", "configs/settings.default.yaml")
+    settings = load_config_file(config_path)
+    port = settings.get("electron", {}).get("port", 8676)
     uvicorn.run(app, host="127.0.0.1", port=port)

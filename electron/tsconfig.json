@@ -11,10 +11,10 @@
     "isolatedModules": true,
     "noEmit": true,
     "lib": [
-      "ES2022",
       "DOM",
       "DOM.Iterable"
     ],
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@/*": [
@@ -24,6 +24,7 @@
   },
   "include": [
     "renderer/**/*.ts",
+    "renderer/**/*.tsx",
     "renderer/vite-env.d.ts",
     "main/**/*.ts",
     "shared/**/*.ts"

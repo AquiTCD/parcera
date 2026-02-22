@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import yaml from 'js-yaml';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +21,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env['APP_ROOT'] = path.join(__dirname, '..');
 
+// Avoids needing a user click to start AudioContext/Media
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 export const VITE_DEV_SERVER_URL: string | undefined = process.env['VITE_DEV_SERVER_URL'];
 export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist');
 
@@ -32,36 +36,79 @@ process.on('uncaughtException', (error: Error) => {
 });
 
 let cachedSettings: ParceraSettings | null = null;
+const store = new Store<ParceraSettings>({ name: 'config' });
 
-function getSettingsPath(): string {
-  return path.resolve(process.env['APP_ROOT']!, '../configs/settings.yaml');
+function getYamlSettingsPath(): string {
+  return path.resolve(process.env['APP_ROOT']!, '../configs/settings.default.yaml');
 }
 
-function loadSettings(forceReload = false): ParceraSettings {
-  if (cachedSettings && !forceReload) return cachedSettings;
-  try {
-    const settingsPath = getSettingsPath();
-    if (!fs.existsSync(settingsPath)) {
-      console.warn('Settings file not found at:', settingsPath);
-      return {};
+function initializeStore() {
+  if (Object.keys(store.store).length === 0) {
+    console.log('[Parcera] Store is empty, seeding from configs/settings.default.yaml...');
+    try {
+      const settingsPath = getYamlSettingsPath();
+      if (fs.existsSync(settingsPath)) {
+        const file = fs.readFileSync(settingsPath, 'utf8');
+        const yamlSettings = yaml.load(file) as ParceraSettings;
+        store.store = yamlSettings;
+      }
+    } catch (e) {
+      console.error('Failed to seed store from YAML:', e);
     }
-    const file = fs.readFileSync(settingsPath, 'utf8');
-    cachedSettings = yaml.load(file) as ParceraSettings;
-    console.log('[Parcera] Settings loaded' + (forceReload ? ' (reloaded)' : ''));
-    return cachedSettings;
-  } catch (e) {
-    console.error('Failed to load settings:', e);
-    return {};
   }
+}
+
+initializeStore();
+console.log('[Parcera] Store path:', store.path);
+
+// Write path to a file so Python dev server can easily find it
+try {
+  const envPath = path.resolve(process.env['APP_ROOT']!, '../.env.config_path');
+  fs.writeFileSync(envPath, `PARCERA_CONFIG_PATH="${store.path}"\n`, 'utf8');
+} catch (e) {
+  // Ignore
+}
+
+function loadSettings(): ParceraSettings {
+  return store.store;
 }
 
 /** Notify all renderer windows that settings have changed */
 function broadcastSettingsReload(): void {
-  const settings = loadSettings(true);
+  const settings = loadSettings();
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('settings-changed', settings);
   }
+
+  // Apply window bounds and alwaysOnTop dynamically
+  const applyConfig = (win: BrowserWindow | null, type: 'user' | 'ai') => {
+    if (!win || win.isDestroyed()) return;
+    const cfg = settings.electron?.windows?.[type];
+    if (!cfg) return;
+
+    if (cfg.alwaysOnTop !== undefined) win.setAlwaysOnTop(cfg.alwaysOnTop);
+
+    // Apply bounds only if values are provided
+    const bounds: Partial<Electron.Rectangle> = {};
+    if (cfg.x !== undefined) bounds.x = Math.round(cfg.x);
+    if (cfg.y !== undefined) bounds.y = Math.round(cfg.y);
+    if (cfg.width !== undefined) bounds.width = Math.round(cfg.width);
+    if (cfg.height !== undefined) bounds.height = Math.round(cfg.height);
+
+    if (Object.keys(bounds).length > 0) {
+      const current = win.getBounds();
+      win.setBounds({ ...current, ...bounds });
+    }
+  };
+
+  applyConfig(userWindow, 'user');
+  applyConfig(aiWindow, 'ai');
 }
+
+store.onDidAnyChange((newValue, oldValue) => {
+  console.log('[Parcera] Store changed, reloading...');
+  broadcastSettingsReload();
+});
 
 function createAvatarWindow(type: string): BrowserWindow {
   const settings = loadSettings();
@@ -70,6 +117,8 @@ function createAvatarWindow(type: string): BrowserWindow {
   const win = new BrowserWindow({
     width: winCfg.width,
     height: winCfg.height,
+    x: winCfg.x,
+    y: winCfg.y,
     alwaysOnTop: winCfg.alwaysOnTop,
     transparent: true,
     frame: false,
@@ -77,8 +126,12 @@ function createAvatarWindow(type: string): BrowserWindow {
     resizable: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      sandbox: false, // Allow preload full access
+      contextIsolation: true, // Default, but explicit
     },
   });
+
+  // win.webContents.openDevTools({ mode: 'detach' });
 
   if (process.platform === 'darwin') {
     win.setWindowButtonVisibility(false);
@@ -97,7 +150,33 @@ ipcMain.handle('get-settings', async () => {
 });
 
 ipcMain.handle('reload-settings', async () => {
-  return loadSettings(true);
+  return loadSettings();
+});
+
+ipcMain.handle('get-default-settings', async () => {
+  try {
+    const settingsPath = getYamlSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      const file = fs.readFileSync(settingsPath, 'utf8');
+      return yaml.load(file) as ParceraSettings;
+    }
+  } catch (e) {
+    console.error('Failed to load default settings:', e);
+  }
+  return {};
+});
+
+ipcMain.handle('select-directory', async (event, currentPath: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return null;
+  const result = await dialog.showOpenDialog(win, {
+    defaultPath: currentPath || process.env['APP_ROOT'] || undefined,
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  return result.filePaths[0];
 });
 
 ipcMain.on('resize-window', (event, width: number, height: number) => {
@@ -107,23 +186,100 @@ ipcMain.on('resize-window', (event, width: number, height: number) => {
   }
 });
 
+ipcMain.handle('save-window-bounds', async (event, type: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return { success: false, error: 'Window not found' };
+
+  try {
+    const bounds = win.getBounds();
+    const currentSettings = loadSettings();
+    const typeKey = type as 'user' | 'ai';
+
+    // Ensure the structure exists
+    if (!currentSettings.electron) currentSettings.electron = {};
+    if (!currentSettings.electron.windows) currentSettings.electron.windows = {};
+    if (!currentSettings.electron.windows[typeKey]) currentSettings.electron.windows[typeKey] = {};
+
+    currentSettings.electron.windows[typeKey].x = bounds.x;
+    currentSettings.electron.windows[typeKey].y = bounds.y;
+
+    // Save to store
+    store.store = currentSettings;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('get-window-bounds', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return null;
+  return win.getBounds();
+});
+
+ipcMain.handle('get-avatar-window-bounds', async (_event, type: 'user' | 'ai') => {
+  const win = type === 'user' ? userWindow : aiWindow;
+  if (!win || win.isDestroyed()) return null;
+  return win.getBounds();
+});
+
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'parcera-asset', privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true } }
+]);
+
 app.whenReady().then(() => {
+  // Register protocol to handle local file access
+  protocol.handle('parcera-asset', async (request) => {
+    try {
+      // We want to extract the path accurately.
+      // request.url is "parcera-asset://host/pathname"
+      // URL objects lowercase the host. Let's use a regex on the original URL to preserve case.
+      const match = request.url.match(/^parcera-asset:\/\/+(.*)$/i);
+      if (!match) return new Response('Bad Request', { status: 400 });
+
+      let filePath = decodeURIComponent(match[1]);
+
+      // Ensure absolute path on Mac/Linux (starts with /)
+      if (!filePath.startsWith('/') && process.platform !== 'win32') {
+        filePath = '/' + filePath;
+      }
+
+      // On Windows, if it's "/C:/...", strip the leading slash
+      if (process.platform === 'win32' && filePath.startsWith('/') && filePath.includes(':')) {
+        filePath = filePath.slice(1);
+      }
+
+      // console.log('[Parcera] Protocol attempting to serve:', filePath);
+
+      if (!fs.existsSync(filePath)) {
+        // console.warn('[Parcera] File not found by protocol:', filePath);
+        return new Response('Not Found', { status: 404 });
+      }
+
+      const buffer = fs.readFileSync(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+      };
+
+      return new Response(buffer, {
+        headers: {
+          'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    } catch (e) {
+      console.error('[Parcera] Protocol error:', e);
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  });
+
   userWindow = createAvatarWindow('user');
   aiWindow = createAvatarWindow('ai');
-
-  // Watch settings.yaml for changes in dev mode
-  if (VITE_DEV_SERVER_URL) {
-    const settingsPath = getSettingsPath();
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    fs.watch(settingsPath, () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        console.log('[Parcera] settings.yaml changed, reloading...');
-        broadcastSettingsReload();
-      }, 300);
-    });
-    console.log('[Parcera] Watching settings.yaml for changes');
-  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -138,3 +294,102 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+let settingsWindow: BrowserWindow | null = null;
+
+function createSettingsWindow() {
+  if (settingsWindow) {
+    settingsWindow.focus();
+    return;
+  }
+
+  const settings = loadSettings();
+  const win = new BrowserWindow({
+    width: 900,
+    height: 800,
+    title: 'Parcera Settings',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+  });
+
+  // win.webContents.openDevTools({ mode: 'detach' });
+
+  const url = VITE_DEV_SERVER_URL
+    ? `${VITE_DEV_SERVER_URL}?type=settings`
+    : `file://${path.join(RENDERER_DIST, 'index.html')}?type=settings`;
+
+  win.loadURL(url);
+
+  win.on('closed', () => {
+    settingsWindow = null;
+  });
+
+  settingsWindow = win;
+}
+
+ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => {
+  try {
+    store.store = newSettings;
+
+    // Notify Python server to reload config immediately
+    const port = newSettings.electron?.port || 8676;
+    const url = `http://127.0.0.1:${port}/config/reload`;
+
+    // Fire and forget, or wait briefly. Main process doesn't want to hang.
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSettings)
+    }).catch(e => console.warn('[Parcera] Python reload notification failed (likely server not running):', e.message));
+
+    return { success: true };
+  } catch (e) {
+    console.error('Failed to save settings:', e);
+    return { success: false, error: String(e) };
+  }
+});
+
+import { Menu } from 'electron';
+
+const template: Electron.MenuItemConstructorOptions[] = [
+  {
+    label: 'Parcera',
+    submenu: [
+      { role: 'about' },
+      { type: 'separator' },
+      {
+        label: 'Preferences...',
+        accelerator: 'CmdOrCtrl+,',
+        click: () => {
+          createSettingsWindow();
+        },
+      },
+      { type: 'separator' },
+      { role: 'quit' },
+    ],
+  },
+  {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      {
+        ...(process.platform === 'darwin' ? {
+          role: 'pasteAndMatchStyle'
+        } : {} as any)
+      },
+      { role: 'delete' },
+      { role: 'selectAll' }
+    ]
+  }
+];
+
+const menu = Menu.buildFromTemplate(template);
+Menu.setApplicationMenu(menu);

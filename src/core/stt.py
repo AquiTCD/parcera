@@ -14,7 +14,7 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         model_name="longisland3/kotoba-whisper-v2.2-faster",
         device="auto",
         compute_type="default",
-        initial_prompt_path=None,
+        initial_prompt=None,
         response_filter=None,
         whisper_vad_filter=False,
         on_recognized_callback=None,
@@ -28,14 +28,8 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         self.whisper_vad_filter = whisper_vad_filter
         logger.info(f"Loading Faster-Whisper model: {model_name} on {device}... (VAD Filter: {self.whisper_vad_filter})")
         self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
-        self.initial_prompt = ""
-        if initial_prompt_path and os.path.exists(initial_prompt_path):
-            with open(initial_prompt_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                # Extract only lines starting with '-' and remove the hyphen
-                words = [line.strip("- ").strip() for line in content.splitlines() if line.startswith("-")]
-                self.initial_prompt = ", ".join(words)
-            logger.info(f"Loaded STT initial prompt words: {self.initial_prompt}")
+        self.initial_prompt = initial_prompt or ""
+        logger.info(f"Initialized STT with prompt: {self.initial_prompt}")
         self.response_filter = response_filter
 
     async def recognize(self, session_id: str, data: bytes) -> SpeechRecognitionResult:

@@ -19,3 +19,8 @@ dependencies = [
   "google-cloud-speech>=2.36.1",
   "azure-cognitiveservices-speech>=1.48.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

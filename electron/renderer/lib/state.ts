@@ -8,8 +8,6 @@
 // Re-export all shared types so existing imports continue to work
 export type {
   ParceraSettings,
-  EngineConfig,
-  TTSSettings,
   VADSettings,
   ElectronSettings,
   WindowConfig,
@@ -27,6 +25,7 @@ export interface AppState {
   avatarType: AvatarType;
   settings: ParceraSettings;
   threshold: number;
+  threshold_db: number;
   isAIPlaying: boolean;
   isInitialized: boolean;
   persistentStatus: string;
@@ -36,6 +35,7 @@ export const state: AppState = {
   avatarType: 'user',
   settings: {},
   threshold: 15,
+  threshold_db: -20,
   isAIPlaying: false,
   isInitialized: false,
   persistentStatus: 'Waiting for interaction...',

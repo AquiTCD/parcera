@@ -15,7 +15,7 @@ Version: 1.3.0 (Feb 2026 Comprehensive Edition)
 - **Node.js**: v24 (Active LTS) / **pnpm** (Package Manager)
 - **Frontend**: Vite + Electron (TypeScript)
 - **Engine**: Python 3.11+ (`uv` managed)
-- **Communication**: WebSocket (Port 8080) / Web Audio API
+- **Communication**: WebSocket (Port 8676) / Web Audio API
 
 ### 2.2 システム構成
 - **Brain (Python Engine)**:
@@ -52,7 +52,7 @@ vad:
 
 # Electron Application Settings
 electron:
-  port: 8080  # WebSocket URL is auto-derived: ws://localhost:{port}/ws
+  port: 8676  # WebSocket URL is auto-derived: ws://localhost:{port}/ws
   ai_audio_sample_rate: 16000  # Hz — must match TTS engine output
   windows:
     ai: { width: 400, height: 400, alwaysOnTop: true }
@@ -113,7 +113,7 @@ avatars:
 - [x] **New**: loadSettings() キャッシュ化、未使用コード除去。
 - **Goal**: 実際に「喋っている」ような滑らかなアニメーション。
 
-### Phase 4: チューニング・拡張・リファクタリング (In Progress)
+### Phase 4: チューニング・拡張・リファクタリング (Completed)
 1. - [x] Vite ボイラープレート残骸の削除。
 2. - [x] デバッグ用一時ファイルのクリーンアップ。
 3. - [x] Electron Main/Preload/Vite Config の TypeScript 化。
@@ -129,6 +129,7 @@ avatars:
 13. - [x] プロンプト改善: フィラー戦略（初速向上）。
 14. - [x] フロントエンド音声遅延改善 (`AudioContext` latencyHint)。
 15. - [x] リップシンク精度の向上（レイテンシ改善による反応速度向上）。
+16. - [x] **New**: ログレベルの洗練（累積表示: INFO/WARNING/DEBUG）。
 - **Goal**: 性能・安定性・拡張性においてプロダクトレベルの品質に到達。
 
 ### Phase 5: AIエンジンの換装・拡張 (Completed)
@@ -137,11 +138,14 @@ avatars:
 - [x] **TTS**: Voicevox 以外のエンジン (AivisSpeech) への切り替え対応 (維持・整理)。
 - **Goal**: ユーザーが好みのAIコンポーネントを自由に組み合わせられる柔軟性を提供する。
 
-### Phase 6: GUI設定画面 (Settings UI)
-- [ ] GUI設定画面の実装（settings.yaml のパラメータをUIから変更可能に）。
+### Phase 6: GUI設定画面 (Settings UI) (Completed)
+- [x] GUI設定画面の実装（settings.yaml のパラメータをUIから変更可能に）。
   - Electron IPC通信で YAML を読み書き。
   - フロントエンド(React)でのフォーム実装とバリデーション。
-- **Goal**: テキストエディタを使わずに設定完結できるようにする。
+- [x] **STT**: 短い発話（相槌等）の無視ロジックとGUI管理 UI。
+- [x] **Peak Meter**: dBベースのカラーメータと閾値インジケーターの追加。
+- [x] **TTS Engine**: ローカルエンジンの起動・再起動をGUIから制御。
+- **Goal**: テキストエディタを使わずに設定完結できるようにし、開発・調整時の利便性を最大化。
 
 ### Phase 7: パッケージ化 & 統合
 - [ ] `child_process.spawn` でPythonエンジンを自動起動（サイドカー化）。

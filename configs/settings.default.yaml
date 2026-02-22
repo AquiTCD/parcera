@@ -1,0 +1,195 @@
+# General Application Settings
+# ==========================================
+verbose: false         # Show detailed debug logs
+profile_mode: false    # Enable performance logging ([PERF]) to measure latency
+simple_log: true       # If true, only chat logs are shown in terminal
+log_level: "INFO"      # Logging level: DEBUG, INFO, WARNING, ERROR
+merge_request_threshold: 0.6  # [Seconds] Wait time after STT before LLM starts. Combined with VAD silence, defines total gap.
+response_sensitivity: "medium"  # "high" | "medium" | "low" - Controls how often AI responds to non-keyword speech
+force_keywords:       # AI will always respond if these keywords are detected
+  - パルセラ
+  - Parcera
+  - 教えて
+
+# ==========================================
+# LLM (Large Language Model) Settings
+# ==========================================
+llm:
+  provider: "gemini" # Active Provider: "gemini", "openai" (Future), "claude" (Future)
+
+  providers:
+    gemini:
+      model: "gemini-2.0-flash"
+      api_key: ""      # Google Gemini API Key
+      temperature: 1.0  # Creativity (0.0 - 2.0). Default 1.0 is recommended for Gemini 2.0.
+      persist_history: false
+      option_split_threshold: 15
+
+    openai:
+      model: "gpt-4o"
+      api_key: ""      # OpenAI API Key
+      temperature: 1.0  # Creativity (0.0 - 2.0). OpenAI default is 1.0.
+      persist_history: false
+      option_split_threshold: 15
+
+# ==========================================
+# STT (Speech to Text) Settings
+# ==========================================
+stt:
+  provider: "faster_whisper" # Active Provider: "faster_whisper", "google", "azure"
+  ignore_sentences: # Phrases to ignore (e.g., "うん", "はい"). Comma-separated in UI.
+    - うん
+    - はい
+    - ごめん
+  dictionary:
+    specific_keywords:
+      - 格闘ゲーム
+      - 波動拳
+      - 中足
+      - 差し返し
+
+  providers:
+    faster_whisper:
+      model: "longisland3/kotoba-whisper-v2.2-faster" # HuggingFace model path
+      device: "cpu"       # Computation device: "cuda" (NVIDIA GPU) or "cpu"
+      compute_type: "int8" # Quantization: "float16" (GPU only) or "int8" (CPU friendly/Local recommended)
+      whisper_vad_filter: false # Use Whisper's internal VAD. Recommended for long speech, but may skip short phrases.
+
+    google:
+      api_key: ""
+      language: "ja-JP"
+
+    azure:
+      api_key: ""
+      region: "japaneast"
+      language: "ja-JP"
+
+# ==========================================
+# TTS (Text to Speech) Settings
+# ==========================================
+tts:
+  provider: "aivisspeech" # Active Provider: "voicevox", "aivisspeech", "google"
+
+  # Common settings applied to compatible engines (Voicevox-based)
+  settings:
+    speedScale: 1.0        # Speech speed (Standard: 1.0)
+    pitchScale: 0.0        # Pitch adjustment. (Standard: 0.0). Note: AivisSpeech stability decreases except at 0.0.
+    intonationScale: 1.0   # Intonation variance (0.0 - 2.0). Standard: 1.0.
+    tempoDynamicsScale: 1.0 # [AivisSpeech Only] Dynamic speech speed variation (0.0 - 2.0). Standard: 1.0.
+    volumeScale: 1.0       # Output volume (Standard: 1.0)
+    prePhonemeLength: 0.1  # [Seconds] Silence before speech (Standard: 0.1)
+    postPhonemeLength: 0.1 # [Seconds] Silence after speech (Standard: 0.1)
+
+  providers:
+    # AivisSpeech (Local App)
+    aivisspeech:
+      api_url: "http://127.0.0.1:10101"
+      engine_path: "/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run"
+      style_id: 0 # Anneli (Standard)
+
+    # VOICEVOX (Local App)
+    voicevox:
+      api_url: "http://127.0.0.1:50021"
+      engine_path: "/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run"
+      speaker_id: 3 # ずんだもん (Standard)
+
+    # Google Cloud TTS
+    google:
+      api_key: ""
+      language: "ja-JP"
+      voice: "ja-JP-Neural2-B" # (Neural2) A:LowKey, B:StandardFemale, C:StandardMale, D:StandardMale
+      speaking_rate: 1.0 # Google Cloud TTS native speed default is 1.0.
+      pitch: 0.0          # (-20.0 - 20.0). Default is 0.0.
+      volume_gain_db: 0.0 # (-96.0 - 16.0). Default is 0.0.
+
+# ==========================================
+# VAD (Voice Activity Detection) Settings
+# ==========================================
+vad:
+  volume_db_threshold: -20.0 # [dB] Sensitivity. Adjusted for noise; higher values make it less sensitive.
+  silence_duration_threshold: 0.4 # [Seconds] Shorter is faster, but may segment sentences. (Response tempo gate 1)
+  max_duration: 15.0 # [Seconds] Safety cutoff to stop recording in noisy environments.
+  start_muted: false # [Boolean] Whether to start with the microphone muted.
+
+# ==========================================
+# Electron Application Settings
+# ==========================================
+electron:
+  port: 8676 # WebSocket Server Port. Changing this requires an app restart.
+  ai_audio_sample_rate: 16000  # [Hz] Must match TTS engine output sample rate used in Python.
+  windows:
+    ai:
+      width: 400
+      height: 400
+      x: 400
+      y: 0
+      alwaysOnTop: true
+      locked: false
+      control_corner: "bottom-right"
+    user:
+      width: 400
+      height: 400
+      x: 0
+      y: 0
+      alwaysOnTop: true
+      locked: false
+      control_corner: "bottom-right"
+
+# ==========================================
+# Avatar Visual Definitions
+# ==========================================
+avatars:
+  show_debug: false       # Show VAD status / Volume bars overlay
+  blink_interval_min: 5000 # [ms] Minimum time between blinks
+  blink_interval_max: 15000 # [ms] Maximum time between blinks
+  mouth_hold_time: 120    # [ms] Minimum duration to hold a mouth shape (prevents flickering)
+  breathe_scale: 1.008    # Scaling width for breathing animation (1.0 = no animation)
+  breathe_amplitude: 3    # [px] Vertical movement width for breathing
+  breathe_duration: 4500  # [ms] Reference period for one breath cycle
+  user:
+    name: "User"
+    assets_dir: "/assets/user"
+    flip_horizontal: false
+    chroma_key_enabled: false
+    chroma_key_color: "green"
+  ai:
+    name: "AI"
+    assets_dir: "/assets/ai"
+    flip_horizontal: false
+    chroma_key_enabled: false
+    chroma_key_color: "green"
+
+# ==========================================
+# Character & User Profile
+# ==========================================
+ai_profile:
+  name: "パルセラ"
+  species: "ダークエルフ"
+  gender: "女性"
+  personality: "オタク特有の熱量を全肯定する、距離感のバグった優しいギャル。ユーザーの拘りを「愛だね！」と面白がる無敵の肯定感を持つ。"
+  tone: "「〜じゃん」「〜だし」を多用する、フランクでポジティブなギャル語。相手を全肯定する語彙（ヤバ、エグい、天才、ウケる）を優先。"
+  first_person: "あたし"
+  hobbies: "ビデオゲーム（特に格闘ゲームとカード系ゲーム）"
+
+user_profile:
+  name: "アキ"
+  calling: "アキさん"
+  gender: "男性"
+  mode: "soliloquy" # "soliloquy" (独り言) | "conversation" (会話)
+
+# ==========================================
+# Knowledge Base (Context)
+# ==========================================
+knowledge: |
+  # AIキャラクターの補足設定 (Additional Info)
+  - 甘いものが大好きで、特に新作のコンビニスイーツに詳しい。
+  - このゲームプレイ観戦を「世界一のエンタメ」だと思っている。
+
+  # 今日の状況 (Current Situation)
+  - 今日はランクマッチ！パルセラも手に汗握って観戦中。
+  - 2人でお菓子を食べながら、まったり配信している雰囲気。
+
+  # 攻略メモ (Game Tips)
+  ## ストリートファイター6
+  - 相手が「バーンアウト」したら、一気に攻めるように応援する。
+  - 画面端でのプレッシャーが強いから、落ち着くように声をかける。
