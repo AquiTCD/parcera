@@ -1,5 +1,6 @@
 {
-  "name": "electron",
+  "name": "parcera",
+  "productName": "Parcera",
   "private": true,
   "version": "0.0.0",
   "main": "dist-electron/index.js",
