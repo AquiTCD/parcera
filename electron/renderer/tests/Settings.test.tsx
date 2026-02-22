@@ -34,6 +34,7 @@ describe('Settings Integration Test', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockElectron.getSettings.mockResolvedValue(dummySettings);
+    mockElectron.getDefaultSettings.mockResolvedValue(dummySettings);
   });
 
   it('renders settings after loading', async () => {
@@ -53,7 +54,7 @@ describe('Settings Integration Test', () => {
       expect(screen.queryByText(/ローディング/)).not.toBeInTheDocument();
     });
 
-    const tab = screen.getByText(/体・アバター/);
+    const tab = screen.getByText(/アバター設定/);
     fireEvent.click(tab);
 
     await waitFor(() => {
