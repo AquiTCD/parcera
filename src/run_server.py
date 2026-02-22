@@ -33,15 +33,18 @@ class ParceraServer(ParceraAvatarBase):
             voice_recorder_enabled=False
         )
 
-        # Attach callbacks
-        self._attach_callbacks()
-
-    def _attach_callbacks(self):
-        """Helper to attach callbacks to components (useful after hot-swapping)."""
+        # Attach callbacks (One-time)
         if hasattr(self.stt, "on_recognized_callback"):
             self.stt.on_recognized_callback = self.on_recognized
-
         self.aiavatar_server.on_response(self.on_response)
+
+        # Initial sync
+        self._sync_to_server()
+
+    def _sync_to_server(self):
+        """Update components and specific settings on the server instance (useful after hot-swapping)."""
+        if hasattr(self.stt, "on_recognized_callback"):
+            self.stt.on_recognized_callback = self.on_recognized
 
         # Sync components to aiavatar server
         self.aiavatar_server.llm = self.llm
@@ -196,7 +199,7 @@ async def reload_config(request: Request):
         else:
             # Pick up minor config changes (e.g. speaker_id, style) for the ACTIVE provider
             parcera_server.tts = parcera_server.factory.build_tts()
-            parcera_server._attach_callbacks()
+            parcera_server._sync_to_server()
 
         logger.info(f"Config sync completed (Restart Required: {restart_required})")
         return {
