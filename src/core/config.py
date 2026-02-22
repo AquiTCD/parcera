@@ -113,6 +113,18 @@ class ParceraConfig:
 
             self.full_system_prompt = f"{system_prompt}\n\n{context_prompt}" if context_prompt else system_prompt
 
+            # 5. Build STT Initial Prompt
+            force_keywords = self.get("force_keywords", [])
+            stt_cfg = self.get("stt", {})
+            dict_cfg = stt_cfg.get("dictionary", {})
+            specific_keywords = dict_cfg.get("specific_keywords", [])
+
+            all_keywords = sorted(list(set(force_keywords + specific_keywords)))
+            keyword_str = ", ".join(all_keywords)
+
+            ai_name = fill_params.get("name", "AI")
+            self.full_stt_prompt = f"私は{ai_name}です。{keyword_str}。"
+
             # Re-apply logging if it was already initialized
             self.setup_logging()
             return True

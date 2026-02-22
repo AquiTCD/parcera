@@ -40,6 +40,12 @@ stt:
     - うん
     - はい
     - ごめん
+  dictionary:
+    specific_keywords:
+      - 格闘ゲーム
+      - 波動拳
+      - 中足
+      - 差し返し
 
   providers:
     faster_whisper:

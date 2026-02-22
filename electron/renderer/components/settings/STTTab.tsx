@@ -168,6 +168,24 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
             checked={(settings.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
             onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
           />
+
+          <div style={{ marginTop: '15px' }}>
+            <InputSetting
+              label="Whisper 認識強化辞書"
+              description="認識させたいテクニカルワードをカンマ区切りで入力します。AI名や強制応答キーワードと自動的に統合されます。"
+              type="text"
+              defaultValue={defaultSettings?.stt?.dictionary?.specific_keywords?.join(', ')}
+              value={settings.stt?.dictionary?.specific_keywords?.join(', ')}
+              onChange={(val) => {
+                const words = typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [];
+                if (!settings.stt?.dictionary) {
+                  updateNested('stt', 'dictionary', { specific_keywords: words });
+                } else {
+                  updateNested('stt', 'dictionary', { ...settings.stt.dictionary, specific_keywords: words });
+                }
+              }}
+            />
+          </div>
         </div>
       )}
 

@@ -46,6 +46,7 @@ export interface LLMProviderConfig {
 export interface STTSettings {
   provider?: string;
   ignore_sentences?: string[];           // Phrases to ignore after STT
+  dictionary?: STTDictionarySettings;    // New field for Whisper tuning
   providers?: {
     faster_whisper?: STTProviderConfig;
     google?: STTProviderConfig;
@@ -157,6 +158,10 @@ export interface UserProfileSettings {
   calling?: string;
   gender?: string;
   mode?: 'soliloquy' | 'conversation';
+}
+
+export interface STTDictionarySettings {
+  specific_keywords?: string[];
 }
 
 // ─── Application Types ───
