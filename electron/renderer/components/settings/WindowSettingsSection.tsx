@@ -28,7 +28,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
       </h4>
 
       <CheckboxSetting
-        label="最前面に表示する (Always on Top)"
+        label="常に最前面に表示する"
         checked={winParams.alwaysOnTop ?? false}
         onChange={(checked: boolean) => updateWinParam('alwaysOnTop', checked)}
         labelStyle={{ fontSize: '13px' }}
@@ -99,7 +99,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
       <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
         <div style={{ flex: 1 }}>
           <InputSetting
-            label="幅 (Width)"
+            label="幅"
             type="number"
             placeholder={type === 'user' ? '300' : '400'}
             value={winParams.width ?? ''}
@@ -109,7 +109,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
         </div>
         <div style={{ flex: 1 }}>
           <InputSetting
-            label="高さ (Height)"
+            label="高さ"
             type="number"
             placeholder={type === 'user' ? '300' : '400'}
             value={winParams.height ?? ''}
@@ -121,7 +121,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
 
       <div>
         <label style={{ display: 'block', marginBottom: '5px', fontSize: '12px', color: '#ccc' }}>
-          コントロールボタン位置
+          操作ボタンの表示位置
         </label>
         <select
           value={winParams.control_corner ?? 'bottom-right'}

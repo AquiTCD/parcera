@@ -6,13 +6,15 @@ import { InputSetting } from './controls/InputSetting';
 export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNested, renderTabHeader }) => {
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('システム・詳細設定')}
+      {renderTabHeader?.('システム')}
 
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
         <h3 style={{ marginTop: 0, fontSize: '16px' }}>デバッグ・ログ設定</h3>
 
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>ログ出力レベル</label>
+        <SettingGroup
+          label="ログ出力レベル"
+          description="WARNING 以上のレベルは INFO レベルの内容も含まれます。"
+        >
           <select
             value={settings.log_level ?? 'INFO'}
             onChange={(e) => updateRoot('log_level', e.target.value)}
@@ -22,10 +24,7 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
             <option value="WARNING">WARNING (標準: INFO + 警告)</option>
             <option value="DEBUG">DEBUG (開発用: すべて出力)</option>
           </select>
-          <p style={{ fontSize: '11px', color: '#aaa', marginTop: '4px' }}>
-            ※WARNING は INFOレベルも含んだ累積表示になります
-          </p>
-        </div>
+        </SettingGroup>
 
         <div className="form-group">
           <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
@@ -35,7 +34,7 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
               onChange={(e) => updateRoot('profile_mode', e.target.checked)}
               style={{ marginRight: '10px' }}
             />
-            パフォーマンス計測ログを表示
+            パフォーマンス計測ログを表示 ([PERF])
           </label>
         </div>
       </div>
@@ -45,15 +44,18 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
         <div style={{ marginBottom: '20px' }}>
           <InputSetting
             label="WebSocket ポート番号"
+            description="通信に使用するポート番号です。変更後はアプリの再起動が必要です。"
             type="number"
             placeholder="8676"
             value={settings.electron?.port ?? 8676}
             onChange={(val) => updateNested('electron', 'port', val)}
           />
-          <small style={{ color: '#888' }}>バックエンドとフロントエンドを繋ぐポート。変更した場合は両方の再起動が必要です。</small>
         </div>
 
-        <SettingGroup label="内部音声サンプリングレート (Hz)">
+        <SettingGroup
+          label="内部音声サンプリングレート (Hz)"
+          description="TTS出力と合わせる必要があります。標準は16000Hzです。"
+        >
           <select
             value={settings.electron?.ai_audio_sample_rate ?? 16000}
             onChange={(e) => updateNested('electron', 'ai_audio_sample_rate', Number(e.target.value))}
@@ -65,7 +67,6 @@ export const SystemTab: React.FC<TabProps> = ({ settings, updateRoot, updateNest
             <option value={44100}>44,100 Hz (CD音質)</option>
             <option value={48000}>48,000 Hz (DVD音質)</option>
           </select>
-          <small style={{ color: '#888' }}>TTS出力と合わせる必要があります。標準は16000Hzです。</small>
         </SettingGroup>
       </div>
     </section>

@@ -121,7 +121,7 @@ export const TTSTab: React.FC<TabProps> = ({
 
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('声・発音設定')}
+      {renderTabHeader?.('音声出力（口）')}
 
       <SettingGroup label="使用するTTSプロバイダ">
         <select
@@ -137,15 +137,17 @@ export const TTSTab: React.FC<TabProps> = ({
 
       {(currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') ? (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>{currentTTSProvider} エンジン設定</h3>
+          <h3 style={{ marginTop: 0, fontSize: '16px' }}>{currentTTSProvider === 'aivisspeech' ? 'AivisSpeech' : currentTTSProvider === 'voicevox' ? 'VOICEVOX' : currentTTSProvider} エンジン設定</h3>
           <InputSetting
-            label="API URL"
+            label="エンジンのAPI URL"
+            description={currentTTSProvider === 'aivisspeech' ? "デフォルト: http://127.0.0.1:10101" : "デフォルト: http://127.0.0.1:50021"}
             placeholder={currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021'}
             value={settings.tts?.providers?.[currentTTSProvider]?.api_url ?? ''}
             onChange={(val) => updateProvider('tts', currentTTSProvider, 'api_url', val)}
           />
           <InputSetting
-            label="エンジン起動パス (空なら自動起動しない)"
+            label="エンジン起動パス"
+            description="空なら自動起動しません。例: /Applications/.../run"
             placeholder="/Applications/.../run"
             value={settings.tts?.providers?.[currentTTSProvider]?.engine_path ?? ''}
             onChange={(val) => updateProvider('tts', currentTTSProvider, 'engine_path', val)}
@@ -235,7 +237,7 @@ export const TTSTab: React.FC<TabProps> = ({
           <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
             <h3 style={{ marginTop: 0, fontSize: '16px' }}>共通音声パラメーター</h3>
             <InputSetting
-              label="話すスピード"
+              label="話速 (スピード)"
               type="number"
               step="0.05"
               placeholder="1.25"
@@ -243,15 +245,17 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateTTSSettings?.('speedScale', val)}
             />
             <InputSetting
-              label="抑揚"
+              label="抑揚 (Intonation)"
+              description="声の抑揚（メロディ）の強弱。0にすると棒読みになり、大きくすると感情表現が豊かになります。"
               type="number"
               step="0.1"
               placeholder="0.7"
-              value={settings.tts?.settings?.tempoDynamicScale ?? 0.7}
-              onChange={(val) => updateTTSSettings?.('tempoDynamicScale', val)}
+              value={settings.tts?.settings?.intonationScale ?? 0.7}
+              onChange={(val) => updateTTSSettings?.('intonationScale', val)}
             />
             <InputSetting
-              label="音量 0.0〜1.0"
+              label="出力音量"
+              description="範囲: 0.0〜1.0 (標準: 0.5)"
               type="number"
               step="0.1"
               placeholder="0.5"
@@ -267,7 +271,7 @@ export const TTSTab: React.FC<TabProps> = ({
           <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
             <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 音声パラメーター</h3>
             <InputSetting
-              label="話すスピード"
+              label="話速 (スピード)"
               type="number"
               step="0.05"
               placeholder="1.25"
@@ -275,7 +279,8 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateProvider('tts', 'google', 'speaking_rate', val)}
             />
             <InputSetting
-              label="ピッチ調整 -20.0〜20.0"
+              label="ピッチ調整"
+              description="-20.0〜20.0"
               type="number"
               step="0.5"
               placeholder="0.0"
@@ -283,7 +288,8 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateProvider('tts', 'google', 'pitch', val)}
             />
             <InputSetting
-              label="音量ゲイン (dB) -96〜16"
+              label="音量ゲイン (dB)"
+              description="-96〜16"
               type="number"
               step="1"
               placeholder="0.0"

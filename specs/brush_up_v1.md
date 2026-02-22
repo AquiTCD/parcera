@@ -14,7 +14,7 @@ Improve the quality and flexibility of Parcera's interaction by upgrading STT, f
 - **Target**: AivisSpeech (VOICEVOX compatible).
 - **Parameters**: 
   - `speedScale`: 1.25
-  - `tempoDynamicScale`: 0.7
+  - `intonationScale`: 0.7
   - `volumeScale`: 0.50
   - `prePhonemeLength`: 0
   - `postPhonemeLength`: 0.20

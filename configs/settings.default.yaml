@@ -1,10 +1,9 @@
-# ==========================================
 # General Application Settings
 # ==========================================
 verbose: false         # Show detailed debug logs
 profile_mode: false    # Enable performance logging ([PERF]) to measure latency
-log_level: "INFO"      # Logging level: DEBUG, INFO, WARNING, ERROR
-merge_request_threshold: 1.5  # [Seconds] Window to merge consecutive speech segments to prevent fragmentation
+log_level: "INFO"      # Logging level: DEBUG, INFO, WARNING (Includes INFO), ERROR
+merge_request_threshold: 0.6  # [Seconds] Wait time after STT before LLM starts. Combined with VAD silence, defines total gap.
 response_sensitivity: "medium"  # "high" | "medium" | "low" - Controls how often AI responds to non-keyword speech
 force_keywords:       # AI will always respond if these keywords are detected
   - パルセラ
@@ -20,14 +19,13 @@ llm:
   providers:
     gemini:
       model: "gemini-2.0-flash"
-      temperature: 0.7  # Creativity (0.0 - 1.0). Higher is more creative.
-      persist_history: false # If true, conversation history (aiavatar.db) is saved. If false, cleared on startup.
+      temperature: 1.0  # Creativity (0.0 - 2.0). Default 1.0 is recommended for Gemini 2.0.
+      persist_history: false # Save local history to keep memories. Warning: longer history increases token cost and latency.
       option_split_threshold: 15  # [Chars] Heuristic to split sentences for faster TTS streaming.
 
-    # Future support placeholders
     openai:
       model: "gpt-4o"
-      temperature: 0.7
+      temperature: 1.0  # Creativity (0.0 - 2.0). OpenAI default is 1.0.
 
 # ==========================================
 # STT (Speech to Text) Settings
@@ -39,8 +37,8 @@ stt:
     faster_whisper:
       model: "longisland3/kotoba-whisper-v2.2-faster" # HuggingFace model path
       device: "cpu"       # Computation device: "cuda" (NVIDIA GPU) or "cpu"
-      compute_type: "int8" # Quantization: "float16" (GPU only) or "int8" (CPU friendly)
-      whisper_vad_filter: false # Use Whisper's internal VAD? (False = better for short phrases)
+      compute_type: "int8" # Quantization: "float16" (GPU only) or "int8" (CPU friendly/Local recommended)
+      whisper_vad_filter: false # Use Whisper's internal VAD. Recommended for long speech, but may skip short phrases.
 
 # ==========================================
 # TTS (Text to Speech) Settings
@@ -50,9 +48,9 @@ tts:
 
   # Common settings applied to compatible engines (Voicevox-based)
   settings:
-    speedScale: 1.25       # Speech speed (1.0 is standard)
-    tempoDynamicScale: 0.7 # Intonation variance (0.0 - 1.0)
-    volumeScale: 0.50      # Audio volume (0.0 - 1.0)
+    speedScale: 1.25       # Speech speed. Adjusted to match current user setting.
+    intonationScale: 0.7 # Intonation variance (0.0 - 2.0). 0 for monotonic, higher for expressive melody.
+    volumeScale: 0.50      # Output volume (Range: 0.0 - 1.0, Default: 0.5)
     prePhonemeLength: 0.0  # [Seconds] Silence before speech
     postPhonemeLength: 0.20 # [Seconds] Silence after speech
 
@@ -75,29 +73,26 @@ tts:
     google:
       language: "ja-JP"
       voice: "ja-JP-Neural2-B" # (Neural2) A:LowKey, B:StandardFemale, C:StandardMale, D:StandardMale
-      speaking_rate: 1.25 # (0.25 - 4.0)
-      pitch: 0.0          # (-20.0 - 20.0)
-      volume_gain_db: 0.0 # (-96.0 - 16.0)
+      speaking_rate: 1.0 # Google Cloud TTS native speed default is 1.0.
+      pitch: 0.0          # (-20.0 - 20.0). Default is 0.0.
+      volume_gain_db: 0.0 # (-96.0 - 16.0). Default is 0.0.
 
 # ==========================================
 # VAD (Voice Activity Detection) Settings
 # ==========================================
-# Controls when the system listens to you.
-# Used by both Python VAD (speech recognition) and JS lip-sync (mouth movement).
-# Note for JS: RMS * 100 = 10^(dB/20) * 100  (e.g., -20dB -> ~10.0)
 vad:
-  volume_db_threshold: -20.0 # [dB] Sensitivity threshold. Louder than this is considered speech.
-  silence_duration_threshold: 0.6 # [Seconds] Wait time after speech stops before processing.
-  max_duration: 15.0 # [Seconds] Maximum duration of a single speech segment.
+  volume_db_threshold: -20.0 # [dB] Sensitivity. Adjusted for noise; higher values make it less sensitive.
+  silence_duration_threshold: 0.4 # [Seconds] Shorter is faster, but may segment sentences. (Response tempo gate 1)
+  max_duration: 15.0 # [Seconds] Safety cutoff to stop recording in noisy environments.
 
 # ==========================================
 # Electron Application Settings
 # ==========================================
 electron:
-  port: 8676 # WebSocket Server Port
+  port: 8676 # WebSocket Server Port. Changing this requires an app restart.
   ai_audio_sample_rate: 16000  # [Hz] Must match TTS engine output sample rate used in Python.
   windows:
-    ai: { width: 400, height: 400, x: 400, y: 0, alwaysOnTop: true, locked: true }
+    ai: { width: 400, height: 400, x: 400, y: 0, alwaysOnTop: true, locked: false }
     user: { width: 400, height: 400, x: 0, y: 0, alwaysOnTop: true, locked: true }
 
 # ==========================================
@@ -108,9 +103,9 @@ avatars:
   blink_interval_min: 5000 # [ms] Minimum time between blinks
   blink_interval_max: 15000 # [ms] Maximum time between blinks
   mouth_hold_time: 120    # [ms] Minimum duration to hold a mouth shape (prevents flickering)
-  breathe_scale: 1.005    # Scale factor for breathing animation (1.0 = no breathing)
-  breathe_amplitude: 2    # [px] Vertical movement distance for breathing
-  breathe_duration: 5000  # [ms] Duration of one full breath cycle
+  breathe_scale: 1.005    # Scaling width for breathing animation (1.0 = no animation)
+  breathe_amplitude: 2    # [px] Vertical movement width for breathing
+  breathe_duration: 5000  # [ms] Reference period for one breath cycle
   user:
     name: "User"
     assets_dir: "/assets/user"

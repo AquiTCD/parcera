@@ -10,20 +10,22 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
 
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('耳・音声認識')}
+      {renderTabHeader?.('音声認識（耳）')}
 
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
         <h3 style={{ marginTop: 0, fontSize: '16px' }}>VAD設定 (声の検出)</h3>
 
         <CheckboxSetting
-          label="起動時にマイクをデフォルトでミュートにする"
+          label="起動時にマイクをミュートにする"
           checked={settings.vad?.start_muted ?? false}
           onChange={(checked) => updateNested('vad', 'start_muted', checked)}
           style={{ marginBottom: '20px' }}
         />
 
-        <div className="form-group" style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>音声アクティビティ検出 (VAD) / 音量閾値 (dB)</label>
+        <SettingGroup
+          label="音声検出の音量閾値 (dB)"
+          description="環境音に合わせて調整（0に近いほど反応が鈍くなります）"
+        >
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <input
               type="range"
@@ -36,23 +38,24 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
             />
             <span style={{ width: '50px', textAlign: 'right' }}>{settings.vad?.volume_db_threshold ?? -20} dB</span>
           </div>
-          <small style={{ color: '#888' }}>マイクの環境音に合わせて調整（0に近いほど鈍感）</small>
-        </div>
+        </SettingGroup>
 
         <div style={{ display: 'flex', gap: '15px' }}>
           <div style={{ flex: 1 }}>
             <InputSetting
               label="発話終了判定の無音時間 (秒)"
+              description="短くすると反応が早まりますが、文章が細切れになるリスクがあります。"
               type="number"
               step="0.1"
-              placeholder="0.6"
-              value={settings.vad?.silence_duration_threshold ?? 0.6}
+              placeholder="0.4"
+              value={settings.vad?.silence_duration_threshold ?? 0.4}
               onChange={(val) => updateNested('vad', 'silence_duration_threshold', val)}
             />
           </div>
           <div style={{ flex: 1 }}>
             <InputSetting
               label="最大録音時間 (秒)"
+              description="環境音などで録音が止まらなくなった際の強制終了時間"
               type="number"
               step="1.0"
               placeholder="15.0"
@@ -67,7 +70,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
         <h3 style={{ marginTop: 0, fontSize: '16px' }}>割り込み・応答感度設定</h3>
 
         <InputSetting
-          label="強制応答キーワード機能 (カンマ区切り)"
+          label="強制応答キーワード"
+          description="カンマ区切りで複数指定可能です。"
           type="text"
           placeholder="パルセラ"
           value={settings.force_keywords?.join(', ') ?? ''}
@@ -75,31 +79,33 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
         />
 
         <InputSetting
-          label="無視するフレーズ (カンマ区切り、相槌など)"
+          label="無視するフレーズ"
+          description="カンマ区切りで複数指定可能です。"
           type="text"
           placeholder="うん, はい"
           value={settings.stt?.ignore_sentences?.join(', ') ?? ''}
           onChange={(val) => updateNested('stt', 'ignore_sentences', typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [])}
         />
 
-        <SettingGroup label="相槌・感度">
+        <SettingGroup label="応答頻度">
           <select
             value={settings.response_sensitivity ?? 'medium'}
             onChange={(e) => updateRoot('response_sensitivity', e.target.value)}
             style={inputStyle}
           >
-            <option value="high">高い - キーワードなしでも頻繁に反応</option>
+            <option value="high">高い - 頻繁に反応</option>
             <option value="medium">普通 - 通常の会話</option>
-            <option value="low">低い - ほぼキーワードにしか反応しない</option>
+            <option value="low">低い - 短い発話にはあまり反応しない</option>
           </select>
         </SettingGroup>
 
         <InputSetting
-          label="発話の結合待機時間 (秒) - 短い言葉をくっつけるしきい値"
+          label="発話の結合待機時間 (秒)"
+          description="文字化した後に続きを待つ時間。これと無音時間の合計が、AIが考え始めるまでの『間』になります。"
           type="number"
           step="0.1"
-          placeholder="1.5"
-          value={settings.merge_request_threshold ?? 1.5}
+          placeholder="0.6"
+          value={settings.merge_request_threshold ?? 0.6}
           onChange={(val) => updateRoot('merge_request_threshold', val)}
         />
       </div>
@@ -112,7 +118,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
         >
           <option value="faster_whisper">Faster Whisper (ローカル推奨)</option>
           <option value="google">Google Cloud STT</option>
-          <option value="azure">Azure STT</option>
+          <option value="azure">Azure Speech to Text</option>
         </select>
       </SettingGroup>
 
@@ -158,7 +164,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
             </div>
           </div>
           <CheckboxSetting
-            label="Whisper内蔵VADフィルターを使用 (長文向け・短文抜け注意)"
+            label="Whisper内蔵VADを使用"
+            description="長文向けの設定（短文が無視されるリスクがあります）"
             checked={(settings.stt?.providers?.faster_whisper as any)?.whisper_vad_filter ?? false}
             onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
           />
@@ -175,7 +182,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
             onChange={(val) => updateProvider('stt', 'google', 'api_key', val)}
           />
           <InputSetting
-            label="言語 (Language)"
+            label="言語"
             placeholder="ja-JP"
             value={(settings.stt?.providers?.google as any)?.language ?? 'ja-JP'}
             onChange={(val) => updateProvider('stt', 'google', 'language', val)}
@@ -199,7 +206,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, updateNested, updateRoot,
             onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
           />
           <InputSetting
-            label="言語 (Language)"
+            label="言語"
             placeholder="ja-JP"
             value={(settings.stt?.providers?.azure as any)?.language ?? 'ja-JP'}
             onChange={(val) => updateProvider('stt', 'azure', 'language', val)}

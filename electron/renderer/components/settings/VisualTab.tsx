@@ -8,7 +8,7 @@ import { WindowSettingsSection } from './WindowSettingsSection';
 export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTabHeader, handleSelectDir }) => {
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('体・アバター')}
+      {renderTabHeader?.('アバター設定')}
 
       <div style={{ display: 'flex', gap: '20px', flexDirection: 'column' }}>
         <SettingGroup label="アバター画像・透過設定">
@@ -30,7 +30,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
 
               <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
                 <CheckboxSetting
-                  label="背景透過を有効にする"
+                  label="背景透過 (クロマキー)"
                   checked={settings.avatars?.user?.chroma_key_enabled ?? false}
                   onChange={(checked: boolean) => updateNested('avatars', 'user', { ...settings.avatars?.user, chroma_key_enabled: checked })}
                 />
@@ -63,7 +63,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
 
               <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
                 <CheckboxSetting
-                  label="背景透過を有効にする"
+                  label="背景透過 (クロマキー)"
                   checked={settings.avatars?.ai?.chroma_key_enabled ?? false}
                   onChange={(checked: boolean) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, chroma_key_enabled: checked })}
                 />
@@ -97,7 +97,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
 
       <div className="form-group" style={{ marginBottom: '20px' }}>
         <CheckboxSetting
-          label="デバッグUIを表示する (VADバー、状態テキスト)"
+          label="デバッグ情報を表示する (ピークメーター、状態テキスト)"
           checked={settings.avatars?.show_debug ?? true}
           onChange={(checked: boolean) => updateNested('avatars', 'show_debug', checked)}
         />
@@ -107,7 +107,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
         <div style={{ display: 'flex', gap: '10px' }}>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="縮尺最大値"
+              label="呼吸のスケーリング幅"
               type="number"
               placeholder="1.01"
               value={settings.avatars?.breathe_scale ?? ''}
@@ -116,7 +116,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
           </div>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="振幅最大値 (px)"
+              label="呼吸の上下動幅 (px)"
               type="number"
               placeholder="5"
               value={settings.avatars?.breathe_amplitude ?? ''}
@@ -125,7 +125,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, updateNested, renderTa
           </div>
           <div style={{ flex: 1 }}>
             <InputSetting
-              label="周期基準値 (ms)"
+              label="呼吸の周期基準 (ms)"
               type="number"
               placeholder="4000"
               value={settings.avatars?.breathe_duration ?? ''}

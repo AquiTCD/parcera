@@ -164,7 +164,7 @@ class ParceraComponentFactory:
         # Common settings
         tts_settings = tts_cfg.get("settings", {
              'speedScale': 1.25,
-             'tempoDynamicScale': 0.7,
+             'intonationScale': 0.7,
              'volumeScale': 0.50,
         })
 

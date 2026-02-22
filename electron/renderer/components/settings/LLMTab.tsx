@@ -53,7 +53,7 @@ export const LLMTab: React.FC<TabProps> = ({
 
   return (
     <section className="animate-fade-in">
-      {renderTabHeader?.('脳・思考設定')}
+      {renderTabHeader?.('思考・返答（頭脳）')}
 
       <SettingGroup label="使用するプロバイダ">
         <select
@@ -108,7 +108,8 @@ export const LLMTab: React.FC<TabProps> = ({
         </SettingGroup>
 
         <InputSetting
-          label="ランダム性"
+          label="表現のランダム性 (Temperature)"
+          description="0.0〜2.0で指定。0に近いほど事実に基づいた正確な回答に、1.0を超えると独創的で多様な表現になります。"
           type="number"
           step="0.1"
           placeholder="0.7"
@@ -116,7 +117,10 @@ export const LLMTab: React.FC<TabProps> = ({
           onChange={(val) => updateProvider('llm', currentLLMProvider, 'temperature', val)}
         />
 
-        <SettingGroup label="ストリーミング時の文分割文字数">
+        <SettingGroup
+          label="文章の分割文字数 (ストリーミング)"
+          description="音声合成を早く開始するための最小文字数の目安です。"
+        >
           <input
             type="number"
             placeholder="15"
@@ -124,11 +128,11 @@ export const LLMTab: React.FC<TabProps> = ({
             onChange={(e) => updateProvider('llm', currentLLMProvider, 'option_split_threshold', Number(e.target.value))}
             style={inputStyle}
           />
-          <small style={{ color: '#888' }}>音声合成を早く開始するためのチャンク分割の目安</small>
         </SettingGroup>
 
         <CheckboxSetting
-          label="会話履歴を保存する (SQLite)"
+          label="会話履歴を保存して記憶を保持する"
+          description="会話履歴を保存して過去の記憶を保持します。※履歴が長くなると、消費トークン増大やレスポンス低下の原因になります。"
           checked={(settings.llm?.providers as any)?.[currentLLMProvider]?.persist_history ?? false}
           onChange={(checked) => updateProvider('llm', currentLLMProvider, 'persist_history', checked)}
         />
