@@ -5,26 +5,25 @@ import { Avatar } from './components/Avatar';
 import { ChromaKeyFilter } from './components/ChromaKeyFilter';
 import './style.css';
 
+const params = new URLSearchParams(window.location.search);
+const view = params.get('type') === 'settings' ? 'settings' : 'avatar';
+const avatarType = params.get('type') || 'user';
+
 export const App: React.FC = () => {
   const [settings, setSettings] = React.useState<ParceraSettings | null>(null);
-  const params = new URLSearchParams(window.location.search);
-  const view = params.get('type') === 'settings' ? 'settings' : 'avatar';
 
   React.useEffect(() => {
     window.electronAPI.getSettings().then(setSettings);
     return window.electronAPI.onSettingsChanged(setSettings);
   }, []);
 
-  const getChromaSettings = () => {
-    const type = params.get('type') || 'user';
-    const avatarSettings = settings?.avatars?.[type as 'user' | 'ai'];
+  const chroma = React.useMemo(() => {
+    const avatarSettings = settings?.avatars?.[avatarType as 'user' | 'ai'];
     return {
       enabled: avatarSettings?.chroma_key_enabled ?? false,
-      color: (avatarSettings?.chroma_key_color ?? 'green') as 'green' | 'blue'
+      color: (avatarSettings?.chroma_key_color ?? 'green') as 'green' | 'blue',
     };
-  };
-
-  const chroma = getChromaSettings();
+  }, [settings]);
 
   return (
     <>

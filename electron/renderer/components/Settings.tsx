@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { ParceraSettings } from '../../shared/types';
 import { STTTab } from './settings/STTTab';
 import { LLMTab } from './settings/LLMTab';
@@ -6,6 +6,9 @@ import { TTSTab } from './settings/TTSTab';
 import { VisualTab } from './settings/VisualTab';
 import { SystemTab } from './settings/SystemTab';
 import { AIProfileTab } from './settings/AIProfileTab';
+import { TabHeader } from './settings/TabHeader';
+import { useSettingsState } from './settings/useSettingsState';
+import { getDefaultsForTab } from './settings/restoreDefaults';
 
 const TABS = [
   { id: 'profile', label: 'キャラクター設定' },
@@ -17,7 +20,15 @@ const TABS = [
 ];
 
 export const Settings: React.FC = () => {
-  const [settings, setSettings] = useState<ParceraSettings | null>(null);
+  const {
+    settings,
+    setSettings,
+    updateRoot,
+    updateNested,
+    updateProvider,
+    updateTTSSettings,
+  } = useSettingsState(null);
+
   const [defaultSettings, setDefaultSettings] = useState<ParceraSettings | null>(null);
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({ message: '', type: '' });
   const [activeTab, setActiveTab] = useState('profile');
@@ -25,9 +36,9 @@ export const Settings: React.FC = () => {
   useEffect(() => {
     window.electronAPI.getSettings().then(setSettings);
     window.electronAPI.getDefaultSettings().then(setDefaultSettings);
-  }, []);
+  }, [setSettings]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!settings) return;
     setStatus({ message: '保存中...', type: '' });
     const result = await window.electronAPI.saveSettings(settings);
@@ -37,10 +48,10 @@ export const Settings: React.FC = () => {
     } else {
       setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
     }
-  };
+  }, [settings]);
 
-  const handleRestoreDefaults = async () => {
-    const tabLabel = TABS.find(t => t.id === activeTab)?.label;
+  const handleRestoreDefaults = useCallback(() => {
+    const tabLabel = TABS.find((t) => t.id === activeTab)?.label;
     if (!window.confirm(`「${tabLabel}」のタブ設定を初期値に戻しますか？\n(「保存する」を押すまで確定しません)`)) return;
 
     if (!defaultSettings) {
@@ -50,130 +61,42 @@ export const Settings: React.FC = () => {
 
     setSettings((prev: ParceraSettings | null) => {
       if (!prev) return prev;
-      let newSettings = { ...prev };
-
-      if (activeTab === 'llm') {
-        newSettings.llm = defaultSettings.llm;
-      } else if (activeTab === 'stt') {
-        newSettings.stt = defaultSettings.stt;
-        newSettings.vad = defaultSettings.vad;
-        newSettings.force_keywords = defaultSettings.force_keywords;
-        newSettings.response_sensitivity = defaultSettings.response_sensitivity;
-        newSettings.merge_request_threshold = defaultSettings.merge_request_threshold;
-      } else if (activeTab === 'tts') {
-        newSettings.tts = defaultSettings.tts;
-      } else if (activeTab === 'visual') {
-        newSettings.avatars = defaultSettings.avatars;
-        if (defaultSettings.electron?.windows) {
-          const prevWindows = newSettings.electron?.windows || {};
-          newSettings.electron = { ...newSettings.electron, windows: { ...prevWindows, ai: defaultSettings.electron.windows.ai, user: defaultSettings.electron.windows.user } };
-        }
-      } else if (activeTab === 'system') {
-        newSettings.verbose = defaultSettings.verbose;
-        newSettings.profile_mode = defaultSettings.profile_mode;
-        newSettings.log_level = defaultSettings.log_level;
-        const prevWindows = newSettings.electron?.windows;
-        newSettings.electron = { ...defaultSettings.electron, windows: prevWindows };
-      } else if (activeTab === 'profile') {
-        newSettings.ai_profile = defaultSettings.ai_profile;
-        newSettings.user_profile = defaultSettings.user_profile;
-        newSettings.knowledge = defaultSettings.knowledge;
-      }
-      return newSettings;
+      const patch = getDefaultsForTab(activeTab, defaultSettings, prev);
+      return patch ? { ...prev, ...patch } : prev;
     });
+
     setStatus({ message: '初期値をロードしました。(保存を押すと確定します)', type: 'success' });
     setTimeout(() => setStatus({ message: '', type: '' }), 5000);
-  };
+  }, [activeTab, defaultSettings, setSettings]);
 
-  const handleSelectDir = async (key: 'user' | 'ai') => {
-    if (!settings) return;
-    const current = (settings.avatars?.[key] as any)?.assets_dir;
-    const result = await window.electronAPI.selectDirectory(current);
-    if (result) {
-      updateNested('avatars', key, { ...(settings.avatars?.[key] as any), assets_dir: result });
-    }
-  };
-
-  const renderTabHeader = (title: string) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-      <h2 style={{ color: '#61dafb', margin: 0 }}>{title}</h2>
-      <button
-        onClick={handleRestoreDefaults}
-        style={{
-          padding: '6px 12px',
-          background: 'transparent',
-          color: '#ccc',
-          border: '1px solid #555',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          fontSize: '12px',
-          transition: 'background 0.2s',
-        }}
-        onMouseOver={(e) => e.currentTarget.style.background = '#333'}
-        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-      >
-        このタブを初期値に戻す
-      </button>
-    </div>
+  const renderTabHeader = useCallback(
+    (title: string) => <TabHeader title={title} onRestoreDefaults={handleRestoreDefaults} />,
+    [handleRestoreDefaults]
   );
 
-  const updateRoot = (key: keyof ParceraSettings, value: any) => {
-    setSettings((prev: ParceraSettings | null) => prev ? ({ ...prev, [key]: value }) : null);
-  };
-
-  const updateNested = (section: keyof ParceraSettings, key: string, value: any) => {
-    setSettings((prev: ParceraSettings | null) => {
-      if (!prev) return null;
-      if (key === '') {
-        return { ...prev, [section]: value };
+  const handleSelectDir = useCallback(
+    async (key: 'user' | 'ai') => {
+      if (!settings) return;
+      const current = (settings.avatars?.[key] as any)?.assets_dir;
+      const result = await window.electronAPI.selectDirectory(current);
+      if (result) {
+        updateNested('avatars', key, { ...(settings.avatars?.[key] as any), assets_dir: result });
       }
-      return { ...prev, [section]: { ...(prev[section] as any), [key]: value } };
-    });
-  };
-
-  const updateProvider = (section: 'llm' | 'stt' | 'tts', providerName: string, key: string, value: any) => {
-    setSettings((prev: ParceraSettings | null) => {
-      if (!prev) return null;
-      const currentSection = prev[section] as any || {};
-      const providers = currentSection.providers || {};
-      const targetProvider = providers[providerName] || {};
-      return {
-        ...prev,
-        [section]: {
-          ...currentSection,
-          providers: {
-            ...providers,
-            [providerName]: {
-              ...targetProvider,
-              [key]: value
-            }
-          }
-        }
-      };
-    });
-  };
-
-  const updateTTSSettings = (key: string, value: any) => {
-    setSettings((prev: ParceraSettings | null) => {
-      if (!prev) return null;
-      const currentSection = prev.tts || {};
-      const ttsSettings = currentSection.settings || {};
-      return {
-        ...prev,
-        tts: {
-          ...currentSection,
-          settings: {
-            ...ttsSettings,
-            [key]: value
-          }
-        }
-      };
-    });
-  }
+    },
+    [settings, updateNested]
+  );
 
   if (!settings) return <div style={{ color: 'white', padding: 20 }}>ローディング中...</div>;
 
-  const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
+  const tabProps = {
+    settings,
+    defaultSettings: defaultSettings || undefined,
+    updateRoot,
+    updateNested,
+    updateProvider,
+    setStatus,
+    renderTabHeader,
+  };
 
   return (
     <div className="settings-container" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100vh', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', background: '#1e1e1e', boxSizing: 'border-box' }}>
@@ -207,85 +130,12 @@ export const Settings: React.FC = () => {
 
         {/* Content Area */}
         <div style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#1e1e1e' }}>
-
-          {/* ========== 1. Profile ========== */}
-          {activeTab === 'profile' && (
-            <AIProfileTab
-              settings={settings}
-              defaultSettings={defaultSettings || undefined}
-              updateNested={updateNested}
-              updateRoot={updateRoot}
-              updateProvider={updateProvider}
-              setStatus={setStatus}
-              renderTabHeader={renderTabHeader}
-            />
-          )}
-
-          {/* ========== 2. LLM ========== */}
-          {activeTab === 'llm' && (
-            <LLMTab
-              settings={settings}
-              defaultSettings={defaultSettings || undefined}
-              updateProvider={updateProvider}
-              updateNested={updateNested}
-              updateRoot={updateRoot}
-              setStatus={setStatus}
-              renderTabHeader={renderTabHeader}
-            />
-          )}
-
-          {/* ========== 3. STT ========== */}
-          {activeTab === 'stt' && (
-            <STTTab
-              settings={settings}
-              defaultSettings={defaultSettings || undefined}
-              updateRoot={updateRoot}
-              updateNested={updateNested}
-              updateProvider={updateProvider}
-              setStatus={setStatus}
-              renderTabHeader={renderTabHeader}
-            />
-          )}
-
-          {/* ========== 4. TTS ========== */}
-          {activeTab === 'tts' && (
-            <TTSTab
-              settings={settings}
-              defaultSettings={defaultSettings || undefined}
-              updateRoot={updateRoot}
-              updateNested={updateNested}
-              updateProvider={updateProvider}
-              updateTTSSettings={updateTTSSettings}
-              setStatus={setStatus}
-              renderTabHeader={renderTabHeader}
-            />
-          )}
-
-          {activeTab === 'visual' && (
-            <VisualTab
-              settings={settings}
-              defaultSettings={defaultSettings || undefined}
-              updateRoot={updateRoot}
-              updateNested={updateNested}
-              updateProvider={updateProvider}
-              setStatus={setStatus}
-              renderTabHeader={renderTabHeader}
-              handleSelectDir={handleSelectDir}
-            />
-          )}
-
-          {/* ========== 6. System ========== */}
-          {activeTab === 'system' && (
-            <SystemTab
-              settings={settings}
-              defaultSettings={defaultSettings || undefined}
-              updateRoot={updateRoot}
-              updateNested={updateNested}
-              updateProvider={updateProvider}
-              setStatus={setStatus}
-              renderTabHeader={renderTabHeader}
-            />
-          )}
+          {activeTab === 'profile' && <AIProfileTab {...tabProps} />}
+          {activeTab === 'llm' && <LLMTab {...tabProps} />}
+          {activeTab === 'stt' && <STTTab {...tabProps} />}
+          {activeTab === 'tts' && <TTSTab {...tabProps} updateTTSSettings={updateTTSSettings} />}
+          {activeTab === 'visual' && <VisualTab {...tabProps} handleSelectDir={handleSelectDir} />}
+          {activeTab === 'system' && <SystemTab {...tabProps} />}
         </div>
       </div>
 
@@ -315,18 +165,6 @@ export const Settings: React.FC = () => {
           保存する
         </button>
       </div>
-    </div >
+    </div>
   );
-};
-
-// UI style constant
-const inputStyle = {
-  padding: '10px',
-  borderRadius: '4px',
-  border: '1px solid #444',
-  background: '#3c3c3c',
-  color: 'white',
-  width: '100%',
-  boxSizing: 'border-box' as const,
-  fontSize: '14px'
 };
