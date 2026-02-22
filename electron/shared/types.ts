@@ -73,7 +73,9 @@ export interface TTSSettingsConfig {
 
 export interface TTSSettings {
   speedScale?: number;
+  pitchScale?: number;
   intonationScale?: number;
+  tempoDynamicsScale?: number;
   volumeScale?: number;
   prePhonemeLength?: number;
   postPhonemeLength?: number;

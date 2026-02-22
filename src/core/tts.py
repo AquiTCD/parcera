@@ -41,9 +41,10 @@ class FineTunedVoicevoxTTS(VoicevoxSpeechSynthesizer):
                 query_res.raise_for_status()
                 query_data = query_res.json()
 
-                # 2. Apply Settings
+                # 2. Apply Settings (Skip None values to avoid sending explicit nulls to engines that don't support them)
                 for key, value in self.settings.items():
-                    query_data[key] = value
+                    if value is not None:
+                        query_data[key] = value
 
                 # 3. Synthesis
                 logger.debug(f"TTS: Requesting synthesis (speaker={self.speaker})...")

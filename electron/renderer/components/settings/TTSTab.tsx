@@ -225,13 +225,37 @@ export const TTSTab: React.FC<TabProps> = ({
             />
             <InputSetting
               label="抑揚 (Intonation)"
-              description="声の抑揚（メロディ）の強弱。0にすると棒読みになり、大きくすると感情表現が豊かになります。"
+              description={currentTTSProvider === 'aivisspeech'
+                ? "キャラの感情表現の強さを調整します。1.0が標準です。"
+                : "ピッチの上がり下がり（メロディ）の強弱。0にすると棒読みになります。"}
               type="number"
               step="0.1"
               defaultValue={defaultSettings?.tts?.settings?.intonationScale}
               value={settings.tts?.settings?.intonationScale}
               onChange={(val) => updateTTSSettings?.('intonationScale', val)}
             />
+            <InputSetting
+              label="ピッチ (Pitch)"
+              description={currentTTSProvider === 'aivisspeech'
+                ? "⚠️ AivisSpeechでは 0.0 以外に設定すると音質が劣化する可能性があります。"
+                : "全体の声の高さを調整します。"}
+              type="number"
+              step="0.01"
+              defaultValue={defaultSettings?.tts?.settings?.pitchScale}
+              value={settings.tts?.settings?.pitchScale}
+              onChange={(val) => updateTTSSettings?.('pitchScale', val)}
+            />
+            {currentTTSProvider === 'aivisspeech' && (
+              <InputSetting
+                label="話速の緩急 (Dynamics)"
+                description="一文の中でのスピードの変化の強さを調整します。大きくするとより生っぽく（早口に）聞こえます。"
+                type="number"
+                step="0.1"
+                defaultValue={defaultSettings?.tts?.settings?.tempoDynamicsScale}
+                value={settings.tts?.settings?.tempoDynamicsScale}
+                onChange={(val) => updateTTSSettings?.('tempoDynamicsScale', val)}
+              />
+            )}
             <InputSetting
               label="出力音量"
               description={`範囲: 0.0〜1.0 (標準: ${defaultSettings?.tts?.settings?.volumeScale ?? 1.0})`}

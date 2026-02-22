@@ -64,7 +64,9 @@ tts:
   # Common settings applied to compatible engines (Voicevox-based)
   settings:
     speedScale: 1.0        # Speech speed (Standard: 1.0)
+    pitchScale: 0.0        # Pitch adjustment. (Standard: 0.0). Note: AivisSpeech stability decreases except at 0.0.
     intonationScale: 1.0   # Intonation variance (0.0 - 2.0). Standard: 1.0.
+    tempoDynamicsScale: 1.0 # [AivisSpeech Only] Dynamic speech speed variation (0.0 - 2.0). Standard: 1.0.
     volumeScale: 1.0       # Output volume (Standard: 1.0)
     prePhonemeLength: 0.1  # [Seconds] Silence before speech (Standard: 0.1)
     postPhonemeLength: 0.1 # [Seconds] Silence after speech (Standard: 0.1)

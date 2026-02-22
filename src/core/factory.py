@@ -161,12 +161,8 @@ class ParceraComponentFactory:
         provider = tts_cfg.get("provider", "voicevox")
         providers = tts_cfg.get("providers", {})
 
-        # Common settings
-        tts_settings = tts_cfg.get("settings", {
-             'speedScale': 1.0,
-             'intonationScale': 1.0,
-             'volumeScale': 1.0,
-        })
+        # Common settings applied to compatible engines (Voicevox-based)
+        tts_settings = tts_cfg.get("settings", {})
 
         if provider in ["voicevox", "aivisspeech"]:
             vv_cfg = providers.get(provider, {})
