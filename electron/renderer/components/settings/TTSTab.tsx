@@ -216,7 +216,8 @@ export const TTSTab: React.FC<TabProps> = ({
           <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
             <h3 style={{ marginTop: 0, fontSize: '16px' }}>共通音声パラメーター</h3>
             <InputSetting
-              label="話速 (スピード)"
+              label="話速 (Speed Scale)"
+              description="全体の喋る速さを調整します。(標準: 1.0)"
               type="number"
               step="0.05"
               defaultValue={defaultSettings?.tts?.settings?.speedScale}
@@ -224,10 +225,10 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateTTSSettings?.('speedScale', val)}
             />
             <InputSetting
-              label="抑揚 (Intonation)"
+              label="抑揚 (Intonation Scale)"
               description={currentTTSProvider === 'aivisspeech'
-                ? "キャラの感情表現の強さを調整します。1.0が標準です。"
-                : "ピッチの上がり下がり（メロディ）の強弱。0にすると棒読みになります。"}
+                ? "キャラの感情表現の強さを調整します。(標準: 1.0)"
+                : "ピッチの上がり下がり（メロディ）の強弱を調整します。0にすると棒読みになります。(標準: 1.0)"}
               type="number"
               step="0.1"
               defaultValue={defaultSettings?.tts?.settings?.intonationScale}
@@ -235,10 +236,10 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateTTSSettings?.('intonationScale', val)}
             />
             <InputSetting
-              label="ピッチ (Pitch)"
+              label="ピッチ (Pitch Scale)"
               description={currentTTSProvider === 'aivisspeech'
-                ? "⚠️ AivisSpeechでは 0.0 以外に設定すると音質が劣化する可能性があります。"
-                : "全体の声の高さを調整します。"}
+                ? "⚠️ AivisSpeechでは 0.0 以外に設定すると音質が劣化する可能性があります。(標準: 0.0)"
+                : "全体の声の高さを調整します。(標準: 0.0)"}
               type="number"
               step="0.01"
               defaultValue={defaultSettings?.tts?.settings?.pitchScale}
@@ -247,8 +248,8 @@ export const TTSTab: React.FC<TabProps> = ({
             />
             {currentTTSProvider === 'aivisspeech' && (
               <InputSetting
-                label="話速の緩急 (Dynamics)"
-                description="一文の中でのスピードの変化の強さを調整します。大きくするとより生っぽく（早口に）聞こえます。"
+                label="話速の緩急 (Tempo Dynamics Scale)"
+                description="一文の中でのスピードの変化の強さを調整します。大きくするとより生っぽく（早口に）聞こえます。(標準: 1.0)"
                 type="number"
                 step="0.1"
                 defaultValue={defaultSettings?.tts?.settings?.tempoDynamicsScale}
@@ -257,7 +258,7 @@ export const TTSTab: React.FC<TabProps> = ({
               />
             )}
             <InputSetting
-              label="出力音量"
+              label="出力音量 (Volume Scale)"
               description={`範囲: 0.0〜1.0 (標準: ${defaultSettings?.tts?.settings?.volumeScale ?? 1.0})`}
               type="number"
               step="0.1"
@@ -274,7 +275,8 @@ export const TTSTab: React.FC<TabProps> = ({
           <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
             <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 音声パラメーター</h3>
             <InputSetting
-              label="話速 (スピード)"
+              label="話速 (Speaking Rate)"
+              description="Google Cloud TTSのネイティブな話速設定です。(標準: 1.0)"
               type="number"
               step="0.05"
               defaultValue={defaultSettings?.tts?.providers?.google?.speaking_rate}
@@ -282,8 +284,8 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateProvider('tts', 'google', 'speaking_rate', val)}
             />
             <InputSetting
-              label="ピッチ調整"
-              description="-20.0〜20.0"
+              label="ピッチ調整 (Pitch)"
+              description="範囲: -20.0〜20.0 (標準: 0.0)"
               type="number"
               step="0.5"
               defaultValue={defaultSettings?.tts?.providers?.google?.pitch}
@@ -291,8 +293,8 @@ export const TTSTab: React.FC<TabProps> = ({
               onChange={(val) => updateProvider('tts', 'google', 'pitch', val)}
             />
             <InputSetting
-              label="音量ゲイン (dB)"
-              description="-96〜16"
+              label="音量ゲイン (Volume Gain dB)"
+              description="範囲: -96〜16 (標準: 0.0)"
               type="number"
               step="1"
               defaultValue={defaultSettings?.tts?.providers?.google?.volume_gain_db}
