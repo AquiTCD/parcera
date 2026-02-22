@@ -18,6 +18,7 @@ export const Avatar: React.FC = () => {
   const [viewMode, setViewMode] = useState<'standard' | 'wide'>('standard');
   const [isLocked, setIsLocked] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
   const [mode, setMode] = useState<'soliloquy' | 'conversation'>('soliloquy');
   const [controlCorner, setControlCorner] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
 
@@ -78,6 +79,8 @@ export const Avatar: React.FC = () => {
       if (avatarImageRef.current) {
         avatarImageRef.current.src = `${assetsDir}/base.png`;
       }
+
+      setIsFlipped(avatarConfig?.flip_horizontal ?? false);
 
       // Mute sync across windows
       const newMuted = settings.vad?.start_muted ?? false;
@@ -230,7 +233,7 @@ export const Avatar: React.FC = () => {
         <img
           ref={avatarImageRef}
           id="avatar-image"
-          className="avatar-main"
+          className={`avatar-main ${isFlipped ? 'flipped' : ''}`}
           onError={handleImageError}
           draggable={false}
         />

@@ -116,11 +116,15 @@ body.is-locked {
 
   /* Idle Animation: Now driven by JS for natural fluctuations */
   /* animation: breathe var(--breathe-duration, 5s) ease-in-out infinite; */
-  transform: translateY(var(--breathe-offset-y, 0px)) scale(var(--breathe-current-scale, 1), var(--breathe-current-scale, 1));
+  transform: scaleX(var(--flip-x, 1)) translateY(var(--breathe-offset-y, 0px)) scale(var(--breathe-current-scale, 1), var(--breathe-current-scale, 1));
   pointer-events: none;
 
   /* Chroma Key (Green Screen removal) */
   filter: url(#chromakey-filter);
+}
+
+.avatar-main.flipped {
+  --flip-x: -1;
 }
 
 /* @keyframes breathe removed - moving to JS for 1/f fluctuation */

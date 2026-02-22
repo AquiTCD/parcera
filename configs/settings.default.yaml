@@ -148,11 +148,13 @@ avatars:
   user:
     name: "User"
     assets_dir: "/assets/user"
+    flip_horizontal: false
     chroma_key_enabled: false
     chroma_key_color: "green"
   ai:
     name: "AI"
     assets_dir: "/assets/ai"
+    flip_horizontal: false
     chroma_key_enabled: false
     chroma_key_color: "green"
 

@@ -30,6 +30,13 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
 
               <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
                 <CheckboxSetting
+                  label="左右反転する"
+                  defaultValue={defaultSettings?.avatars?.user?.flip_horizontal}
+                  checked={settings.avatars?.user?.flip_horizontal}
+                  onChange={(checked: boolean) => updateNested('avatars', 'user', { ...settings.avatars?.user, flip_horizontal: checked })}
+                  style={{ marginBottom: '10px' }}
+                />
+                <CheckboxSetting
                   label="背景透過 (クロマキー)"
                   defaultValue={defaultSettings?.avatars?.user?.chroma_key_enabled}
                   checked={settings.avatars?.user?.chroma_key_enabled}
@@ -63,6 +70,13 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
               </button>
 
               <div style={{ borderTop: '1px solid #444', paddingTop: '15px' }}>
+                <CheckboxSetting
+                  label="左右反転する"
+                  defaultValue={defaultSettings?.avatars?.ai?.flip_horizontal}
+                  checked={settings.avatars?.ai?.flip_horizontal}
+                  onChange={(checked: boolean) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, flip_horizontal: checked })}
+                  style={{ marginBottom: '10px' }}
+                />
                 <CheckboxSetting
                   label="背景透過 (クロマキー)"
                   defaultValue={defaultSettings?.avatars?.ai?.chroma_key_enabled}

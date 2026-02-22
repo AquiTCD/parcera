@@ -139,6 +139,7 @@ export interface AvatarSettings {
 export interface AvatarConfig {
   name?: string;
   assets_dir?: string;
+  flip_horizontal?: boolean;
   chroma_key_enabled?: boolean;
   chroma_key_color?: 'green' | 'blue';
 }
