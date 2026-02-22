@@ -4,6 +4,7 @@ import { SettingGroup } from './SettingGroup';
 
 interface PasswordSettingProps {
   label: string;
+  description?: string;
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
@@ -12,6 +13,7 @@ interface PasswordSettingProps {
 
 export const PasswordSetting: React.FC<PasswordSettingProps> = ({
   label,
+  description,
   value,
   onChange,
   placeholder,
@@ -20,7 +22,7 @@ export const PasswordSetting: React.FC<PasswordSettingProps> = ({
   const [show, setShow] = useState(false);
 
   return (
-    <SettingGroup label={label}>
+    <SettingGroup label={label} description={description}>
       <div style={{ display: 'flex', gap: '5px' }}>
         <input
           type={show ? "text" : "password"}

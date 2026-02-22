@@ -7,10 +7,10 @@ import { VisualTab } from './settings/VisualTab';
 import { SystemTab } from './settings/SystemTab';
 
 const TABS = [
-  { id: 'stt', label: '耳・音声認識' },
-  { id: 'llm', label: '脳・思考' },
-  { id: 'tts', label: '口・音声合成' },
-  { id: 'visual', label: '体・アバター' },
+  { id: 'stt', label: '音声認識（耳）' },
+  { id: 'llm', label: '思考・返答（頭脳）' },
+  { id: 'tts', label: '音声出力（口）' },
+  { id: 'visual', label: 'アバター設定' },
   { id: 'system', label: 'システム' },
 ];
 

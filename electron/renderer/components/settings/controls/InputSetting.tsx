@@ -4,6 +4,7 @@ import { SettingGroup } from './SettingGroup';
 
 interface InputSettingProps {
   label: string;
+  description?: string;
   type?: 'text' | 'number';
   value: string | number;
   onChange: (val: any) => void;
@@ -14,6 +15,7 @@ interface InputSettingProps {
 
 export const InputSetting: React.FC<InputSettingProps> = ({
   label,
+  description,
   type = 'text',
   value,
   onChange,
@@ -53,7 +55,7 @@ export const InputSetting: React.FC<InputSettingProps> = ({
   };
 
   return (
-    <SettingGroup label={label} labelStyle={labelStyle}>
+    <SettingGroup label={label} description={description} labelStyle={labelStyle}>
       <input
         type={type}
         placeholder={placeholder}
