@@ -73,11 +73,34 @@ export class PythonSidecar {
 
   public stop(): void {
     this.isShuttingDown = true;
-    if (this.process) {
-      console.log('[Sidecar] Stopping Python engine...');
-      this.process.kill('SIGTERM');
-      this.process = null;
-    }
+    if (!this.process) return;
+
+    const proc = this.process;
+    const pid = proc.pid;
+    console.log(`[Sidecar] Stopping Python engine (PID: ${pid})...`);
+
+    // 1. Send SIGTERM (graceful shutdown)
+    proc.kill('SIGTERM');
+
+    // 2. Force kill after 3 seconds if still alive
+    const forceKillTimer = setTimeout(() => {
+      try {
+        if (pid) {
+          process.kill(pid, 'SIGKILL');
+          console.log(`[Sidecar] Force-killed Python engine (PID: ${pid}) via SIGKILL`);
+        }
+      } catch {
+        // Process already exited — ignore
+      }
+    }, 3000);
+
+    // Clean up timer if process exits gracefully
+    proc.once('exit', () => {
+      clearTimeout(forceKillTimer);
+      console.log(`[Sidecar] Python engine stopped cleanly.`);
+    });
+
+    this.process = null;
   }
 
   private handleCrash(): void {

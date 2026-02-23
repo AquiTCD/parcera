@@ -308,12 +308,16 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+  // Parcera should fully quit when all windows are closed (including macOS).
+  // The sidecar is stopped here AND in before-quit as a safety net.
+  if (sidecar) {
+    sidecar.stop();
   }
+  app.quit();
 });
 
 app.on('before-quit', () => {
+  // Double-ensure cleanup for cases like Cmd+Q or force quit
   if (sidecar) {
     sidecar.stop();
   }

@@ -13,6 +13,9 @@ run = "cd electron && pnpm build"
 description = "Package as macOS DMG (unsigned)"
 run = "cd electron && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null"
 
-[tasks.start]
-description = "Start both Frontend and Backend (Parallel)"
-depends = ["server", "dev"]
+[tasks.server]
+description = "Start Python server standalone (for debugging)"
+run = """
+export PARCERA_CONFIG_PATH="configs/settings.default.yaml"
+.venv/bin/python src/run_server.py
+"""
