@@ -1,15 +1,20 @@
 import asyncio
+import json
 import logging
 import os
+import threading
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from aiavatar.adapter.websocket.server import AIAvatarWebSocketServer
 from aiavatar.sts.session_state_manager import SQLiteSessionStateManager
 from aiavatar.sts.performance_recorder.sqlite import SQLitePerformanceRecorder
 from core.avatar import ParceraAvatarBase
+from core.download import LoggingTqdm, check_model_cached, download_model_with_progress
 from core.engine import TTSEngineManager
 from core.config import load_config_file
 from routers.config_router import create_config_router
@@ -62,6 +67,15 @@ class ParceraServer(ParceraAvatarBase):
 
         # Initial sync
         self._sync_to_server()
+
+    def reload_stt(self):
+        """Re-initialize STT component. Useful after a model is downloaded."""
+        logger.info("Reloading STT component...")
+        # Refresh config to pick up any changes
+        self.config.refresh()
+        self.stt = self.factory.build_stt(is_busy_handler=self._is_ai_busy_check)
+        self._sync_to_server()
+        logger.info(f"STT reloaded. New type: {type(self.stt).__name__}")
 
     def _sync_to_server(self):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""
@@ -222,6 +236,70 @@ async def health_check():
     except Exception:
         pass
     return {"status": "ok", "tts_engine": tts_ok}
+
+
+# --- Model Management Endpoints ---
+
+
+@app.get("/models/check")
+async def check_model(name: str):
+    """Check if a Whisper model is already cached."""
+    cached = check_model_cached(name)
+    return {"cached": cached, "model": name}
+
+
+@app.get("/models/download")
+async def download_model_sse(name: str):
+    """Download a Whisper model with SSE progress streaming."""
+
+    async def event_stream() -> AsyncIterator[str]:
+        loop = asyncio.get_running_loop()
+        done_event = asyncio.Event()
+        result = {"error": None}
+
+        def _download():
+            try:
+                download_model_with_progress(name)
+            except Exception as e:
+                result["error"] = str(e)
+                logger.error(f"Download thread error: {e}")
+            finally:
+                loop.call_soon_threadsafe(done_event.set)
+
+        # Start download in a thread (it's blocking I/O)
+        thread = threading.Thread(target=_download, daemon=True)
+        thread.start()
+
+        last_pct = -1
+        try:
+            while not done_event.is_set():
+                progress = LoggingTqdm.get_progress()
+                if progress and progress["progress"] != last_pct:
+                    last_pct = progress["progress"]
+                    yield f"data: {json.dumps(progress)}\n\n"
+                await asyncio.sleep(0.5)
+
+            # Final event
+            if result["error"]:
+                yield f"data: {json.dumps({'progress': -1, 'status': 'error', 'error': result['error']})}\n\n"
+            else:
+                yield f"data: {json.dumps({'progress': 100, 'status': 'complete'})}\n\n"
+
+        finally:
+            LoggingTqdm.reset_progress()
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.post("/models/reload")
+async def reload_model():
+    """Trigger a reload of the STT component."""
+    try:
+        parcera_server.reload_stt()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Failed to reload STT: {e}")
+        return {"success": False, "error": str(e)}
 
 
 # Register routers

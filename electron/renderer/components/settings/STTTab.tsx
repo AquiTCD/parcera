@@ -1,10 +1,221 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { TabProps } from './types';
 import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
+
+type FasterWhisperProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
+
+const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
+  const [modelStatus, setModelStatus] = useState<'checking' | 'not_cached' | 'downloading' | 'ready' | 'error'>('checking');
+  const [progress, setProgress] = useState(0);
+  const [progressDetail, setProgressDetail] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const actionButtonStyle: React.CSSProperties = {
+    padding: '8px 20px',
+    background: '#0e639c',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  };
+
+  const modelName = (settings.stt?.providers?.faster_whisper as any)?.model
+    || (defaultSettings?.stt?.providers?.faster_whisper as any)?.model
+    || 'longisland3/kotoba-whisper-v2.2-faster';
+  const port = settings.electron?.port || 8676;
+
+  const checkCache = useCallback(async () => {
+    setModelStatus('checking');
+    try {
+      // First, check if server is alive
+      const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
+      if (!healthRes.ok) throw new Error('Server not ready');
+
+      const cached = await (window as any).electronAPI.checkModelCached(modelName, port);
+      setModelStatus(cached ? 'ready' : 'not_cached');
+    } catch (err) {
+      // Server might not be ready yet or there's a connection issue
+      console.log('STT Model Check: Server not ready, retrying...', err);
+      setTimeout(() => checkCache(), 2000);
+    }
+  }, [modelName, port]);
+
+  useEffect(() => {
+    checkCache();
+  }, [checkCache]);
+
+  const handleDownload = () => {
+    setModelStatus('downloading');
+    setProgress(0);
+    setProgressDetail('');
+    setErrorMsg('');
+
+    (window as any).electronAPI.downloadModel(
+      modelName,
+      async (data: any) => {
+        if (data.status === 'complete') {
+          // Trigger server-side reload
+          await (window as any).electronAPI.reloadModel(port);
+          setModelStatus('ready');
+          setProgress(100);
+        } else if (data.status === 'error') {
+          setModelStatus('error');
+          setErrorMsg(data.error || 'ダウンロードに失敗しました');
+        } else if (data.progress >= 0) {
+          setProgress(data.progress);
+          if (data.downloaded_mb && data.total_mb) {
+            setProgressDetail(`${data.file || 'model'}: ${data.downloaded_mb}MB / ${data.total_mb}MB`);
+          }
+        }
+      },
+      port
+    );
+  };
+
+  return (
+    <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
+      <h3 style={{ marginTop: 0, fontSize: '16px' }}>Faster Whisper 設定</h3>
+
+      <InputSetting
+        label="モデル (HuggingFace形式)"
+        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.model}
+        value={(settings.stt?.providers?.faster_whisper as any)?.model}
+        onChange={(val) => {
+          updateProvider('stt', 'faster_whisper', 'model', val);
+          // Re-check cache when model name changes
+          setTimeout(() => checkCache(), 500);
+        }}
+      />
+
+      {/* Model download status */}
+      {modelStatus === 'checking' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px', color: '#888' }}>
+          ⏳ モデルの状態を確認中...
+        </div>
+      )}
+
+      {modelStatus === 'not_cached' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
+          <div style={{ color: '#e8a838', marginBottom: '10px' }}>
+            ⚠️ モデルがダウンロードされていません
+          </div>
+          <div style={{ color: '#888', fontSize: '12px', marginBottom: '10px' }}>
+            Faster Whisper を使用するにはモデルのダウンロードが必要です（約1.5GB）
+          </div>
+          <button
+            onClick={handleDownload}
+            style={actionButtonStyle}
+          >
+            ダウンロード開始
+          </button>
+        </div>
+      )}
+
+      {modelStatus === 'downloading' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
+          <div style={{ color: '#4fc1ff', marginBottom: '8px' }}>
+            📥 ダウンロード中... {progress}%
+          </div>
+          <div style={{
+            width: '100%',
+            height: '8px',
+            background: '#333',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            marginBottom: '6px',
+          }}>
+            <div style={{
+              width: `${progress}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, #0e639c, #4fc1ff)',
+              borderRadius: '4px',
+              transition: 'width 0.3s ease',
+            }} />
+          </div>
+          {progressDetail && (
+            <div style={{ color: '#888', fontSize: '12px' }}>{progressDetail}</div>
+          )}
+        </div>
+      )}
+
+      {modelStatus === 'error' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
+          <div style={{ color: '#f44747', marginBottom: '10px' }}>
+            ❌ {errorMsg}
+          </div>
+          <button
+            onClick={handleDownload}
+            style={actionButtonStyle}
+          >
+            リトライ
+          </button>
+        </div>
+      )}
+
+      {/* Settings only shown when model is ready */}
+      {modelStatus === 'ready' && (
+        <>
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <SelectSetting
+                label="演算デバイス"
+                value={(settings.stt?.providers?.faster_whisper as any)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
+                onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'cpu', label: 'CPU' },
+                  { value: 'cuda', label: 'CUDA (NVIDIA GPU)' }
+                ]}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <SelectSetting
+                label="量子化"
+                value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
+                onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
+                options={[
+                  { value: 'default', label: 'デフォルト' },
+                  { value: 'int8', label: 'int8 (推奨 / 軽量)' },
+                  { value: 'float16', label: 'float16 (高精度GPU用)' }
+                ]}
+              />
+            </div>
+          </div>
+          <CheckboxSetting
+            label="Whisper内蔵VADを使用"
+            description="長文向けの設定（短文が無視されるリスクがあります）"
+            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
+            checked={(settings.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
+            onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
+          />
+
+          <div style={{ marginTop: '15px' }}>
+            <InputSetting
+              label="Whisper 認識強化辞書"
+              description="認識させたいテクニカルワードをカンマ区切りで入力します。AI名や強制応答キーワードと自動的に統合されます。"
+              type="text"
+              defaultValue={defaultSettings?.stt?.dictionary?.specific_keywords?.join(', ')}
+              value={settings.stt?.dictionary?.specific_keywords?.join(', ')}
+              onChange={(val) => {
+                const words = typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [];
+                if (!settings.stt?.dictionary) {
+                  updateNested('stt', 'dictionary', { specific_keywords: words });
+                } else {
+                  updateNested('stt', 'dictionary', { ...settings.stt.dictionary, specific_keywords: words });
+                }
+              }}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
   const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
@@ -123,66 +334,12 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
       />
 
       {currentSTTProvider === 'faster_whisper' && (
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>Faster Whisper 設定</h3>
-          <InputSetting
-            label="モデル (HuggingFace形式)"
-            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.model}
-            value={(settings.stt?.providers?.faster_whisper as any)?.model}
-            onChange={(val) => updateProvider('stt', 'faster_whisper', 'model', val)}
-          />
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
-            <div style={{ flex: 1 }}>
-              <SelectSetting
-                label="演算デバイス"
-                value={(settings.stt?.providers?.faster_whisper as any)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
-                onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
-                options={[
-                  { value: 'auto', label: 'Auto' },
-                  { value: 'cpu', label: 'CPU' },
-                  { value: 'cuda', label: 'CUDA (NVIDIA GPU)' }
-                ]}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <SelectSetting
-                label="量子化"
-                value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
-                onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
-                options={[
-                  { value: 'default', label: 'デフォルト' },
-                  { value: 'int8', label: 'int8 (推奨 / 軽量)' },
-                  { value: 'float16', label: 'float16 (高精度GPU用)' }
-                ]}
-              />
-            </div>
-          </div>
-          <CheckboxSetting
-            label="Whisper内蔵VADを使用"
-            description="長文向けの設定（短文が無視されるリスクがあります）"
-            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
-            checked={(settings.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
-            onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
-          />
-
-          <div style={{ marginTop: '15px' }}>
-            <InputSetting
-              label="Whisper 認識強化辞書"
-              description="認識させたいテクニカルワードをカンマ区切りで入力します。AI名や強制応答キーワードと自動的に統合されます。"
-              type="text"
-              defaultValue={defaultSettings?.stt?.dictionary?.specific_keywords?.join(', ')}
-              value={settings.stt?.dictionary?.specific_keywords?.join(', ')}
-              onChange={(val) => {
-                const words = typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [];
-                if (!settings.stt?.dictionary) {
-                  updateNested('stt', 'dictionary', { specific_keywords: words });
-                } else {
-                  updateNested('stt', 'dictionary', { ...settings.stt.dictionary, specific_keywords: words });
-                }
-              }}
-            />
-          </div>
-        </div>
+        <FasterWhisperSection
+          settings={settings}
+          defaultSettings={defaultSettings}
+          updateProvider={updateProvider}
+          updateNested={updateNested}
+        />
       )}
 
       {currentSTTProvider === 'google' && (

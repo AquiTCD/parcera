@@ -31,4 +31,68 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('sidecar-log', listener);
     return () => ipcRenderer.removeListener('sidecar-log', listener);
   },
+
+  // --- Model Management ---
+  checkModelCached: async (modelName: string, port: number = 8676): Promise<boolean> => {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/models/check?name=${encodeURIComponent(modelName)}`);
+      const data = await res.json();
+      return data.cached === true;
+    } catch {
+      return false;
+    }
+  },
+
+  downloadModel: (
+    modelName: string,
+    onProgress: (progress: { progress: number; downloaded_mb?: number; total_mb?: number; file?: string; status?: string; error?: string }) => void,
+    port: number = 8676
+  ): (() => void) => {
+    const controller = new AbortController();
+    const url = `http://127.0.0.1:${port}/models/download?name=${encodeURIComponent(modelName)}`;
+
+    (async () => {
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) return;
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Parse SSE events
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                onProgress(data);
+              } catch { /* ignore parse errors */ }
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          onProgress({ progress: -1, status: 'error', error: err.message });
+        }
+      }
+    })();
+
+    // Return cancel function
+    return () => controller.abort();
+  },
+
+  reloadModel: async (port: number = 8676): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/models/reload`, { method: 'POST' });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
 });

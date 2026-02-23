@@ -7,7 +7,7 @@ from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
 from .config import ParceraConfig
-from .stt import KotobaWhisperRecognizer
+from .stt import KotobaWhisperRecognizer, NoOpRecognizer
 from .tts import FineTunedVoicevoxTTS
 from .gemini import FixedGeminiService
 from .wrappers import ParceraLLMWrapper, ParceraSTTWrapper # New wrappers
@@ -101,17 +101,21 @@ class ParceraComponentFactory:
                 device = "cpu"
                 compute_type = "int8"
 
-            return KotobaWhisperRecognizer(
-                model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
-                device=device,
-                compute_type=compute_type,
-                initial_prompt=self.config.full_stt_prompt,
-                response_filter=response_filter,
-                whisper_vad_filter=whisper_vad_filter,
-                on_recognized_callback=on_recognized_callback,
-                is_busy_handler=is_busy_handler,
-                debug=self.config.verbose
-            )
+            try:
+                return KotobaWhisperRecognizer(
+                    model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
+                    device=device,
+                    compute_type=compute_type,
+                    initial_prompt=self.config.full_stt_prompt,
+                    response_filter=response_filter,
+                    whisper_vad_filter=whisper_vad_filter,
+                    on_recognized_callback=on_recognized_callback,
+                    is_busy_handler=is_busy_handler,
+                    debug=self.config.verbose
+                )
+            except Exception as e:
+                logger.warning(f"STT: Failed to load model (not downloaded yet?). STT disabled until model is downloaded via Settings. Error: {e}")
+                return NoOpRecognizer(debug=self.config.verbose)
 
         elif provider == "google":
             google_cfg = providers.get("google", {})
