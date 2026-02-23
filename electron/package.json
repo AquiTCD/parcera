@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "package": "pnpm build && electron-builder"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
@@ -26,7 +27,8 @@
     "vite": "^7.3.1",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "electron-builder": "^25.1.8"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -39,5 +41,58 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "swr": "^2.4.0"
+  },
+  "build": {
+    "appId": "com.aquitcd.parcera",
+    "productName": "Parcera",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist",
+      "dist-electron"
+    ],
+    "extraResources": [
+      {
+        "from": "../src",
+        "to": "src",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../prompts",
+        "to": "prompts"
+      },
+      {
+        "from": "../configs/settings.default.yaml",
+        "to": "configs/settings.default.yaml"
+      },
+      {
+        "from": "resources/bin",
+        "to": "bin"
+      },
+      {
+        "from": "resources/site-packages",
+        "to": "site-packages"
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": "arm64"
+        }
+      ],
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/electron-store/**"
+    ]
   }
 }

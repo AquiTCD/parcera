@@ -2,11 +2,12 @@ import os
 import logging
 from aiavatar.sts.vad.standard import StandardSpeechDetector
 from aiavatar.sts.llm.chatgpt import ChatGPTService # Fixed import
+from aiavatar.sts.llm.context_manager import SQLiteContextManager
 from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
 from .config import ParceraConfig
-from .stt import KotobaWhisperRecognizer
+from .stt import KotobaWhisperRecognizer, NoOpRecognizer
 from .tts import FineTunedVoicevoxTTS
 from .gemini import FixedGeminiService
 from .wrappers import ParceraLLMWrapper, ParceraSTTWrapper # New wrappers
@@ -30,8 +31,13 @@ class ParceraComponentFactory:
             api_key = gemini_cfg.get("api_key")
             if not api_key:
                 logger.warning("Gemini API key is missing. Set it in Settings -> LLM.")
+
+            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+            context_manager = SQLiteContextManager(db_path=db_path)
+
             service_instance = FixedGeminiService(
                 gemini_api_key=api_key,
+                context_manager=context_manager,
                 model=gemini_cfg.get("model", "gemini-2.0-flash"),
                 temperature=float(gemini_cfg.get("temperature", 1.0)),
                 option_split_threshold=int(gemini_cfg.get("option_split_threshold", 15)),
@@ -45,9 +51,13 @@ class ParceraComponentFactory:
             if not api_key:
                 logger.warning("OpenAI API key is missing. Set it in Settings -> LLM.")
 
+            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+            context_manager = SQLiteContextManager(db_path=db_path)
+
             # NOTE: ChatGPTService arguments differ from ChatGPT
             service_instance = ChatGPTService(
                 openai_api_key=api_key,
+                context_manager=context_manager,
                 model=openai_cfg.get("model", "gpt-4o"),
                 temperature=float(openai_cfg.get("temperature", 1.0)),
                 system_prompt=self.config.full_system_prompt,
@@ -83,13 +93,15 @@ class ParceraComponentFactory:
             device = fw_cfg.get("device", "cpu")
             compute_type = fw_cfg.get("compute_type", "int8")
 
-            # Safety check: mps does not support int8
-            if device == "mps" and compute_type == "int8":
-                logger.info("STT: Detected 'mps' with 'int8'. Forcing 'float16' for Apple Silicon compatibility.")
-                compute_type = "float16"
+            # CTranslate2 (faster-whisper backend) does not support 'mps'.
+            # Force to 'cpu' if someone has it set from an older config.
+            # Also reset compute_type since float16 (often paired with mps) is not supported on CPU.
+            if device == "mps":
+                logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
+                device = "cpu"
+                compute_type = "int8"
 
             try:
-                # Note: KotobaWhisperRecognizer already includes the wrapper logic internally
                 return KotobaWhisperRecognizer(
                     model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
                     device=device,
@@ -102,21 +114,8 @@ class ParceraComponentFactory:
                     debug=self.config.verbose
                 )
             except Exception as e:
-                if device == "mps":
-                    logger.warning(f"STT: Failed to load Faster-Whisper on 'mps' ({e}). Falling back to 'cpu'...")
-                    return KotobaWhisperRecognizer(
-                        model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
-                        device="cpu",
-                        compute_type="int8",
-                        initial_prompt=self.config.full_stt_prompt,
-                        response_filter=response_filter,
-                        whisper_vad_filter=whisper_vad_filter,
-                        on_recognized_callback=on_recognized_callback,
-                        is_busy_handler=is_busy_handler,
-                        debug=self.config.verbose
-                    )
-                else:
-                    raise e
+                logger.warning(f"STT: Failed to load model (not downloaded yet?). STT disabled until model is downloaded via Settings. Error: {e}")
+                return NoOpRecognizer(debug=self.config.verbose)
 
         elif provider == "google":
             google_cfg = providers.get("google", {})

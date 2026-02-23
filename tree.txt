@@ -1,0 +1,138 @@
+aiavatar v0.8.7
+├── aiofiles v25.1.0
+├── httpx v0.28.1
+│   ├── anyio v4.12.1
+│   │   ├── idna v3.11
+│   │   └── typing-extensions v4.15.0
+│   ├── certifi v2026.1.4
+│   ├── httpcore v1.0.9
+│   │   ├── certifi v2026.1.4
+│   │   └── h11 v0.16.0
+│   └── idna v3.11
+├── numpy v2.3.5
+├── openai v2.20.0
+│   ├── anyio v4.12.1 (*)
+│   ├── distro v1.9.0
+│   ├── httpx v0.28.1 (*)
+│   ├── jiter v0.13.0
+│   ├── pydantic v2.12.5
+│   │   ├── annotated-types v0.7.0
+│   │   ├── pydantic-core v2.41.5
+│   │   │   └── typing-extensions v4.15.0
+│   │   ├── typing-extensions v4.15.0
+│   │   └── typing-inspection v0.4.2
+│   │       └── typing-extensions v4.15.0
+│   ├── sniffio v1.3.1
+│   ├── tqdm v4.67.3
+│   └── typing-extensions v4.15.0
+├── pyaudio v0.2.14
+└── silero-vad v6.2.0
+    ├── onnxruntime v1.24.1
+    │   ├── flatbuffers v25.12.19
+    │   ├── numpy v2.3.5
+    │   ├── packaging v26.0
+    │   ├── protobuf v6.33.5
+    │   └── sympy v1.14.0
+    │       └── mpmath v1.3.0
+    ├── packaging v26.0
+    ├── torch v2.10.0
+    │   ├── filelock v3.20.3
+    │   ├── fsspec v2026.2.0
+    │   ├── jinja2 v3.1.6
+    │   │   └── markupsafe v3.0.3
+    │   ├── networkx v3.6.1
+    │   ├── sympy v1.14.0 (*)
+    │   └── typing-extensions v4.15.0
+    └── torchaudio v2.10.0
+        └── torch v2.10.0 (*)
+azure-cognitiveservices-speech v1.48.1
+└── azure-core v1.38.2
+    ├── requests v2.32.5
+    │   ├── certifi v2026.1.4
+    │   ├── charset-normalizer v3.4.4
+    │   ├── idna v3.11
+    │   └── urllib3 v2.6.3
+    └── typing-extensions v4.15.0
+fastapi v0.129.0
+├── annotated-doc v0.0.4
+├── pydantic v2.12.5 (*)
+├── starlette v0.52.1
+│   ├── anyio v4.12.1 (*)
+│   └── typing-extensions v4.15.0
+├── typing-extensions v4.15.0
+└── typing-inspection v0.4.2 (*)
+faster-whisper v1.2.1
+├── av v16.1.0
+├── ctranslate2 v4.7.1
+│   ├── numpy v2.3.5
+│   ├── pyyaml v6.0.3
+│   └── setuptools v82.0.0
+├── huggingface-hub v1.4.1
+│   ├── filelock v3.20.3
+│   ├── fsspec v2026.2.0
+│   ├── hf-xet v1.2.0
+│   ├── httpx v0.28.1 (*)
+│   ├── packaging v26.0
+│   ├── pyyaml v6.0.3
+│   ├── shellingham v1.5.4
+│   ├── tqdm v4.67.3
+│   ├── typer-slim v0.22.0
+│   │   └── typer v0.22.0
+│   │       ├── annotated-doc v0.0.4
+│   │       ├── click v8.3.1
+│   │       ├── rich v14.3.2
+│   │       │   ├── markdown-it-py v4.0.0
+│   │       │   │   └── mdurl v0.1.2
+│   │       │   └── pygments v2.19.2
+│   │       └── shellingham v1.5.4
+│   └── typing-extensions v4.15.0
+├── onnxruntime v1.24.1 (*)
+├── tokenizers v0.22.2
+│   └── huggingface-hub v1.4.1 (*)
+└── tqdm v4.67.3
+google-cloud-speech v2.36.1
+├── google-api-core v2.30.0
+│   ├── google-auth v2.48.0
+│   │   ├── cryptography v46.0.5
+│   │   │   └── cffi v2.0.0
+│   │   │       └── pycparser v3.0
+│   │   ├── pyasn1-modules v0.4.2
+│   │   │   └── pyasn1 v0.6.2
+│   │   └── rsa v4.9.1
+│   │       └── pyasn1 v0.6.2
+│   ├── googleapis-common-protos v1.72.0
+│   │   └── protobuf v6.33.5
+│   ├── proto-plus v1.27.1
+│   │   └── protobuf v6.33.5
+│   ├── protobuf v6.33.5
+│   └── requests v2.32.5 (*)
+├── google-auth v2.48.0 (*)
+├── grpcio v1.78.0
+│   └── typing-extensions v4.15.0
+├── proto-plus v1.27.1 (*)
+└── protobuf v6.33.5
+google-genai v1.62.0
+├── anyio v4.12.1 (*)
+├── distro v1.9.0
+├── google-auth v2.48.0 (*)
+├── httpx v0.28.1 (*)
+├── pydantic v2.12.5 (*)
+├── requests v2.32.5 (*)
+├── sniffio v1.3.1
+├── tenacity v9.1.4
+├── typing-extensions v4.15.0
+└── websockets v15.0.1
+grpcio-status v1.78.0
+├── googleapis-common-protos v1.72.0 (*)
+├── grpcio v1.78.0 (*)
+└── protobuf v6.33.5
+pytest v9.0.2
+├── iniconfig v2.3.0
+├── packaging v26.0
+├── pluggy v1.6.0
+└── pygments v2.19.2
+python-dotenv v1.2.1
+uvicorn v0.40.0
+├── click v8.3.1
+└── h11 v0.16.0
+(*) Package tree already displayed

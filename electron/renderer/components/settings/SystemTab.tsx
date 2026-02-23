@@ -67,6 +67,15 @@ export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
             { value: 48000, label: '48,000 Hz (DVD音質)' }
           ]}
         />
+
+        <div style={{ marginTop: '20px', borderTop: '1px solid #333', paddingTop: '20px' }}>
+          <CheckboxSetting
+            label="GPUアクセラレーションを有効にする"
+            description="通常はON。OBSのウィンドウキャプチャでアニメーションが止まる場合はOFFにして再起動してください。"
+            checked={settings.electron?.gpu_acceleration ?? true}
+            onChange={(checked) => updateNested('electron', 'gpu_acceleration', checked)}
+          />
+        </div>
       </div>
     </section>
   );

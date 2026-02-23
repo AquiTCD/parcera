@@ -5,6 +5,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_welcome_printed = False
+
 
 def load_text_file(path: str) -> str:
     if os.path.exists(path):
@@ -61,8 +63,15 @@ def _get_default_situation(mode: str, user_name: str) -> str:
 
 class ParceraConfig:
     def __init__(self, settings_path: str = None):
+        # Base path detection (works for both dev and packaged)
+        self.base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
         if settings_path is None:
-            settings_path = os.environ.get("PARCERA_CONFIG_PATH", "configs/settings.default.yaml")
+            settings_path = os.environ.get("PARCERA_CONFIG_PATH")
+            if not settings_path:
+                # Fallback to local config dir
+                settings_path = os.path.join(self.base_path, "configs", "settings.default.yaml")
+
         self.settings_path = settings_path
         self.last_mtime = 0
         self.settings = {}
@@ -82,7 +91,7 @@ class ParceraConfig:
 
     def _load_settings(self, new_settings: dict = None):
         """Load defaults, then overlay user settings (from memory or disk)."""
-        defaults_path = os.path.join(os.getcwd(), "configs/settings.default.yaml")
+        defaults_path = os.path.join(self.base_path, "configs", "settings.default.yaml")
         defaults = load_config_file(defaults_path)
 
         user_settings = {}
@@ -104,8 +113,9 @@ class ParceraConfig:
 
     def _build_prompts(self):
         """Load prompt templates from disk and fill placeholders."""
-        system_template = load_text_file("prompts/system_prompt.md")
-        context_template = load_text_file("prompts/context_prompt.md")
+        prompts_dir = os.path.join(self.base_path, "prompts")
+        system_template = load_text_file(os.path.join(prompts_dir, "system_prompt.md"))
+        context_template = load_text_file(os.path.join(prompts_dir, "context_prompt.md"))
 
         ai_profile = self.get("ai_profile", {})
         user_profile = self.get("user_profile", {})
@@ -119,7 +129,7 @@ class ParceraConfig:
             "mode": mode,
             "knowledge": self.get("knowledge", ""),
             "situation": _get_default_situation(mode, user_profile.get("name", "")),
-            "actionGuidelines": load_text_file(f"prompts/action_guidelines_{mode}.md"),
+            "actionGuidelines": load_text_file(os.path.join(prompts_dir, f"action_guidelines_{mode}.md")),
         }
 
         system_prompt = _fill_placeholders(system_template, fill_params)
@@ -142,6 +152,7 @@ class ParceraConfig:
         self.full_stt_prompt = f"私は{ai_name}です。{keyword_str}。"
 
     def setup_logging(self):
+        global _welcome_printed
         log_level_str = self.get("log_level", "INFO").upper()
         simple_log = self.get("simple_log", False)
 
@@ -191,9 +202,10 @@ class ParceraConfig:
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("uvicorn").setLevel(logging.WARNING if simple_log else logging.INFO)
 
-        if simple_log:
+        if simple_log and not _welcome_printed:
             print("\n✨ Parcera Simple Log Mode: ON (Chat only) ✨\n")
-        else:
+            _welcome_printed = True
+        elif not simple_log:
             logger.info(f"Logging initialized at {log_level_str} level (Cumulative Mode)")
 
 
@@ -204,6 +216,19 @@ class ParceraConfig:
     @property
     def profile_mode(self) -> bool:
         return self.get("profile_mode", False)
+
+    @property
+    def app_data_dir(self) -> str:
+        """Return a writable directory for models, logs, and caches."""
+        if os.name == "nt":
+            base = os.environ.get("APPDATA")
+        else:
+            base = os.path.expanduser("~/Library/Application Support")
+
+        path = os.path.join(base, "Parcera")
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+        return path
 
     def get(self, key, default=None):
         return self.settings.get(key, default)

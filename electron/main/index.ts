@@ -5,6 +5,7 @@ import yaml from 'js-yaml';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
+import { PythonSidecar } from './sidecar';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +22,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env['APP_ROOT'] = path.join(__dirname, '..');
 
+// Separate dev and production data directories to avoid config conflicts.
+// Must be called before 'ready' event.
+if (!app.isPackaged) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'Parcera-Dev'));
+}
+
 // Avoids needing a user click to start AudioContext/Media
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -29,6 +36,7 @@ export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist')
 
 let userWindow: BrowserWindow | null = null;
 let aiWindow: BrowserWindow | null = null;
+let sidecar: PythonSidecar | null = null;
 
 process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
@@ -60,6 +68,13 @@ function initializeStore() {
 
 initializeStore();
 console.log('[Parcera] Store path:', store.path);
+
+// Apply GPU acceleration setting before app is ready
+const gpuEnabled = store.get('electron.gpu_acceleration') ?? true;
+if (!gpuEnabled) {
+  console.log('[Parcera] Hardware acceleration disabled by user setting.');
+  app.disableHardwareAcceleration();
+}
 
 // Write path to a file so Python dev server can easily find it
 try {
@@ -186,6 +201,13 @@ ipcMain.on('resize-window', (event, width: number, height: number) => {
   }
 });
 
+ipcMain.on('set-resizable', (event, resizable: boolean) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.setResizable(resizable);
+  }
+});
+
 ipcMain.handle('save-window-bounds', async (event, type: string) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return { success: false, error: 'Window not found' };
@@ -200,8 +222,10 @@ ipcMain.handle('save-window-bounds', async (event, type: string) => {
     if (!currentSettings.electron.windows) currentSettings.electron.windows = {};
     if (!currentSettings.electron.windows[typeKey]) currentSettings.electron.windows[typeKey] = {};
 
-    currentSettings.electron.windows[typeKey].x = bounds.x;
-    currentSettings.electron.windows[typeKey].y = bounds.y;
+    currentSettings.electron.windows[typeKey].x = Math.round(bounds.x);
+    currentSettings.electron.windows[typeKey].y = Math.round(bounds.y);
+    currentSettings.electron.windows[typeKey].width = Math.round(bounds.width);
+    currentSettings.electron.windows[typeKey].height = Math.round(bounds.height);
 
     // Save to store
     store.store = currentSettings;
@@ -281,6 +305,22 @@ app.whenReady().then(() => {
   userWindow = createAvatarWindow('user');
   aiWindow = createAvatarWindow('ai');
 
+  // Initialize sidecar
+  const settings = loadSettings();
+  sidecar = new PythonSidecar(store.path, settings.electron?.port || 8676, (source, text) => {
+    const logMsg = {
+      source,
+      text,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('sidecar-log', logMsg);
+    });
+  });
+  sidecar.start().catch((err) => {
+    console.error('[Parcera] Failed to start Python sidecar:', err);
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       userWindow = createAvatarWindow('user');
@@ -290,8 +330,18 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+  // Parcera should fully quit when all windows are closed (including macOS).
+  // The sidecar is stopped here AND in before-quit as a safety net.
+  if (sidecar) {
+    sidecar.stop();
+  }
+  app.quit();
+});
+
+app.on('before-quit', () => {
+  // Double-ensure cleanup for cases like Cmd+Q or force quit
+  if (sidecar) {
+    sidecar.stop();
   }
 });
 

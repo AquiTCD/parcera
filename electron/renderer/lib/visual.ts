@@ -5,7 +5,7 @@
  * debug overlay, and the requestAnimationFrame loop.
  */
 import { state } from './state';
-import { getRMS, getVowel } from './audio';
+import { getRMS, getEnvelope, getVowel, TALK_THRESHOLD } from './audio';
 
 // --- Constants ---
 const BLINK_CLOSE_DURATION = 150; // ms — eyes stay shut this long
@@ -62,18 +62,19 @@ function updateVisuals(): void {
     avatarImage.style.setProperty('--breathe-current-scale', `${currentScale}`);
   }
 
-  const rms = getRMS();
-  const vowel = rms > state.threshold ? (getVowel() || '?') : '-';
+  // --- Audio Analysis ---
+  const env = getEnvelope();  // Normalized 0–1, auto-adapting
+  const rmsRaw = getRMS();    // Raw linear for dB meter
+  const vowel = env > TALK_THRESHOLD ? (getVowel() || '?') : '-';
 
   // Debug overlay
   if (statusDebug) {
     const showDebug = state.settings.avatars?.show_debug !== false;
     statusDebug.style.display = showDebug ? 'block' : 'none';
     if (showDebug) {
-      const linearRms = rms / 100;
-      const db = 20 * Math.log10(Math.max(linearRms, 0.00001)); // floor at -100dB
+      const db = 20 * Math.log10(Math.max(rmsRaw, 0.00001)); // floor at -100dB
 
-      // Peak meter (0 to 12 blocks, -60dB to 0dB)
+      // Peak meter (0 to 15 blocks, -60dB to 0dB)
       const meterSize = 15;
       const dbRange = 60;
       const normalizedLevel = Math.max(0, Math.min(1, (db + dbRange) / dbRange));
@@ -89,7 +90,7 @@ function updateVisuals(): void {
         } else if (i < blocksOn) {
           let color = '#eee'; // Default White
           if (db >= -3) color = '#f44'; // Peak Red
-          else if (db >= state.threshold_db) color = '#4f4'; // Active Green
+          else if (env > TALK_THRESHOLD) color = '#4f4'; // Active Green
           else color = '#999'; // Below threshold Grey
 
           meterHtml += `<span style="color: ${color}">█</span>`;
@@ -98,7 +99,9 @@ function updateVisuals(): void {
         }
       }
 
-      statusDebug.innerHTML = `${state.persistentStatus}<br>[${meterHtml}] ${db.toFixed(1)}dB | Vowel: ${vowel}`;
+      // Show envelope percentage alongside dB for clarity
+      const envPct = (env * 100).toFixed(0);
+      statusDebug.innerHTML = `${state.persistentStatus}<br>[${meterHtml}] ${db.toFixed(1)}dB | Env: ${envPct}% | Vowel: ${vowel}`;
     }
   }
 
@@ -126,7 +129,7 @@ function updateVisuals(): void {
 
     if (nowMs > mouthHoldTimer) {
       let nextMouth = 'base.png';
-      if (rms > state.threshold && vowel && vowel !== '?') {
+      if (env > TALK_THRESHOLD && vowel && vowel !== '?') {
         nextMouth = `${vowel}.png`;
       }
       if (nextMouth !== currentMouthFile) {
@@ -141,7 +144,7 @@ function updateVisuals(): void {
   const avatarConfig = state.settings.avatars?.[state.avatarType];
   const rawAssetsDir = (typeof avatarConfig === 'object' && avatarConfig?.assets_dir)
     ? avatarConfig.assets_dir
-    : `/assets/${state.avatarType}`;
+    : `assets/${state.avatarType}`;
 
   const resolvedAssetsDir = ((window as any).electronAPI?.resolveLocalPath)
     ? (window as any).electronAPI.resolveLocalPath(rawAssetsDir)
@@ -150,13 +153,10 @@ function updateVisuals(): void {
   const targetPath = `${resolvedAssetsDir}/${targetFile}`;
 
   if (avatarImage) {
-    // Only update if the full resolved URL is different
-    const currentSrc = avatarImage.src;
-    const absoluteTarget = targetPath.includes('://')
-      ? targetPath
-      : window.location.origin + targetPath;
+    // Robust resolution for both http:// and file://
+    const absoluteTarget = new URL(targetPath, window.location.href).href;
 
-    if (currentSrc !== absoluteTarget) {
+    if (avatarImage.src !== absoluteTarget) {
       avatarImage.src = targetPath;
     }
   }

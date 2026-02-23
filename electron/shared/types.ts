@@ -109,6 +109,7 @@ export interface VADSettings {
 export interface ElectronSettings {
   port?: number;
   ai_audio_sample_rate?: number;
+  gpu_acceleration?: boolean;        // If false, calls app.disableHardwareAcceleration()
   windows?: Record<string, WindowConfig>;
 }
 
@@ -176,3 +177,32 @@ export type ServerMessage =
   | { type: 'thinking'; text: string }
   | { type: 'chunk'; audio_data: string }
   | { type: 'stop' };
+
+/** Log message from the Python sidecar process */
+export interface SidecarLogMessage {
+  source: 'stdout' | 'stderr';
+  text: string;
+  timestamp: string;
+}
+
+export interface ElectronAPI {
+  getSettings: () => Promise<ParceraSettings>;
+  reloadSettings: () => Promise<ParceraSettings>;
+  resizeWindow: (width: number, height: number) => void;
+  onSettingsChanged: (callback: (settings: ParceraSettings) => void) => () => void;
+  saveSettings: (settings: ParceraSettings) => Promise<{ success: boolean; error?: string }>;
+  getDefaultSettings: () => Promise<ParceraSettings>;
+  selectDirectory: (currentPath?: string) => Promise<string | null>;
+  saveWindowBounds: (type: 'user' | 'ai') => Promise<{ success: boolean; error?: string }>;
+  getWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
+  getAvatarWindowBounds: (type: 'user' | 'ai') => Promise<{ x: number; y: number; width: number; height: number } | null>;
+  resolveLocalPath: (filePath: string) => string;
+  setResizable: (resizable: boolean) => void;
+  onLogMessage: (callback: (log: SidecarLogMessage) => void) => () => void;
+}
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}

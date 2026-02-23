@@ -6,13 +6,16 @@ description = "Start Electron dev server (Frontend)"
 run = "cd electron && pnpm dev"
 
 [tasks.build]
-description = "Build Electron app"
+description = "Build Electron frontend"
 run = "cd electron && pnpm build"
 
-[tasks.server]
-description = "Start Python AI Server (Backend)"
-run = "uv run src/run_server.py"
+[tasks.package]
+description = "Package as macOS DMG (unsigned)"
+run = "cd electron && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null"
 
-[tasks.start]
-description = "Start both Frontend and Backend (Parallel)"
-depends = ["server", "dev"]
+[tasks.server]
+description = "Start Python server standalone (for debugging)"
+run = """
+export PARCERA_CONFIG_PATH="configs/settings.default.yaml"
+.venv/bin/python src/run_server.py
+"""

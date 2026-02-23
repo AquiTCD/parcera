@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { state, logStatus } from '../lib/state';
 import type { AvatarType, AvatarConfig, ParceraSettings } from '../lib/state';
-import { initAudioContext, getContext, getAnalyser } from '../lib/audio';
+import { initAudioContext, getContext, getAnalyser, setNoiseGateDb } from '../lib/audio';
 import { initVisual } from '../lib/visual';
 import { startWebSocket, setupMicStreaming } from '../lib/comm';
 
@@ -32,9 +32,9 @@ export const Avatar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Helper to update status directly in UI to avoid full component re-renders
+  // Helper to update status directly in UI via the shared state
   const updateStatus = (text: string) => {
-    if (statusDebugRef.current) statusDebugRef.current.textContent = text;
+    logStatus(text);
   };
 
   // Initialize Visual Loop
@@ -58,10 +58,11 @@ export const Avatar: React.FC = () => {
     const applySettings = (settings: ParceraSettings) => {
       state.settings = settings;
 
-      // Unified threshold: dB → RMS×100
+      // Unified threshold: dB → noise gate + meter display
       const volumeDb = settings.vad?.volume_db_threshold ?? -20;
       state.threshold_db = volumeDb;
       state.threshold = Math.pow(10, volumeDb / 20) * 100;
+      setNoiseGateDb(volumeDb);
 
       // Breathe animation CSS variables
       const bScale = settings.avatars?.breathe_scale || 1.005;
@@ -73,7 +74,7 @@ export const Avatar: React.FC = () => {
 
       // Avatar image
       const avatarConfig = settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
-      const rawPath = avatarConfig?.assets_dir || `/assets/${state.avatarType}`;
+      const rawPath = avatarConfig?.assets_dir || `assets/${state.avatarType}`;
       const assetsDir = window.electronAPI.resolveLocalPath(rawPath);
 
       if (avatarImageRef.current) {
@@ -96,6 +97,7 @@ export const Avatar: React.FC = () => {
 
       if (winConf?.locked !== undefined) {
         setIsLocked(winConf.locked);
+        window.electronAPI.setResizable(!winConf.locked);
       }
 
       const newMode = settings.user_profile?.mode || 'soliloquy';
@@ -142,7 +144,10 @@ export const Avatar: React.FC = () => {
         const initialMute = s.vad?.start_muted ?? false;
         const winConf = s.electron?.windows?.[state.avatarType];
 
-        if (winConf?.locked) setIsLocked(true);
+        if (winConf?.locked) {
+          setIsLocked(true);
+          window.electronAPI.setResizable(false);
+        }
         if (winConf?.control_corner) setControlCorner(winConf.control_corner);
 
         setIsMuted(initialMute);
@@ -214,13 +219,31 @@ export const Avatar: React.FC = () => {
   const toggleLock = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const nextLocked = !isLocked;
+
+    // Captured bounds to prevent "jump" when locking
+    let currentBounds = null;
+    if (nextLocked) {
+      currentBounds = await window.electronAPI.getWindowBounds();
+    }
+
     setIsLocked(nextLocked);
+    window.electronAPI.setResizable(!nextLocked);
 
     const s = await window.electronAPI.getSettings();
     if (!s.electron) s.electron = {};
     if (!s.electron.windows) s.electron.windows = {};
     if (!s.electron.windows[state.avatarType]) s.electron.windows[state.avatarType] = {};
-    s.electron.windows[state.avatarType]!.locked = nextLocked;
+
+    const winConf = s.electron.windows[state.avatarType]!;
+    winConf.locked = nextLocked;
+
+    if (currentBounds) {
+      winConf.x = Math.round(currentBounds.x);
+      winConf.y = Math.round(currentBounds.y);
+      winConf.width = Math.round(currentBounds.width);
+      winConf.height = Math.round(currentBounds.height);
+    }
+
     await window.electronAPI.saveSettings(s);
   };
 
@@ -263,6 +286,7 @@ export const Avatar: React.FC = () => {
             className={`control-button ${isLocked ? 'active' : ''}`}
             onClick={toggleLock}
             title={isLocked ? "移動ロックを解除" : "位置をロック"}
+            data-testid="lock-button"
           >
             {isLocked ? '🔒' : '🔓'}
           </button>

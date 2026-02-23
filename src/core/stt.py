@@ -8,6 +8,22 @@ from aiavatar.sts.stt.base import SpeechRecognitionResult
 
 logger = logging.getLogger(__name__)
 
+
+class NoOpRecognizer(SpeechRecognizer):
+    """Placeholder STT that silently ignores all input. Used when the model is not yet downloaded."""
+
+    def __init__(self, debug=False):
+        super().__init__(debug=debug)
+        self.on_recognized_callback = None
+        logger.info("STT: NoOpRecognizer active. Download the model from Settings to enable speech recognition.")
+
+    async def recognize(self, session_id: str, data: bytes) -> SpeechRecognitionResult:
+        return SpeechRecognitionResult(text="")
+
+    async def transcribe(self, data: bytes, session_id: str = None) -> str:
+        return ""
+
+
 class KotobaWhisperRecognizer(SpeechRecognizer):
     def __init__(
         self,
@@ -19,6 +35,7 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         whisper_vad_filter=False,
         on_recognized_callback=None,
         is_busy_handler=None,
+        download_root=None,
         debug=False
     ):
         super().__init__(debug=debug)
@@ -26,8 +43,15 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         self.is_busy_handler = is_busy_handler
         self.model_name = model_name
         self.whisper_vad_filter = whisper_vad_filter
+        self.download_root = download_root
         logger.info(f"Loading Faster-Whisper model: {model_name} on {device}... (VAD Filter: {self.whisper_vad_filter})")
-        self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        self.model = WhisperModel(
+            model_name,
+            device=device,
+            compute_type=compute_type,
+            download_root=self.download_root,
+            local_files_only=True
+        )
         self.initial_prompt = initial_prompt or ""
         logger.info(f"Initialized STT with prompt: {self.initial_prompt}")
         self.response_filter = response_filter

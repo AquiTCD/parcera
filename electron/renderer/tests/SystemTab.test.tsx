@@ -13,7 +13,8 @@ describe('SystemTab', () => {
     profile_mode: false,
     electron: {
       port: 8676,
-      ai_audio_sample_rate: 16000
+      ai_audio_sample_rate: 16000,
+      gpu_acceleration: true
     }
   } as any;
 
@@ -35,12 +36,13 @@ describe('SystemTab', () => {
     expect(screen.getByLabelText('パフォーマンス計測ログを表示 ([PERF])')).toBeInTheDocument();
   });
 
-  it('renders port and sample rate settings', () => {
+  it('renders port and sample rate settings including GPU acceleration', () => {
     render(<SystemTab {...props} />);
 
     expect(screen.getByText('通信・基本設定')).toBeInTheDocument();
     expect(screen.getByLabelText('WebSocket ポート番号')).toBeInTheDocument();
     expect(screen.getByLabelText('内部音声サンプリングレート (Hz)')).toBeInTheDocument();
+    expect(screen.getByLabelText('GPUアクセラレーションを有効にする')).toBeInTheDocument();
   });
 
   it('calls updateRoot when log level or profile mode changes', () => {
@@ -55,7 +57,7 @@ describe('SystemTab', () => {
     expect(mockUpdateRoot).toHaveBeenCalledWith('profile_mode', true);
   });
 
-  it('calls updateNested when port or sample rate changes', () => {
+  it('calls updateNested when port, sample rate, or GPU setting changes', () => {
     render(<SystemTab {...props} />);
 
     const portInput = screen.getByLabelText('WebSocket ポート番号');
@@ -65,5 +67,9 @@ describe('SystemTab', () => {
     const sampleRateSelect = screen.getByLabelText('内部音声サンプリングレート (Hz)');
     fireEvent.change(sampleRateSelect, { target: { value: '44100' } });
     expect(mockUpdateNested).toHaveBeenCalledWith('electron', 'ai_audio_sample_rate', 44100);
+
+    const gpuCheckbox = screen.getByLabelText('GPUアクセラレーションを有効にする');
+    fireEvent.click(gpuCheckbox);
+    expect(mockUpdateNested).toHaveBeenCalledWith('electron', 'gpu_acceleration', false);
   });
 });
