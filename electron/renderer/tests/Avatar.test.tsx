@@ -11,6 +11,9 @@ const mockElectron = {
   onAvatarBlink: vi.fn(() => vi.fn()),
   onAvatarLipSyncUpdate: vi.fn(() => vi.fn()),
   resolveLocalPath: vi.fn((p) => `file://${p}`),
+  getWindowBounds: vi.fn(),
+  setResizable: vi.fn(),
+  saveSettings: vi.fn(),
 };
 (window as any).electronAPI = mockElectron;
 
@@ -66,5 +69,42 @@ describe('Avatar Component', () => {
 
     fireEvent.keyDown(window, { key: 'v' });
     expect(avatar).not.toHaveClass('hidden');
+  });
+
+  it('handles window lock with resizability and bounds saving', async () => {
+    mockElectron.getSettings.mockResolvedValue({
+      electron: { windows: { user: { locked: false } } }
+    });
+    mockElectron.getWindowBounds = vi.fn().mockResolvedValue({ x: 10, y: 20, width: 300, height: 400 });
+    mockElectron.setResizable = vi.fn();
+    mockElectron.saveSettings = vi.fn();
+
+    delete (window as any).location;
+    (window as any).location = new URL('http://localhost/?type=user');
+
+    render(<Avatar />);
+
+    await waitFor(() => {
+      const lockBtn = screen.getByTestId('lock-button');
+      fireEvent.click(lockBtn);
+    });
+
+    // Check if setResizable(false) was called (since it was unlocked, click locks it)
+    expect(mockElectron.setResizable).toHaveBeenCalledWith(false);
+
+    // Check if saveSettings was called with current bounds
+    expect(mockElectron.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      electron: expect.objectContaining({
+        windows: expect.objectContaining({
+          user: expect.objectContaining({
+            locked: true,
+            x: 10,
+            y: 20,
+            width: 300,
+            height: 400
+          })
+        })
+      })
+    }));
   });
 });

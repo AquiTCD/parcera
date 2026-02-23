@@ -286,6 +286,7 @@ export const Avatar: React.FC = () => {
             className={`control-button ${isLocked ? 'active' : ''}`}
             onClick={toggleLock}
             title={isLocked ? "移動ロックを解除" : "位置をロック"}
+            data-testid="lock-button"
           >
             {isLocked ? '🔒' : '🔓'}
           </button>

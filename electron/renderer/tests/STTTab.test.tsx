@@ -1,8 +1,21 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { STTTab } from '../components/settings/STTTab';
 import type { ParceraSettings } from '../../shared/types';
+
+// Mock fetch for model check
+global.fetch = vi.fn().mockResolvedValue({
+  ok: true,
+  json: () => Promise.resolve({ cached: true })
+});
+
+// Mock electronAPI.checkModelCached
+(window as any).electronAPI = {
+  checkModelCached: vi.fn().mockResolvedValue(true),
+  downloadModel: vi.fn(),
+  reloadModel: vi.fn(),
+};
 
 describe('STTTab', () => {
   const mockUpdateNested = vi.fn();
@@ -55,12 +68,15 @@ describe('STTTab', () => {
     expect(screen.getByLabelText('発話終了判定の無音時間 (秒)')).toBeInTheDocument();
   });
 
-  it('renders interruption and dictionary settings', () => {
+  it('renders interruption and dictionary settings', async () => {
     render(<STTTab {...props} />);
 
     expect(screen.getByLabelText('強制応答キーワード')).toBeInTheDocument();
     expect(screen.getByLabelText('無視するフレーズ')).toBeInTheDocument();
-    expect(screen.getByLabelText('Whisper 認識強化辞書')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Whisper 認識強化辞書')).toBeInTheDocument();
+    });
   });
 
   it('calls updateNested when VAD settings change', () => {

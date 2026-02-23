@@ -43,8 +43,8 @@ def test_build_stt_mps_safety_check():
     with patch("src.core.factory.KotobaWhisperRecognizer") as mock_recognizer:
         factory.build_stt()
         _, kwargs = mock_recognizer.call_args
-        assert kwargs["device"] == "mps"
-        assert kwargs["compute_type"] == "float16"
+        assert kwargs["device"] == "cpu"
+        assert kwargs["compute_type"] == "int8"
 
 def test_build_stt_mps_fallback():
     config = MagicMock()
@@ -63,12 +63,10 @@ def test_build_stt_mps_fallback():
 
     factory = ParceraComponentFactory(config)
     with patch("src.core.factory.KotobaWhisperRecognizer") as mock_recognizer:
-        mock_recognizer.side_effect = [Exception("MPS Error"), MagicMock()]
+        # First call fails, should NOT retry now because we already forced CPU in build_stt
+        mock_recognizer.side_effect = Exception("Model Error")
         factory.build_stt()
-        assert mock_recognizer.call_count == 2
-        last_call_kwargs = mock_recognizer.call_args_list[1].kwargs
-        assert last_call_kwargs["device"] == "cpu"
-        assert last_call_kwargs["compute_type"] == "int8"
+        assert mock_recognizer.call_count == 1
 
 def test_build_llm_gemini():
     config = MagicMock()
@@ -78,9 +76,10 @@ def test_build_llm_gemini():
     config.verbose = False
 
     factory = ParceraComponentFactory(config)
-    with patch("src.core.factory.FixedGeminiService") as MockGemini:
-        factory.build_llm()
-        MockGemini.assert_called_once()
+    with patch("src.core.factory.SQLiteContextManager"):
+        with patch("src.core.factory.FixedGeminiService") as MockGemini:
+            factory.build_llm()
+            MockGemini.assert_called_once()
 
 def test_build_llm_openai():
     config = MagicMock()
@@ -89,11 +88,12 @@ def test_build_llm_openai():
     config.profile_mode = True
 
     factory = ParceraComponentFactory(config)
-    with patch("src.core.factory.ChatGPTService") as MockGPT:
-        with patch("src.core.factory.ParceraLLMWrapper") as MockWrapper:
-            factory.build_llm()
-            MockGPT.assert_called_once()
-            MockWrapper.assert_called_once()
+    with patch("src.core.factory.SQLiteContextManager"):
+        with patch("src.core.factory.ChatGPTService") as MockGPT:
+            with patch("src.core.factory.ParceraLLMWrapper") as MockWrapper:
+                factory.build_llm()
+                MockGPT.assert_called_once()
+                MockWrapper.assert_called_once()
 
 def test_build_stt_google():
     config = MagicMock()
