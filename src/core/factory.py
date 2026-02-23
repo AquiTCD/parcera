@@ -95,9 +95,11 @@ class ParceraComponentFactory:
 
             # CTranslate2 (faster-whisper backend) does not support 'mps'.
             # Force to 'cpu' if someone has it set from an older config.
+            # Also reset compute_type since float16 (often paired with mps) is not supported on CPU.
             if device == "mps":
-                logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' instead.")
+                logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
                 device = "cpu"
+                compute_type = "int8"
 
             return KotobaWhisperRecognizer(
                 model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
