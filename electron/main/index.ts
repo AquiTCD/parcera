@@ -69,6 +69,13 @@ function initializeStore() {
 initializeStore();
 console.log('[Parcera] Store path:', store.path);
 
+// Apply GPU acceleration setting before app is ready
+const gpuEnabled = store.get('electron.gpu_acceleration') ?? true;
+if (!gpuEnabled) {
+  console.log('[Parcera] Hardware acceleration disabled by user setting.');
+  app.disableHardwareAcceleration();
+}
+
 // Write path to a file so Python dev server can easily find it
 try {
   const envPath = path.resolve(process.env['APP_ROOT']!, '../.env.config_path');

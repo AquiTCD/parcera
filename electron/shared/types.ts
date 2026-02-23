@@ -109,6 +109,7 @@ export interface VADSettings {
 export interface ElectronSettings {
   port?: number;
   ai_audio_sample_rate?: number;
+  gpu_acceleration?: boolean;        // If false, calls app.disableHardwareAcceleration()
   windows?: Record<string, WindowConfig>;
 }
 

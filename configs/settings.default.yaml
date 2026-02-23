@@ -117,6 +117,7 @@ vad:
 electron:
   port: 8676 # WebSocket Server Port. Changing this requires an app restart.
   ai_audio_sample_rate: 16000  # [Hz] Must match TTS engine output sample rate used in Python.
+  gpu_acceleration: true # [Boolean] Set false to fix OBS window capture animation freeze on macOS.
   windows:
     ai:
       width: 400
