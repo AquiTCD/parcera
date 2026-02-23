@@ -124,7 +124,7 @@ electron:
       height: 400
       x: 400
       y: 0
-      alwaysOnTop: true
+      alwaysOnTop: false
       locked: false
       control_corner: "bottom-right"
     user:
@@ -132,7 +132,7 @@ electron:
       height: 400
       x: 0
       y: 0
-      alwaysOnTop: true
+      alwaysOnTop: false
       locked: false
       control_corner: "bottom-right"
 

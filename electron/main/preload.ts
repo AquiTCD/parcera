@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
     return filePath;
   },
+  setResizable: (resizable: boolean): void => ipcRenderer.send('set-resizable', resizable),
   onLogMessage: (callback: (log: any) => void): (() => void) => {
     const listener = (_event: any, log: any) => callback(log);
     ipcRenderer.on('sidecar-log', listener);

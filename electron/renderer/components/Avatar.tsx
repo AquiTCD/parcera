@@ -97,6 +97,7 @@ export const Avatar: React.FC = () => {
 
       if (winConf?.locked !== undefined) {
         setIsLocked(winConf.locked);
+        window.electronAPI.setResizable(!winConf.locked);
       }
 
       const newMode = settings.user_profile?.mode || 'soliloquy';
@@ -143,7 +144,10 @@ export const Avatar: React.FC = () => {
         const initialMute = s.vad?.start_muted ?? false;
         const winConf = s.electron?.windows?.[state.avatarType];
 
-        if (winConf?.locked) setIsLocked(true);
+        if (winConf?.locked) {
+          setIsLocked(true);
+          window.electronAPI.setResizable(false);
+        }
         if (winConf?.control_corner) setControlCorner(winConf.control_corner);
 
         setIsMuted(initialMute);
@@ -215,13 +219,31 @@ export const Avatar: React.FC = () => {
   const toggleLock = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const nextLocked = !isLocked;
+
+    // Captured bounds to prevent "jump" when locking
+    let currentBounds = null;
+    if (nextLocked) {
+      currentBounds = await window.electronAPI.getWindowBounds();
+    }
+
     setIsLocked(nextLocked);
+    window.electronAPI.setResizable(!nextLocked);
 
     const s = await window.electronAPI.getSettings();
     if (!s.electron) s.electron = {};
     if (!s.electron.windows) s.electron.windows = {};
     if (!s.electron.windows[state.avatarType]) s.electron.windows[state.avatarType] = {};
-    s.electron.windows[state.avatarType]!.locked = nextLocked;
+
+    const winConf = s.electron.windows[state.avatarType]!;
+    winConf.locked = nextLocked;
+
+    if (currentBounds) {
+      winConf.x = Math.round(currentBounds.x);
+      winConf.y = Math.round(currentBounds.y);
+      winConf.width = Math.round(currentBounds.width);
+      winConf.height = Math.round(currentBounds.height);
+    }
+
     await window.electronAPI.saveSettings(s);
   };
 

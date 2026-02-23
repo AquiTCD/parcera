@@ -201,6 +201,13 @@ ipcMain.on('resize-window', (event, width: number, height: number) => {
   }
 });
 
+ipcMain.on('set-resizable', (event, resizable: boolean) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.setResizable(resizable);
+  }
+});
+
 ipcMain.handle('save-window-bounds', async (event, type: string) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return { success: false, error: 'Window not found' };
@@ -215,8 +222,10 @@ ipcMain.handle('save-window-bounds', async (event, type: string) => {
     if (!currentSettings.electron.windows) currentSettings.electron.windows = {};
     if (!currentSettings.electron.windows[typeKey]) currentSettings.electron.windows[typeKey] = {};
 
-    currentSettings.electron.windows[typeKey].x = bounds.x;
-    currentSettings.electron.windows[typeKey].y = bounds.y;
+    currentSettings.electron.windows[typeKey].x = Math.round(bounds.x);
+    currentSettings.electron.windows[typeKey].y = Math.round(bounds.y);
+    currentSettings.electron.windows[typeKey].width = Math.round(bounds.width);
+    currentSettings.electron.windows[typeKey].height = Math.round(bounds.height);
 
     // Save to store
     store.store = currentSettings;
