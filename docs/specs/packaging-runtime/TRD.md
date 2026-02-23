@@ -1,4 +1,4 @@
-# Technical Spec: Packaging & Deployment Strategy (Phase 7)
+# TRD: Packaging & Runtime System
 
 ## 1. Overview
 This document outlines the strategy for packaging Parcera as a standalone macOS application (`.app`). The goal is to provide a seamless user experience while managing the complexity of a Python-based AI backend (Sidecar).
@@ -23,7 +23,7 @@ To ensure stability and reduce package size (Goal: < 300MB excluding models):
 ```text
 Parcera.app/Contents/Resources/
 ├── bin/
-│   └── python-engine/       # Portable Python Interpreter
+│   └── python-runtime/      # Portable Python Interpreter
 ├── src/                     # Python Source Code
 └── site-packages/           # Pre-installed Dependencies
 ```

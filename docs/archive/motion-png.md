@@ -147,13 +147,13 @@ avatars:
 - [x] **TTS Engine**: ローカルエンジンの起動・再起動をGUIから制御。
 - **Goal**: テキストエディタを使わずに設定完結できるようにし、開発・調整時の利便性を最大化。
 
-### Phase 7: パッケージ化 & 統合 (Portable Python Strategy)
+### Phase 7: パッケージ化 & 統合 (Portable Python Strategy) (Completed)
 詳細は `docs/specs/packaging-strategy.md` を参照。
-- [ ] **Dependency Diet**: `torch` 無しの `faster-whisper` 環境への軽量化。
-- [ ] **Portable Python**: `python-build-standalone` を使った実行環境の同梱。
-- [ ] **Electron Sidecar Control**: Pythonエンジンの起動・監視・自動復旧ロジックの実装。
-- [ ] **Asset Management**: モデルデータのオンデマンドDL（初回起動時）の実装。
-- [ ] **Signing & Notarization**: Apple Silicon (arm64) 専用署名と公証の実施。
+- [x] **Dependency Diet**: `torch` 無しの `faster-whisper` 環境への軽量化。
+- [x] **Portable Python**: `python-build-standalone` を使った実行環境の同梱。
+- [x] **Electron Sidecar Control**: Pythonエンジンの起動・監視・自動復旧ロジックの実装。
+- [x] **Asset Management**: モデルデータのオンデマンドDL（初回起動時）の実装。
+- [ ] **Signing & Notarization**: Apple Silicon (arm64) 専用署名と公証の実施（将来課題）。
 - **Goal**: インストール不要、ポータブルで安定した Parcera AI Avatar システムの配布版完成。
 
 ## 7. OBS連携ガイド
