@@ -16,8 +16,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWindowBounds: (): Promise<{ x: number; y: number; width: number; height: number } | null> => ipcRenderer.invoke('get-window-bounds'),
   getAvatarWindowBounds: (type: 'user' | 'ai'): Promise<{ x: number; y: number; width: number; height: number } | null> => ipcRenderer.invoke('get-avatar-window-bounds', type),
   resolveLocalPath: (filePath: string): string => {
-    // Treat /assets/ as internal web-root paths
-    if (filePath.startsWith('/assets/')) return filePath;
+    // Internal assets should be relative to the app distribution
+    if (filePath.startsWith('assets/') || filePath.startsWith('/assets/')) {
+      return filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    }
     // Absolute paths on Mac/Linux or Windows
     if (filePath.startsWith('/') || /^[a-zA-Z]:\\/.test(filePath)) {
       return `parcera-asset://${filePath}`;

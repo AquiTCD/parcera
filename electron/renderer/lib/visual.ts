@@ -141,7 +141,7 @@ function updateVisuals(): void {
   const avatarConfig = state.settings.avatars?.[state.avatarType];
   const rawAssetsDir = (typeof avatarConfig === 'object' && avatarConfig?.assets_dir)
     ? avatarConfig.assets_dir
-    : `/assets/${state.avatarType}`;
+    : `assets/${state.avatarType}`;
 
   const resolvedAssetsDir = ((window as any).electronAPI?.resolveLocalPath)
     ? (window as any).electronAPI.resolveLocalPath(rawAssetsDir)
@@ -150,13 +150,10 @@ function updateVisuals(): void {
   const targetPath = `${resolvedAssetsDir}/${targetFile}`;
 
   if (avatarImage) {
-    // Only update if the full resolved URL is different
-    const currentSrc = avatarImage.src;
-    const absoluteTarget = targetPath.includes('://')
-      ? targetPath
-      : window.location.origin + targetPath;
+    // Robust resolution for both http:// and file://
+    const absoluteTarget = new URL(targetPath, window.location.href).href;
 
-    if (currentSrc !== absoluteTarget) {
+    if (avatarImage.src !== absoluteTarget) {
       avatarImage.src = targetPath;
     }
   }

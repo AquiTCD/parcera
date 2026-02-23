@@ -9,7 +9,7 @@ import { state, logStatus } from './state';
 // --- Constants ---
 const FFT_SIZE = 512;
 const SMOOTHING_TIME_CONSTANT = 0.2;
-const AI_RMS_BOOST = 1.5;
+const AI_RMS_BOOST = 2.5;
 const SILENCE_AMPLITUDE_FLOOR = 0.001;
 const LOW_FREQ_CUTOFF = 200; // Hz — ignore rumble below this
 

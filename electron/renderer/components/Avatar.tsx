@@ -32,9 +32,9 @@ export const Avatar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Helper to update status directly in UI to avoid full component re-renders
+  // Helper to update status directly in UI via the shared state
   const updateStatus = (text: string) => {
-    if (statusDebugRef.current) statusDebugRef.current.textContent = text;
+    logStatus(text);
   };
 
   // Initialize Visual Loop
@@ -73,7 +73,7 @@ export const Avatar: React.FC = () => {
 
       // Avatar image
       const avatarConfig = settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
-      const rawPath = avatarConfig?.assets_dir || `/assets/${state.avatarType}`;
+      const rawPath = avatarConfig?.assets_dir || `assets/${state.avatarType}`;
       const assetsDir = window.electronAPI.resolveLocalPath(rawPath);
 
       if (avatarImageRef.current) {

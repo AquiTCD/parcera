@@ -7,6 +7,8 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from aiavatar.adapter.websocket.server import AIAvatarWebSocketServer
+from aiavatar.sts.session_state_manager import SQLiteSessionStateManager
+from aiavatar.sts.performance_recorder.sqlite import SQLitePerformanceRecorder
 from core.avatar import ParceraAvatarBase
 from core.engine import TTSEngineManager
 from core.config import load_config_file
@@ -32,11 +34,22 @@ class ParceraServer(ParceraAvatarBase):
         self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
         self.current_tts_provider = self.config.get("tts", {}).get("provider", "aivisspeech")
 
+        # Redirect all side-effect databases and files to writable directory
+        db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+        voices_dir = os.path.join(self.config.app_data_dir, "voices")
+        os.makedirs(voices_dir, exist_ok=True)
+
+        session_state_manager = SQLiteSessionStateManager(db_path=db_path)
+        performance_recorder = SQLitePerformanceRecorder(db_path=db_path)
+
         self.aiavatar_server = AIAvatarWebSocketServer(
             llm=self.llm,
             stt=self.stt,
             vad=self.vad,
             tts=self.tts,
+            session_state_manager=session_state_manager,
+            performance_recorder=performance_recorder,
+            voice_recorder_dir=voices_dir,
             merge_request_threshold=self.config.get("merge_request_threshold", 3.0),
             debug=self.config.verbose,
             voice_recorder_enabled=False
