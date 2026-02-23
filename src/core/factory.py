@@ -93,42 +93,24 @@ class ParceraComponentFactory:
             device = fw_cfg.get("device", "cpu")
             compute_type = fw_cfg.get("compute_type", "int8")
 
-            # Safety check: mps does not support int8
-            if device == "mps" and compute_type == "int8":
-                logger.info("STT: Detected 'mps' with 'int8'. Forcing 'float16' for Apple Silicon compatibility.")
-                compute_type = "float16"
+            # CTranslate2 (faster-whisper backend) does not support 'mps'.
+            # Force to 'cpu' if someone has it set from an older config.
+            if device == "mps":
+                logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' instead.")
+                device = "cpu"
 
-            try:
-                # Note: KotobaWhisperRecognizer already includes the wrapper logic internally
-                return KotobaWhisperRecognizer(
-                    model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
-                    device=device,
-                    compute_type=compute_type,
-                    initial_prompt=self.config.full_stt_prompt,
-                    response_filter=response_filter,
-                    whisper_vad_filter=whisper_vad_filter,
-                    on_recognized_callback=on_recognized_callback,
-                    is_busy_handler=is_busy_handler,
-                    download_root=os.path.join(self.config.app_data_dir, "models"),
-                    debug=self.config.verbose
-                )
-            except Exception as e:
-                if device == "mps":
-                    logger.warning(f"STT: Failed to load Faster-Whisper on 'mps' ({e}). Falling back to 'cpu'...")
-                    return KotobaWhisperRecognizer(
-                        model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
-                        device="cpu",
-                        compute_type="int8",
-                        initial_prompt=self.config.full_stt_prompt,
-                        response_filter=response_filter,
-                        whisper_vad_filter=whisper_vad_filter,
-                        on_recognized_callback=on_recognized_callback,
-                        is_busy_handler=is_busy_handler,
-                        download_root=os.path.join(self.config.app_data_dir, "models"),
-                        debug=self.config.verbose
-                    )
-                else:
-                    raise e
+            return KotobaWhisperRecognizer(
+                model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
+                device=device,
+                compute_type=compute_type,
+                initial_prompt=self.config.full_stt_prompt,
+                response_filter=response_filter,
+                whisper_vad_filter=whisper_vad_filter,
+                on_recognized_callback=on_recognized_callback,
+                is_busy_handler=is_busy_handler,
+                download_root=os.path.join(self.config.app_data_dir, "models"),
+                debug=self.config.verbose
+            )
 
         elif provider == "google":
             google_cfg = providers.get("google", {})

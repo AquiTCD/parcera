@@ -140,8 +140,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
                 options={[
                   { value: 'auto', label: 'Auto' },
                   { value: 'cpu', label: 'CPU' },
-                  { value: 'cuda', label: 'CUDA (NVIDIA GPU)' },
-                  { value: 'mps', label: 'MPS (Apple Silicon)' }
+                  { value: 'cuda', label: 'CUDA (NVIDIA GPU)' }
                 ]}
               />
             </div>
