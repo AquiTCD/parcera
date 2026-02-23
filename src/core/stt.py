@@ -19,6 +19,7 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         whisper_vad_filter=False,
         on_recognized_callback=None,
         is_busy_handler=None,
+        download_root=None,
         debug=False
     ):
         super().__init__(debug=debug)
@@ -26,8 +27,14 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         self.is_busy_handler = is_busy_handler
         self.model_name = model_name
         self.whisper_vad_filter = whisper_vad_filter
+        self.download_root = download_root
         logger.info(f"Loading Faster-Whisper model: {model_name} on {device}... (VAD Filter: {self.whisper_vad_filter})")
-        self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        self.model = WhisperModel(
+            model_name,
+            device=device,
+            compute_type=compute_type,
+            download_root=self.download_root
+        )
         self.initial_prompt = initial_prompt or ""
         logger.info(f"Initialized STT with prompt: {self.initial_prompt}")
         self.response_filter = response_filter

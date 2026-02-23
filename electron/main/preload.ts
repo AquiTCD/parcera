@@ -24,4 +24,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
     return filePath;
   },
+  onLogMessage: (callback: (log: any) => void): (() => void) => {
+    const listener = (_event: any, log: any) => callback(log);
+    ipcRenderer.on('sidecar-log', listener);
+    return () => ipcRenderer.removeListener('sidecar-log', listener);
+  },
 });

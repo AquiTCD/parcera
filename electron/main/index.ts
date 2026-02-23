@@ -5,6 +5,7 @@ import yaml from 'js-yaml';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
+import { PythonSidecar } from './sidecar';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +30,7 @@ export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist')
 
 let userWindow: BrowserWindow | null = null;
 let aiWindow: BrowserWindow | null = null;
+let sidecar: PythonSidecar | null = null;
 
 process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
@@ -281,6 +283,22 @@ app.whenReady().then(() => {
   userWindow = createAvatarWindow('user');
   aiWindow = createAvatarWindow('ai');
 
+  // Initialize sidecar
+  const settings = loadSettings();
+  sidecar = new PythonSidecar(store.path, settings.electron?.port || 8676, (source, text) => {
+    const logMsg = {
+      source,
+      text,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('sidecar-log', logMsg);
+    });
+  });
+  sidecar.start().catch((err) => {
+    console.error('[Parcera] Failed to start Python sidecar:', err);
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       userWindow = createAvatarWindow('user');
@@ -292,6 +310,12 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  if (sidecar) {
+    sidecar.stop();
   }
 });
 

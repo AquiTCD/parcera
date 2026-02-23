@@ -1,0 +1,114 @@
+import { app } from 'electron';
+import path from 'node:path';
+import { spawn, ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
+
+export class PythonSidecar {
+  private process: ChildProcess | null = null;
+  private isShuttingDown = false;
+  private restartCount = 0;
+  private maxRestarts = 5;
+
+  constructor(
+    private configPath: string,
+    private port: number,
+    private onLog?: (source: 'stdout' | 'stderr', text: string) => void
+  ) { }
+
+  public async start(): Promise<void> {
+    const pythonPath = this.getPythonExecutable();
+    const scriptPath = this.getScriptPath();
+
+    console.log(`[Sidecar] Starting Python engine...`);
+    console.log(`[Sidecar] Python: ${pythonPath}`);
+    console.log(`[Sidecar] Script: ${scriptPath}`);
+    console.log(`[Sidecar] Config: ${this.configPath}`);
+
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      PARCERA_CONFIG_PATH: this.configPath,
+      PYTHONUNBUFFERED: '1',
+    };
+
+    // In production, we might need to set PYTHONPATH to include our site-packages
+    if (app.isPackaged) {
+      const sitePackages = path.join(process.resourcesPath, 'site-packages');
+      env.PYTHONPATH = sitePackages;
+    }
+
+    this.process = spawn(pythonPath, [scriptPath], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    this.process.stdout?.on('data', (data) => {
+      const text = data.toString().trim();
+      console.log(`[Python] ${text}`);
+      this.onLog?.('stdout', text);
+    });
+
+    this.process.stderr?.on('data', (data) => {
+      const text = data.toString().trim();
+      // Heuristic: If stderr contains common info patterns, treat as info
+      const isInfo = /INFO:|\[USER\]:|\[AI\]:|✨|Application startup complete|Uvicorn running/.test(text);
+
+      if (isInfo) {
+        console.log(`[Python] ${text}`);
+        this.onLog?.('stdout', text);
+      } else {
+        console.error(`[Python Error] ${text}`);
+        this.onLog?.('stderr', text);
+      }
+    });
+
+    this.process.on('exit', (code, signal) => {
+      console.log(`[Sidecar] Python process exited with code ${code} and signal ${signal}`);
+      this.process = null;
+
+      if (!this.isShuttingDown) {
+        this.handleCrash();
+      }
+    });
+  }
+
+  public stop(): void {
+    this.isShuttingDown = true;
+    if (this.process) {
+      console.log('[Sidecar] Stopping Python engine...');
+      this.process.kill('SIGTERM');
+      this.process = null;
+    }
+  }
+
+  private handleCrash(): void {
+    if (this.restartCount < this.maxRestarts) {
+      this.restartCount++;
+      const delay = Math.min(1000 * Math.pow(2, this.restartCount), 30000);
+      console.log(`[Sidecar] Attempting restart ${this.restartCount}/${this.maxRestarts} in ${delay}ms...`);
+      setTimeout(() => this.start(), delay);
+    } else {
+      console.error('[Sidecar] Max restarts reached. Python engine failed to stay alive.');
+    }
+  }
+
+  private getPythonExecutable(): string {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, 'bin', 'python-runtime', 'bin', 'python3');
+    }
+    // Dev environment
+    const root = process.env['APP_ROOT']
+      ? path.join(process.env['APP_ROOT'], '..')
+      : path.join(app.getAppPath(), '..');
+    return path.join(root, '.venv', 'bin', 'python');
+  }
+
+  private getScriptPath(): string {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, 'src', 'run_server.py');
+    }
+    const root = process.env['APP_ROOT']
+      ? path.join(process.env['APP_ROOT'], '..')
+      : path.join(app.getAppPath(), '..');
+    return path.join(root, 'src', 'run_server.py');
+  }
+}

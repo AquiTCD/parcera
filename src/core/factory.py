@@ -2,6 +2,7 @@ import os
 import logging
 from aiavatar.sts.vad.standard import StandardSpeechDetector
 from aiavatar.sts.llm.chatgpt import ChatGPTService # Fixed import
+from aiavatar.sts.llm.context_manager import SQLiteContextManager
 from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
@@ -30,8 +31,13 @@ class ParceraComponentFactory:
             api_key = gemini_cfg.get("api_key")
             if not api_key:
                 logger.warning("Gemini API key is missing. Set it in Settings -> LLM.")
+
+            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+            context_manager = SQLiteContextManager(db_path=db_path)
+
             service_instance = FixedGeminiService(
                 gemini_api_key=api_key,
+                context_manager=context_manager,
                 model=gemini_cfg.get("model", "gemini-2.0-flash"),
                 temperature=float(gemini_cfg.get("temperature", 1.0)),
                 option_split_threshold=int(gemini_cfg.get("option_split_threshold", 15)),
@@ -45,9 +51,13 @@ class ParceraComponentFactory:
             if not api_key:
                 logger.warning("OpenAI API key is missing. Set it in Settings -> LLM.")
 
+            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+            context_manager = SQLiteContextManager(db_path=db_path)
+
             # NOTE: ChatGPTService arguments differ from ChatGPT
             service_instance = ChatGPTService(
                 openai_api_key=api_key,
+                context_manager=context_manager,
                 model=openai_cfg.get("model", "gpt-4o"),
                 temperature=float(openai_cfg.get("temperature", 1.0)),
                 system_prompt=self.config.full_system_prompt,
@@ -99,6 +109,7 @@ class ParceraComponentFactory:
                     whisper_vad_filter=whisper_vad_filter,
                     on_recognized_callback=on_recognized_callback,
                     is_busy_handler=is_busy_handler,
+                    download_root=os.path.join(self.config.app_data_dir, "models"),
                     debug=self.config.verbose
                 )
             except Exception as e:
@@ -113,6 +124,7 @@ class ParceraComponentFactory:
                         whisper_vad_filter=whisper_vad_filter,
                         on_recognized_callback=on_recognized_callback,
                         is_busy_handler=is_busy_handler,
+                        download_root=os.path.join(self.config.app_data_dir, "models"),
                         debug=self.config.verbose
                     )
                 else:

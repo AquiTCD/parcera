@@ -16,12 +16,13 @@ class ParceraAvatarBase:
         provider_cfg = llm_cfg.get("providers", {}).get(provider, {})
         persist_history = provider_cfg.get("persist_history", False)
 
-        if not persist_history and os.path.exists("aiavatar.db"):
+        db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+        if not persist_history and os.path.exists(db_path):
             try:
-                os.remove("aiavatar.db")
-                logger.info("Deleted aiavatar.db (History reset)")
+                os.remove(db_path)
+                logger.info(f"Deleted {db_path} (History reset)")
             except Exception as e:
-                logger.warning(f"Failed to delete aiavatar.db: {e}")
+                logger.warning(f"Failed to delete {db_path}: {e}")
 
         self.factory = ParceraComponentFactory(self.config)
         self._busy_sessions = set()

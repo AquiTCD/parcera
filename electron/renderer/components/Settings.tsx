@@ -6,6 +6,7 @@ import { TTSTab } from './settings/TTSTab';
 import { VisualTab } from './settings/VisualTab';
 import { SystemTab } from './settings/SystemTab';
 import { AIProfileTab } from './settings/AIProfileTab';
+import { LogTab } from './settings/LogTab';
 import { TabHeader } from './settings/TabHeader';
 import { useSettingsState } from './settings/useSettingsState';
 import { getDefaultsForTab } from './settings/restoreDefaults';
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'tts', label: '音声出力（口）' },
   { id: 'visual', label: 'アバター設定' },
   { id: 'system', label: 'システム' },
+  { id: 'logs', label: 'ログ' },
 ];
 
 export const Settings: React.FC = () => {
@@ -136,6 +138,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'tts' && <TTSTab {...tabProps} updateTTSSettings={updateTTSSettings} />}
           {activeTab === 'visual' && <VisualTab {...tabProps} handleSelectDir={handleSelectDir} />}
           {activeTab === 'system' && <SystemTab {...tabProps} />}
+          {activeTab === 'logs' && <LogTab />}
         </div>
       </div>
 
