@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { state, logStatus } from '../lib/state';
 import type { AvatarType, AvatarConfig, ParceraSettings } from '../lib/state';
-import { initAudioContext, getContext, getAnalyser } from '../lib/audio';
+import { initAudioContext, getContext, getAnalyser, setNoiseGateDb } from '../lib/audio';
 import { initVisual } from '../lib/visual';
 import { startWebSocket, setupMicStreaming } from '../lib/comm';
 
@@ -58,10 +58,11 @@ export const Avatar: React.FC = () => {
     const applySettings = (settings: ParceraSettings) => {
       state.settings = settings;
 
-      // Unified threshold: dB → RMS×100
+      // Unified threshold: dB → noise gate + meter display
       const volumeDb = settings.vad?.volume_db_threshold ?? -20;
       state.threshold_db = volumeDb;
       state.threshold = Math.pow(10, volumeDb / 20) * 100;
+      setNoiseGateDb(volumeDb);
 
       // Breathe animation CSS variables
       const bScale = settings.avatars?.breathe_scale || 1.005;
