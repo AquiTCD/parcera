@@ -1,15 +1,17 @@
 /**
  * Parcera: Audio Analysis Engine
  *
- * Manages AudioContext, RMS volume detection, and vowel classification
- * via spectral centroid analysis.
+ * Manages AudioContext, RMS volume detection, envelope normalization,
+ * and vowel classification via spectral centroid analysis.
+ *
+ * The adaptive normalization and LPF smoothing are inspired by
+ * sample/websocket/html/lipsync.js (LipSyncEngine).
  */
 import { state, logStatus } from './state';
 
 // --- Constants ---
 const FFT_SIZE = 512;
 const SMOOTHING_TIME_CONSTANT = 0.2;
-const AI_RMS_BOOST = 2.5;
 const SILENCE_AMPLITUDE_FLOOR = 0.001;
 const LOW_FREQ_CUTOFF = 200; // Hz — ignore rumble below this
 
@@ -26,6 +28,16 @@ const LOW_FREQ_CUTOFF = 200; // Hz — ignore rumble below this
  */
 const VOWEL_BOUNDARIES_HZ = { u: 600, o: 1500, a: 3000, e: 5000 } as const;
 
+// --- Adaptive Envelope Constants (from lipsync.js) ---
+const AUDIO_HZ = 60;       // Approximate animation frame rate
+const LPF_CUTOFF_HZ = 8.0; // Low-pass filter cutoff for envelope smoothing
+const LPF_BETA = 1.0 - Math.exp(-2.0 * Math.PI * LPF_CUTOFF_HZ / AUDIO_HZ);
+const RMS_QUEUE_MAX = 3;    // Short-term moving average window
+const PEAK_DECAY = 0.995;   // How fast the tracked peak decays per frame
+
+/** Minimum envelope level to consider "talking" (auto-calibrated baseline) */
+export const TALK_THRESHOLD = 0.06;
+
 export type Vowel = 'a' | 'i' | 'u' | 'e' | 'o';
 
 // --- Module State ---
@@ -33,6 +45,17 @@ let audioContext: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
 const fData = new Float32Array(FFT_SIZE / 2);
 const tData = new Float32Array(FFT_SIZE);
+
+// --- Adaptive Normalization State ---
+const normalization = {
+  noise: 1e-4,   // Tracked noise floor (adapts slowly)
+  peak: 1e-3,    // Tracked signal peak (decays via PEAK_DECAY)
+};
+
+const smoothing = {
+  rmsQueue: [] as number[], // Short-term moving average buffer
+  envLP: 0,                 // Low-pass filtered envelope
+};
 
 // --- Public Accessors ---
 export function getContext(): AudioContext | null { return audioContext; }
@@ -60,7 +83,11 @@ export function initAudioContext(): void {
   }
 }
 
-// --- RMS Volume ---
+// --- Raw RMS (for dB meter display) ---
+/**
+ * Returns the raw RMS amplitude (0–1 linear scale).
+ * Use this for dB meter UI. For mouth animation, use getEnvelope() instead.
+ */
 export function getRMS(): number {
   if (!analyser) return 0;
   analyser.getFloatTimeDomainData(tData);
@@ -68,10 +95,52 @@ export function getRMS(): number {
   for (let i = 0; i < tData.length; i++) {
     sum += tData[i] * tData[i];
   }
-  let rms = Math.sqrt(sum / tData.length) * 100;
-  // AI playback is often cleaner/quieter — boost for lip-sync visibility
-  if (state.avatarType === 'ai' && state.isAIPlaying) rms *= AI_RMS_BOOST;
-  return rms;
+  return Math.sqrt(sum / tData.length);
+}
+
+// --- Adaptive Envelope (for lip-sync) ---
+/**
+ * Returns a normalized, smoothed envelope value (0–1) for lip-sync decisions.
+ *
+ * This applies three stages of processing (adapted from lipsync.js):
+ * 1. Online Normalization — tracks noise floor and peak to auto-scale any
+ *    input volume to 0–1, eliminating the need for manual boost/threshold.
+ * 2. Short-term Moving Average — removes micro-jitter between frames.
+ * 3. 1-pole Low-pass Filter — produces a smooth, natural-feeling envelope
+ *    that opens and closes the mouth gracefully.
+ *
+ * Should be called once per animation frame (after getRMS if both are needed).
+ */
+export function getEnvelope(): number {
+  // Get the raw RMS first (this reads the analyser buffer)
+  const rmsRaw = getRMS();
+
+  // --- Stage 1: Online Normalization ---
+  // Track the noise floor: adapt quickly when signal is near/below floor,
+  // slowly otherwise (prevents speech from inflating the floor).
+  if (rmsRaw < normalization.noise + 0.0005) {
+    normalization.noise = 0.99 * normalization.noise + 0.01 * rmsRaw;
+  } else {
+    normalization.noise = 0.999 * normalization.noise + 0.001 * rmsRaw;
+  }
+
+  // Track the peak with exponential decay
+  normalization.peak = Math.max(rmsRaw, normalization.peak * PEAK_DECAY);
+
+  // Normalize to 0–1 range, with sqrt compression for perceptual scaling
+  const denom = Math.max(normalization.peak - normalization.noise, 1e-6);
+  const rmsNorm = Math.pow(clamp((rmsRaw - normalization.noise) / denom, 0, 1), 0.5);
+
+  // --- Stage 2: Short-term Moving Average ---
+  smoothing.rmsQueue.push(rmsNorm);
+  if (smoothing.rmsQueue.length > RMS_QUEUE_MAX) smoothing.rmsQueue.shift();
+  const rmsSm = smoothing.rmsQueue.reduce((a, b) => a + b, 0) / smoothing.rmsQueue.length;
+
+  // --- Stage 3: 1-pole Low-pass Filter ---
+  smoothing.envLP += LPF_BETA * (rmsSm - smoothing.envLP);
+
+  // Blend: 75% filtered + 25% immediate for responsiveness
+  return clamp(0.75 * smoothing.envLP + 0.25 * rmsSm, 0, 1);
 }
 
 // --- Vowel Detection (Spectral Centroid → Japanese Vowel) ---
@@ -102,4 +171,9 @@ export function getVowel(): Vowel | null {
   if (centroid < VOWEL_BOUNDARIES_HZ.a) return 'a';
   if (centroid < VOWEL_BOUNDARIES_HZ.e) return 'e';
   return 'i';
+}
+
+// --- Utility ---
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, x));
 }
