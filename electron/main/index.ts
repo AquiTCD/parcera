@@ -22,6 +22,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env['APP_ROOT'] = path.join(__dirname, '..');
 
+// Separate dev and production data directories to avoid config conflicts.
+// Must be called before 'ready' event.
+if (!app.isPackaged) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'Parcera-Dev'));
+}
+
 // Avoids needing a user click to start AudioContext/Media
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 

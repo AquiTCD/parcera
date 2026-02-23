@@ -110,7 +110,6 @@ class ParceraComponentFactory:
                 whisper_vad_filter=whisper_vad_filter,
                 on_recognized_callback=on_recognized_callback,
                 is_busy_handler=is_busy_handler,
-                download_root=os.path.join(self.config.app_data_dir, "models"),
                 debug=self.config.verbose
             )
 

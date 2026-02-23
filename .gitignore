@@ -145,3 +145,6 @@ cython_debug/
 *.swp
 *.swo
 .DS_Store
+-e 
+# Auto-generated config bridge (Electron → Python)
+.env.config_path
