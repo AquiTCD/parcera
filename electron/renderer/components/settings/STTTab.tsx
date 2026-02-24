@@ -219,6 +219,36 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 
 export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
   const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
+  const [devices, setDevices] = useState<{ value: string, label: string }[]>([]);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = allDevices
+          .filter(d => d.kind === 'audioinput')
+          .map(d => ({
+            value: d.deviceId,
+            label: d.label || 'Microphone'
+          }))
+          .filter((v, i, a) => v.value && a.findIndex(t => t.value === v.value) === i); // Unique IDs
+
+        setDevices([
+          { value: 'default', label: 'システムデフォルト' },
+          ...audioInputs.filter(d => d.value !== 'default' && d.value !== '')
+        ]);
+      } catch (err) {
+        console.error('Failed to list audio devices:', err);
+      }
+    };
+    fetchDevices();
+
+    navigator.mediaDevices.addEventListener('devicechange', fetchDevices);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', fetchDevices);
+    };
+  }, []);
+
 
   return (
     <section className="animate-fade-in">
@@ -226,6 +256,16 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
 
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
         <h3 style={{ marginTop: 0, fontSize: '16px' }}>VAD設定 (声の検出)</h3>
+
+        <div style={{ marginBottom: '20px' }}>
+          <SelectSetting
+            label="使用するマイク"
+            description="音声入力に使用するデバイスを選択します。"
+            value={settings.electron?.mic_device_id ?? 'default'}
+            onChange={(val) => updateNested('electron', 'mic_device_id', val)}
+            options={devices}
+          />
+        </div>
 
         <CheckboxSetting
           label="起動時にマイクをミュートにする"

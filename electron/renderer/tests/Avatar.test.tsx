@@ -1,6 +1,43 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+
+// Mock MediaDevices
+const mockGetUserMedia = vi.fn().mockResolvedValue({
+  getAudioTracks: () => [{ stop: vi.fn(), enabled: true }]
+});
+
+const mockMediaDevices = {
+  getUserMedia: mockGetUserMedia,
+  enumerateDevices: vi.fn().mockResolvedValue([]),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+};
+vi.stubGlobal('navigator', { ...navigator, mediaDevices: mockMediaDevices });
+
+vi.mock('../lib/audio', () => ({
+  initAudioContext: vi.fn(),
+  getContext: vi.fn(() => ({
+    state: 'suspended',
+    resume: vi.fn().mockResolvedValue(undefined),
+    createAnalyser: vi.fn(() => ({
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      fftSize: 2048,
+    })),
+    createMediaStreamSource: vi.fn(() => ({ connect: vi.fn() })),
+    createGain: vi.fn(() => ({ gain: { value: 1 }, connect: vi.fn() })),
+    destination: {},
+    sampleRate: 44100,
+  })),
+  getAnalyser: vi.fn(() => ({})),
+  setNoiseGateDb: vi.fn(),
+  getEnvelope: vi.fn(() => 0),
+  getRMS: vi.fn(() => 0),
+  getVowel: vi.fn(() => null),
+  TALK_THRESHOLD: 0.05,
+}));
+
 import { Avatar } from '@/components/Avatar';
 
 // Mock Electron API
@@ -16,6 +53,7 @@ const mockElectron = {
   saveSettings: vi.fn(),
 };
 (window as any).electronAPI = mockElectron;
+
 
 describe('Avatar Component', () => {
   beforeEach(() => {
@@ -106,5 +144,45 @@ describe('Avatar Component', () => {
         })
       })
     }));
+  });
+
+  it('requests specific microphone device when configured', async () => {
+    mockElectron.getSettings.mockResolvedValue({
+      electron: { mic_device_id: 'special-mic' },
+      avatars: { user: { assets_dir: '/test' } }
+    });
+
+    delete (window as any).location;
+    (window as any).location = new URL('http://localhost/?type=user');
+
+    render(<Avatar />);
+
+    await waitFor(() => {
+      expect(mockGetUserMedia).toHaveBeenCalledWith(expect.objectContaining({
+        audio: expect.objectContaining({
+          deviceId: { exact: 'special-mic' }
+        })
+      }));
+    });
+  });
+
+  it('uses default microphone when no specific id is set', async () => {
+    mockElectron.getSettings.mockResolvedValue({
+      electron: { mic_device_id: 'default' },
+      avatars: { user: { assets_dir: '/test' } }
+    });
+
+    delete (window as any).location;
+    (window as any).location = new URL('http://localhost/?type=user');
+
+    render(<Avatar />);
+
+    await waitFor(() => {
+      expect(mockGetUserMedia).toHaveBeenCalledWith(expect.objectContaining({
+        audio: expect.not.objectContaining({
+          deviceId: expect.anything()
+        })
+      }));
+    });
   });
 });

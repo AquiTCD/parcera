@@ -110,6 +110,7 @@ export interface ElectronSettings {
   port?: number;
   ai_audio_sample_rate?: number;
   gpu_acceleration?: boolean;        // If false, calls app.disableHardwareAcceleration()
+  mic_device_id?: string;            // Selected microphone device ID
   windows?: Record<string, WindowConfig>;
 }
 
