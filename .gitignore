@@ -8,7 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
+/build/
 develop-eggs/
 dist/
 downloads/
@@ -145,6 +145,6 @@ cython_debug/
 *.swp
 *.swo
 .DS_Store
--e 
+-e
 # Auto-generated config bridge (Electron → Python)
 .env.config_path
