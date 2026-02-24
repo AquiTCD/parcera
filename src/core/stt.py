@@ -77,25 +77,24 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         logger.debug(f"STT: Transcribing {duration:.2f}s, Max Vol: {max_vol:.4f}")
 
         loop = asyncio.get_event_loop()
-        segments, info = await loop.run_in_executor(
-            None,
-            lambda: self.model.transcribe(
+        def _execute_transcribe():
+            segments_iter, info = self.model.transcribe(
                 audio_float32,
                 language="ja",
                 initial_prompt=self.initial_prompt if self.initial_prompt else None,
                 beam_size=5,
                 vad_filter=self.whisper_vad_filter,
                 temperature=0.0,
-                # vad_parameters=dict(min_silence_duration_ms=500)
             )
-        )
+            # Crucial: Exhaust the iterator inside the thread!
+            return [s.text for s in segments_iter]
 
-        collected_segments = []
-        for s in segments:
-            collected_segments.append(s.text)
-            logger.debug(f"STT: Segment: {s.text} (prob: {s.avg_logprob:.2f})")
+        collected_texts = await loop.run_in_executor(None, _execute_transcribe)
 
-        text = "".join(collected_segments).strip()
+        for t in collected_texts:
+            logger.debug(f"STT: Segment: {t}")
+
+        text = "".join(collected_texts).strip()
 
         if self.response_filter and text:
             if not self.response_filter.should_respond(text):

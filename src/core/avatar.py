@@ -25,7 +25,7 @@ class ParceraAvatarBase:
                 logger.warning(f"Failed to delete {db_path}: {e}")
 
         self.factory = ParceraComponentFactory(self.config)
-        self._busy_sessions = set()
+        self._busy_sessions = {}  # session_id -> Timer task
 
         self.llm = self.factory.build_llm()
         self.stt = self.factory.build_stt(is_busy_handler=self._is_ai_busy_check)
@@ -35,11 +35,24 @@ class ParceraAvatarBase:
     def _is_ai_busy_check(self, session_id: str) -> bool:
         return session_id in self._busy_sessions
 
-    def set_busy(self, session_id: str, busy: bool):
+    def set_busy(self, session_id: str, busy: bool, timeout: float = 60.0):
+        # Cancel existing timer if any
+        if session_id in self._busy_sessions:
+            self._busy_sessions[session_id].cancel()
+            del self._busy_sessions[session_id]
+
         if busy:
-            self._busy_sessions.add(session_id)
+            logger.debug(f"Setting busy flag for {session_id} (Timeout: {timeout}s)")
+
+            def clear_busy():
+                if session_id in self._busy_sessions:
+                    logger.warning(f"Busy flag timeout reached for {session_id}. Forcing reset.")
+                    del self._busy_sessions[session_id]
+
+            loop = asyncio.get_event_loop()
+            self._busy_sessions[session_id] = loop.call_later(timeout, clear_busy)
         else:
-            self._busy_sessions.discard(session_id)
+            logger.debug(f"Clearing busy flag for {session_id}")
 
     async def warmup(self):
         """
