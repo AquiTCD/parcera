@@ -3,3 +3,5 @@
 - `npm run dev`: Start the Electron frontend (if in `electron` dir).
 - `uv sync`: Update dependencies.
 - `git log --oneline`: Check commit history.
+- `uv pip list`: Check installed packages for LSP.
+
