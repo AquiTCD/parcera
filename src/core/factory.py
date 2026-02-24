@@ -6,12 +6,12 @@ from aiavatar.sts.llm.context_manager import SQLiteContextManager
 from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
-from .config import ParceraConfig
-from .stt import KotobaWhisperRecognizer, NoOpRecognizer
-from .tts import FineTunedVoicevoxTTS
-from .gemini import FixedGeminiService
-from .wrappers import ParceraLLMWrapper, ParceraSTTWrapper # New wrappers
-from .filters import ResponseWeightFilter
+from core.config import ParceraConfig
+from core.stt import KotobaWhisperRecognizer, NoOpRecognizer
+from core.tts import FineTunedVoicevoxTTS
+from core.gemini import FixedGeminiService
+from core.wrappers import ParceraLLMWrapper, ParceraSTTWrapper
+from core.filters import ResponseWeightFilter
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 import logging
 import os
 import asyncio
-from .config import ParceraConfig
-from .factory import ParceraComponentFactory
+from core.config import ParceraConfig
+from core.factory import ParceraComponentFactory
 
 logger = logging.getLogger(__name__)
 
