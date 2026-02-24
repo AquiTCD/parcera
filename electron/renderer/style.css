@@ -144,3 +144,23 @@ body.is-locked {
     transform: translateY(0);
   }
 }
+
+/* Heartbeat for keeping frames updated in OBS capture */
+.obs-heartbeat {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  height: 1px;
+  background: white;
+  opacity: 0.01;
+  pointer-events: none;
+  z-index: 1000;
+  animation: obsHeartbeat 2s infinite linear;
+}
+
+@keyframes obsHeartbeat {
+  0% { opacity: 0.01; }
+  50% { opacity: 0.02; }
+  100% { opacity: 0.01; }
+}

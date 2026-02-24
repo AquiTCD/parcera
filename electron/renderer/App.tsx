@@ -32,6 +32,7 @@ export const App: React.FC = () => {
         color={chroma.color}
       />
       {view === 'settings' ? <Settings /> : <Avatar />}
+      <div className="obs-heartbeat" />
     </>
   );
 };

@@ -30,6 +30,9 @@ if (!app.isPackaged) {
 
 // Avoids needing a user click to start AudioContext/Media
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows', 'true');
 
 export const VITE_DEV_SERVER_URL: string | undefined = process.env['VITE_DEV_SERVER_URL'];
 export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist');
@@ -143,6 +146,9 @@ function createAvatarWindow(type: string): BrowserWindow {
       preload: path.join(__dirname, 'preload.js'),
       sandbox: false, // Allow preload full access
       contextIsolation: true, // Default, but explicit
+      backgroundThrottling: false,
+      // @ts-ignore
+      disableOcclusionTracking: true,
     },
   });
 
