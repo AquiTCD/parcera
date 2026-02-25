@@ -7,24 +7,36 @@ logger = logging.getLogger(__name__)
 
 class ResponseWeightFilter:
     def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium"):
-        self.force_keywords = force_keywords or ["パルセラ", "だね", "どう", "教えて"]
-        self.ignore_sentences = ignore_sentences or []
-        self.sensitivity = sensitivity.lower() if sensitivity else "medium"
-
         # Tuning presets: (midpoint, slope, max_prob)
+        # Midpoint: Weighted length where response probability is 50%
+        # Max_prob: The ceiling of response probability for very long sentences
         self.presets = {
             "high":   (10.0, 0.15, 0.95),  # Chatty
-            "medium": (18.0, 0.15, 0.90),  # Natural
-            "low":    (25.0, 0.15, 0.60),  # Quiet
+            "medium": (21.0, 0.15, 0.75),  # Natural (50% at 21 chars, Max 75%)
+            "low":    (30.0, 0.15, 0.50),  # Quiet (50% at 30 chars, Max 50%)
         }
 
-        preset = self.presets.get(self.sensitivity)
-        if not preset:
-            logger.warning(f"Unknown sensitivity '{self.sensitivity}', falling back to 'medium'")
-            preset = self.presets["medium"]
+        # Initial state from arguments
+        self.force_keywords = force_keywords if force_keywords is not None else []
+        self.ignore_sentences = ignore_sentences if ignore_sentences is not None else []
+        self.sensitivity = sensitivity.lower() if sensitivity else "medium"
+        self.midpoint = self.slope = self.max_prob = 0.0
 
+        # Sync internal probability parameters based on the initial sensitivity
+        self.update_config()
+
+    def update_config(self, force_keywords=None, ignore_sentences=None, sensitivity=None):
+        if force_keywords is not None:
+            self.force_keywords = force_keywords
+        if ignore_sentences is not None:
+            self.ignore_sentences = ignore_sentences
+        if sensitivity is not None:
+            self.sensitivity = sensitivity.lower()
+
+        # Guard against invalid sensitivity strings
+        preset = self.presets.get(self.sensitivity, self.presets["medium"])
         self.midpoint, self.slope, self.max_prob = preset
-        logger.info(f"ResponseFilter: Sensitivity='{self.sensitivity}' (mid={self.midpoint}, slope={self.slope}, max={self.max_prob})")
+        logger.info(f"ResponseFilter Updated: Sensitivity='{self.sensitivity}' (mid={self.midpoint}, slope={self.slope}, max={self.max_prob}), ForceKWs={len(self.force_keywords)}, Ignore={len(self.ignore_sentences)}")
 
     def should_respond(self, text: str) -> bool:
         if not text:

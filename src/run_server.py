@@ -26,6 +26,7 @@ chat_logger = logging.getLogger("parcera.chat")
 # ─── Chat Logger Colors ───
 C_USER = "\033[1;36m"  # Bold Cyan
 C_AI = "\033[1;32m"    # Bold Green
+C_SKIP = "\033[37m"    # White (for filtered/ignored)
 C_RESET = "\033[0m"
 
 class ParceraServer(ParceraAvatarBase):
@@ -87,24 +88,30 @@ class ParceraServer(ParceraAvatarBase):
         self.aiavatar_server.tts = self.tts
         self.aiavatar_server.vad = self.vad
 
-    async def on_recognized(self, session_id, text):
-        # Double-check busy status (First-Wins)
-        # Transcription might have taken time, during which another task could have set the busy flag.
+    async def on_recognized(self, session_id, text, is_filtered=False):
+        # 1. Handle filtered (ignored) speech
+        if is_filtered:
+            chat_logger.info(f"{C_SKIP}[USER (ignored)]: {text}{C_RESET}")
+            return
+
+        # 2. Handle busy status (First-Wins)
         if self._is_ai_busy_check(session_id):
+            chat_logger.info(f"{C_SKIP}[USER (busy)]: {text}{C_RESET}")
             logger.info(f"STT: AI is already busy processing another request. Discarding: '{text}'")
             return
 
-        # Hot-reload config if changed (backup mechanism)
-        if self.config.refresh():
-            self.apply_runtime_config()
-            logger.info("Config hot-reloaded automatically during recognition.")
+        # 3. Regular active log
+        chat_logger.info(f"{C_USER}[USER]: {text}{C_RESET}")
 
         if self.config.profile_mode:
             import time
             start_time = time.time()
             logger.info(f"[PERF] STT Recognized: '{text}' at {start_time:.3f}")
 
-        chat_logger.info(f"{C_USER}[USER]: {text}{C_RESET}")
+        # 4. Hot-reload config if changed
+        if self.config.refresh():
+            self.apply_runtime_config()
+            logger.info("Config hot-reloaded automatically during recognition.")
 
         # Dynamic Merge Threshold
         length = len(text)
@@ -149,6 +156,15 @@ class ParceraServer(ParceraAvatarBase):
         if hasattr(self.vad, "volume_db_threshold"):
             new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
             self.vad.volume_db_threshold = new_threshold
+
+        # Update STT filters
+        if hasattr(self.stt, "response_filter") and self.stt.response_filter:
+            stt_cfg = self.config.get("stt", {})
+            self.stt.response_filter.update_config(
+                force_keywords=self.config.get("force_keywords"),
+                ignore_sentences=stt_cfg.get("ignore_sentences"),
+                sensitivity=self.config.get("response_sensitivity")
+            )
 
 
 # ─── Initialization ─────────────────────────────────────────

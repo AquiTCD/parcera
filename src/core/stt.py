@@ -65,8 +65,19 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         text = await self.transcribe(data, session_id)
         if text:
             logger.info(f"STT: Recognized (Raw): {text}")
+
+            # Determine if we should ignore this based on the filter
+            is_filtered = False
+            if self.response_filter and not self.response_filter.should_respond(text):
+                is_filtered = True
+
             if self.on_recognized_callback:
-                asyncio.create_task(self.on_recognized_callback(session_id, text))
+                asyncio.create_task(self.on_recognized_callback(session_id, text, is_filtered))
+
+            if is_filtered:
+                logger.info(f"STT: Ignored by filter (Silence Mode): {text}")
+                return SpeechRecognitionResult(text="")
+
         return SpeechRecognitionResult(text=text)
 
     async def transcribe(self, data: bytes, session_id: str = None) -> str:
@@ -103,10 +114,5 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
             logger.debug(f"STT: Segment: {t}")
 
         text = "".join(collected_texts).strip()
-
-        if self.response_filter and text:
-            if not self.response_filter.should_respond(text):
-                logger.info(f"STT: Ignored by filter: {text}")
-                return ""
 
         return text
