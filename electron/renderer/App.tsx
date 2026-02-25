@@ -9,6 +9,15 @@ const params = new URLSearchParams(window.location.search);
 const view = params.get('type') === 'settings' ? 'settings' : 'avatar';
 const avatarType = params.get('type') || 'user';
 
+// Set window title dynamically for OBS window capture
+if (view === 'settings') {
+  document.title = 'Parcera - Settings';
+} else if (avatarType === 'ai') {
+  document.title = 'Parcera - AI';
+} else if (avatarType === 'user') {
+  document.title = 'Parcera - User';
+}
+
 export const App: React.FC = () => {
   const [settings, setSettings] = React.useState<ParceraSettings | null>(null);
 

@@ -137,6 +137,7 @@ function createAvatarWindow(type: string): BrowserWindow {
     height: winCfg.height,
     x: winCfg.x,
     y: winCfg.y,
+    title: type === 'ai' ? 'Parcera - AI' : 'Parcera - User',
     alwaysOnTop: winCfg.alwaysOnTop,
     transparent: true,
     frame: false,

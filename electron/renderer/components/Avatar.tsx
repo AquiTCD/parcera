@@ -9,6 +9,11 @@ import { startWebSocket, setupMicStreaming } from '../lib/comm';
 const params = new URLSearchParams(window.location.search);
 state.avatarType = (params.get('type') as AvatarType) || 'user';
 console.log('[Parcera] Avatar Type Initialized:', state.avatarType);
+if (state.avatarType === 'ai') {
+  document.title = 'Parcera - AI';
+} else if (state.avatarType === 'user') {
+  document.title = 'Parcera - User';
+}
 
 export const Avatar: React.FC = () => {
   const avatarImageRef = useRef<HTMLImageElement>(null);
