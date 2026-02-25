@@ -65,9 +65,10 @@ class ParceraSTTWrapper:
     Wraps any SpeechRecognizer to filter inputs when AI is busy or based on content.
     Note: Can't inherit SpeechRecognizer easily because we need to wrap the instance.
     """
-    def __init__(self, wrapped_recognizer, is_busy_handler=None, response_filter=None, on_recognized_callback=None):
+    def __init__(self, wrapped_recognizer, is_busy_handler=None, set_busy_handler=None, response_filter=None, on_recognized_callback=None):
         self.wrapped = wrapped_recognizer
         self.is_busy_handler = is_busy_handler
+        self.set_busy_handler = set_busy_handler
         self.response_filter = response_filter
         self.on_recognized_callback = on_recognized_callback
 
@@ -79,7 +80,12 @@ class ParceraSTTWrapper:
             from aiavatar.sts.stt.base import SpeechRecognitionResult
             return SpeechRecognitionResult(text="")
 
+        # Immediate Busy Flag
+        if self.set_busy_handler:
+            self.set_busy_handler(session_id, True)
+
         # 2. Delegate to wrapped recognizer
+        result = await self.wrapped.recognize(session_id, data)
         result_text = result.text if hasattr(result, "text") else str(result)
 
         if result_text:
@@ -89,8 +95,7 @@ class ParceraSTTWrapper:
                 is_filtered = True
 
             if self.on_recognized_callback:
-                import asyncio
-                asyncio.create_task(self.on_recognized_callback(session_id, result_text, is_filtered))
+                await self.on_recognized_callback(session_id, result_text, is_filtered)
 
             # Filtering happens AFTER the callback so the text can be logged
             if is_filtered:

@@ -28,7 +28,10 @@ class ParceraAvatarBase:
         self._busy_sessions = {}  # session_id -> Timer task
 
         self.llm = self.factory.build_llm()
-        self.stt = self.factory.build_stt(is_busy_handler=self._is_ai_busy_check)
+        self.stt = self.factory.build_stt(
+            is_busy_handler=self._is_ai_busy_check,
+            set_busy_handler=self.set_busy
+        )
         self.tts = self.factory.build_tts()
         self.vad = self.factory.build_vad()
 

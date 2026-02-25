@@ -6,16 +6,31 @@ import math
 logger = logging.getLogger(__name__)
 
 class ResponseWeightFilter:
-    def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium"):
-        # Tuning presets: (midpoint, slope, max_prob)
-        # Midpoint: Weighted length where response probability is 50%
-        # Max_prob: The ceiling of response probability for very long sentences
-        self.presets = {
-            "high":   (10.0, 0.15, 0.95),  # Chatty
-            "medium": (21.0, 0.15, 0.75),  # Natural (50% at 21 chars, Max 75%)
-            "low":    (30.0, 0.15, 0.50),  # Quiet (50% at 30 chars, Max 50%)
-        }
+    # Tuning presets: (midpoint, slope, max_prob)
+    # Midpoint: Weighted length where response probability is 50%
+    # Max_prob: The ceiling of response probability for very long sentences
+    presets = {
+        "high":   (10.0, 0.45, 0.95),  # Chatty
+        "medium": (21.0, 0.35, 0.90),  # Natural
+        "low":    (30.0, 0.15, 0.50),  # Quiet
+    }
 
+    @staticmethod
+    def calculate_weight(text: str) -> float:
+        """
+        Calculates the weight of a sentence.
+        Kanji counts as 2, others as 1.
+        Weight = len(text) + kanji_count
+        """
+        if not text:
+            return 0.0
+        # Filter out punctuation and whitespace for pure weight calculation
+        clean_text = re.sub(r'[^\wぁ-んァ-ヶー一-龠]', '', text)
+        raw_len = len(clean_text)
+        kanji_count = len(re.findall(r'[一-龠]', clean_text))
+        return float(raw_len + kanji_count)
+
+    def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium"):
         # Initial state from arguments
         self.force_keywords = force_keywords if force_keywords is not None else []
         self.ignore_sentences = ignore_sentences if ignore_sentences is not None else []
@@ -56,9 +71,7 @@ class ResponseWeightFilter:
                 return True
 
         # 2. Probability by Length (Sigmoid Curve with Weighted Length)
-        raw_len = len(text)
-        kanji_len = len(re.findall(r'[一-龠]', text))
-        length = raw_len + kanji_len
+        length = self.calculate_weight(text)
 
         # Always ignore short utterances (weighted length <= 1)
         if length <= 1:
@@ -72,6 +85,6 @@ class ResponseWeightFilter:
         decision = rolled < probability
 
         log_level = logging.INFO if decision else logging.DEBUG
-        logger.log(log_level, f"Filter: Decision={decision} (Prob={probability:.2f}, Roll={rolled:.2f}, RawLen={raw_len}, WLen={length}, Sens={self.sensitivity})")
+        logger.log(log_level, f"Filter: Decision={decision} (Prob={probability:.2f}, Roll={rolled:.2f}, WLen={length}, Sens={self.sensitivity})")
 
         return decision

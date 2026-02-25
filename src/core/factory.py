@@ -69,7 +69,7 @@ class ParceraComponentFactory:
 
         return service_instance
 
-    def build_stt(self, on_recognized_callback=None, is_busy_handler=None):
+    def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None):
         stt_cfg = self.config.get("stt", {})
         provider = stt_cfg.get("provider", "faster_whisper")
         providers = stt_cfg.get("providers", {})
@@ -111,6 +111,7 @@ class ParceraComponentFactory:
                     whisper_vad_filter=whisper_vad_filter,
                     on_recognized_callback=on_recognized_callback,
                     is_busy_handler=is_busy_handler,
+                    set_busy_handler=set_busy_handler,
                     debug=self.config.verbose
                 )
             except Exception as e:
@@ -130,6 +131,7 @@ class ParceraComponentFactory:
             return ParceraSTTWrapper(
                 wrapped_recognizer=recognizer_instance,
                 is_busy_handler=is_busy_handler,
+                set_busy_handler=set_busy_handler,
                 response_filter=response_filter
             )
 
@@ -149,6 +151,7 @@ class ParceraComponentFactory:
             return ParceraSTTWrapper(
                 wrapped_recognizer=recognizer_instance,
                 is_busy_handler=is_busy_handler,
+                set_busy_handler=set_busy_handler,
                 response_filter=response_filter
             )
 

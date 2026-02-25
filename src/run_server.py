@@ -92,13 +92,14 @@ class ParceraServer(ParceraAvatarBase):
         # 1. Handle filtered (ignored) speech
         if is_filtered:
             chat_logger.info(f"{C_SKIP}[USER (ignored)]: {text}{C_RESET}")
+            # Clear the immediate busy flag set at STT start
+            self.set_busy(session_id, False)
             return
 
-        # 2. Handle busy status (First-Wins)
-        if self._is_ai_busy_check(session_id):
-            chat_logger.info(f"{C_SKIP}[USER (busy)]: {text}{C_RESET}")
-            logger.info(f"STT: AI is already busy processing another request. Discarding: '{text}'")
-            return
+        # 2. Handle busy status
+        # Note: The busy flag was already set at STT start.
+        # We don't check it here because we expect it to be True for our own session.
+        # Strict "No Log on Busy" is handled by the STT component returning early.
 
         # 3. Regular active log
         chat_logger.info(f"{C_USER}[USER]: {text}{C_RESET}")
@@ -118,9 +119,6 @@ class ParceraServer(ParceraAvatarBase):
         dynamic_threshold = max(0.5, min(1.5, 0.5 + (length * 0.05)))
         self.aiavatar_server.merge_request_threshold = dynamic_threshold
 
-        # First-Wins: Mark as busy
-        self.set_busy(session_id, True)
-
         if session_id in self.aiavatar_server.websockets:
             ws = self.aiavatar_server.websockets[session_id]
             try:
@@ -138,7 +136,14 @@ class ParceraServer(ParceraAvatarBase):
             now = time.time()
 
         if sts_response.type == "final":
-            self.set_busy(aiavatar_response.session_id, False)
+            # Estimate TTS duration to keep busy until playback ends
+            from core.filters import ResponseWeightFilter
+            weight = ResponseWeightFilter.calculate_weight(sts_response.text)
+            estimated_duration = (weight / 6.0) + 1.0
+
+            logger.info(f"Response Final: Weight={weight}, Keeping busy for estimated TTS duration: {estimated_duration:.2f}s")
+            self.set_busy(aiavatar_response.session_id, True, timeout=estimated_duration)
+
             if self.config.profile_mode:
                 logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")
 

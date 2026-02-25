@@ -35,12 +35,14 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         whisper_vad_filter=False,
         on_recognized_callback=None,
         is_busy_handler=None,
+        set_busy_handler=None,
         download_root=None,
         debug=False
     ):
         super().__init__(debug=debug)
         self.on_recognized_callback = on_recognized_callback
         self.is_busy_handler = is_busy_handler
+        self.set_busy_handler = set_busy_handler
         self.model_name = model_name
         self.whisper_vad_filter = whisper_vad_filter
         self.download_root = download_root
@@ -62,6 +64,10 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
             logger.info(f"STT: AI is busy. Ignoring input for session {session_id} (First-Wins).")
             return SpeechRecognitionResult(text="")
 
+        # Immediate Busy Flag: Mark as busy AS SOON AS we start processing
+        if self.set_busy_handler:
+            self.set_busy_handler(session_id, True)
+
         text = await self.transcribe(data, session_id)
         if text:
             logger.info(f"STT: Recognized (Raw): {text}")
@@ -72,7 +78,7 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
                 is_filtered = True
 
             if self.on_recognized_callback:
-                asyncio.create_task(self.on_recognized_callback(session_id, text, is_filtered))
+                await self.on_recognized_callback(session_id, text, is_filtered)
 
             if is_filtered:
                 logger.info(f"STT: Ignored by filter (Silence Mode): {text}")
