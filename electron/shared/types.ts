@@ -199,6 +199,7 @@ export interface ElectronAPI {
   getAvatarWindowBounds: (type: 'user' | 'ai') => Promise<{ x: number; y: number; width: number; height: number } | null>;
   resolveLocalPath: (filePath: string) => string;
   setResizable: (resizable: boolean) => void;
+  closeWindow: () => void;
   onLogMessage: (callback: (log: SidecarLogMessage) => void) => () => void;
 }
 

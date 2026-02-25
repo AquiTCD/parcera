@@ -150,6 +150,29 @@ export const Settings: React.FC = () => {
           </span>
         )}
         <button
+          onClick={() => window.electronAPI.closeWindow()}
+          style={{
+            padding: '10px 25px',
+            background: 'transparent',
+            color: '#ccc',
+            border: '1px solid #444',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '15px',
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.borderColor = '#666';
+            e.currentTarget.style.color = '#fff';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.borderColor = '#444';
+            e.currentTarget.style.color = '#ccc';
+          }}
+        >
+          閉じる
+        </button>
+        <button
           onClick={handleSave}
           style={{
             padding: '10px 25px',

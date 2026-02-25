@@ -215,6 +215,13 @@ ipcMain.on('set-resizable', (event, resizable: boolean) => {
   }
 });
 
+ipcMain.on('close-window', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.close();
+  }
+});
+
 ipcMain.handle('save-window-bounds', async (event, type: string) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return { success: false, error: 'Window not found' };
