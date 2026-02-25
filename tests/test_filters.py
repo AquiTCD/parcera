@@ -1,8 +1,33 @@
 import pytest
 import math
+from unittest.mock import patch
 from src.core.filters import ResponseWeightFilter
 
-def test_filter_ignore_sentences():
+def test_centralized_weight_calculation():
+    # Weight = len(text) + kanji_count
+    # "こんにちは" -> len=5, kanji=0 -> weight=5
+    assert ResponseWeightFilter.calculate_weight("こんにちは") == 5.0
+    # "パルセラ、こんにちは" -> len=10, kanji=2 (パ,ル,セ,ラ,、,こ,ん,に,ち,は - wait, Kanji counts are different)
+    # Actually: "パルセラ" is Katakana. "こんにちは" is Hiragana.
+    # Kanji test: "天気" (len=2, kanji=2) -> weight = 2 + 2 = 4.0
+    assert ResponseWeightFilter.calculate_weight("天気") == 4.0
+    # "今日はいい天気ですね" -> 今日(2) + は(1) + いい(2) + 天気(2) + ですね(3)
+    # len=10. Kanji=今日, 天気 (4 chars) -> weight = 10 + 4 = 14.0
+    assert ResponseWeightFilter.calculate_weight("今日はいい天気ですね") == 14.0
+
+def test_should_respond_with_weight_threshold():
+    # Medium sensitivity midpoint=18.0. Weight 4.0 should likely be ignored.
+    f = ResponseWeightFilter(sensitivity="medium")
+    # Wrap in monkeypatch to ensure it's not a lucky roll
+    import random
+    import math
+
+    # We expect a weight of 4.0 ("天気") to have a low probability
+    # P = 0.9 / (1 + exp(-0.35 * (4.0 - 18.0)))
+    # P = 0.9 / (1 + exp(4.9)) = 0.9 / (1 + 134) = 0.006...
+    # So even with a 0.1 roll, it should be False.
+    with patch("random.random", return_value=0.1):
+        assert f.should_respond("天気") is False
     # Setup filter with ignore sentences
     ignore = ["無視して", "スキップ"]
     f = ResponseWeightFilter(ignore_sentences=ignore)
@@ -23,7 +48,7 @@ def test_filter_force_keywords():
 
 def test_filter_length_probability():
     # Testing the sigmoid logic.
-    # With 'medium' sensitivity, midpoint is 18.
+    # With 'medium' sensitivity, midpoint is 21.0.
     f = ResponseWeightFilter(sensitivity="medium")
 
     # Very short text (len <= 1) should always be False
@@ -48,9 +73,9 @@ def test_filter_sensitivity_presets():
 
     # Low sensitivity should be quiet (higher midpoint)
     f_low = ResponseWeightFilter(sensitivity="low")
-    assert f_low.midpoint == 25.0
+    assert f_low.midpoint == 30.0
 
     # Unknown sensitivity should fallback
     f_unknown = ResponseWeightFilter(sensitivity="super-chatty")
     assert f_unknown.sensitivity == "super-chatty"
-    assert f_unknown.midpoint == 18.0 # default medium
+    assert f_unknown.midpoint == 21.0 # default medium
