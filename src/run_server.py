@@ -88,6 +88,12 @@ class ParceraServer(ParceraAvatarBase):
         self.aiavatar_server.vad = self.vad
 
     async def on_recognized(self, session_id, text):
+        # Double-check busy status (First-Wins)
+        # Transcription might have taken time, during which another task could have set the busy flag.
+        if self._is_ai_busy_check(session_id):
+            logger.info(f"STT: AI is already busy processing another request. Discarding: '{text}'")
+            return
+
         # Hot-reload config if changed (backup mechanism)
         if self.config.refresh():
             self.apply_runtime_config()

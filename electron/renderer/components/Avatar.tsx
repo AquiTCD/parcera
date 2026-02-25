@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { state, logStatus } from '../lib/state';
 import type { AvatarType, AvatarConfig, ParceraSettings } from '../lib/state';
-import { initAudioContext, getContext, getAnalyser, setNoiseGateDb } from '../lib/audio';
+import { initAudioContext, getContext, getAnalyser, setNoiseGateDb, connectToAnalyser } from '../lib/audio';
 import { initVisual } from '../lib/visual';
 import { startWebSocket, setupMicStreaming } from '../lib/comm';
 
@@ -98,15 +98,22 @@ export const Avatar: React.FC = () => {
       }
 
       if (winConf?.locked !== undefined) {
-        setIsLocked(winConf.locked);
-        window.electronAPI.setResizable(!winConf.locked);
+        setIsLocked(prev => {
+          if (prev === !!winConf.locked) return prev;
+          window.electronAPI.setResizable(!winConf.locked);
+          return !!winConf.locked;
+        });
       }
 
       const newMode = settings.user_profile?.mode || 'soliloquy';
-      setMode(newMode);
+      setMode(prev => (prev === newMode ? prev : newMode));
 
       const newMicId = settings.electron?.mic_device_id || 'default';
-      setMicId(newMicId);
+      setMicId(prev => {
+        if (prev === newMicId) return prev;
+        console.log(`[Parcera] Mic ID changing: ${prev} -> ${newMicId}`);
+        return newMicId;
+      });
     };
 
 
@@ -150,6 +157,8 @@ export const Avatar: React.FC = () => {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
+            sampleRate: 16000,
+            channelCount: 1,
             deviceId: micId && micId !== 'default' ? { exact: micId } : undefined
           }
         };
@@ -178,7 +187,7 @@ export const Avatar: React.FC = () => {
         const analyser = getAnalyser();
 
         if (state.avatarType === 'user') {
-          if (analyser) micSource.connect(analyser);
+          connectToAnalyser(micSource);
           updateStatus('User Mic Active');
         } else {
           await setupMicStreaming(micSource);

@@ -50,6 +50,7 @@ export type Vowel = 'a' | 'i' | 'u' | 'e' | 'o';
 // --- Module State ---
 let audioContext: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
+let currentAnalyserSource: AudioNode | null = null;
 const fData = new Float32Array(FFT_SIZE / 2);
 const tData = new Float32Array(FFT_SIZE);
 
@@ -68,22 +69,42 @@ const smoothing = {
 export function getContext(): AudioContext | null { return audioContext; }
 export function getAnalyser(): AnalyserNode | null { return analyser; }
 
+/**
+ * Safely connect a node to the analyser, disconnecting any previous source.
+ */
+export function connectToAnalyser(source: AudioNode): void {
+  if (!analyser) return;
+  if (currentAnalyserSource) {
+    try {
+      currentAnalyserSource.disconnect(analyser);
+    } catch (e) { /* ignore */ }
+  }
+  currentAnalyserSource = source;
+  source.connect(analyser);
+}
+
 // --- Initialization ---
 export function initAudioContext(): void {
   if (audioContext) return;
   try {
-    // AI window uses a specific sample rate to match server-side TTS audio
-    const aiSampleRate = state.settings.electron?.ai_audio_sample_rate || 16000;
-    const baseOptions: AudioContextOptions = { latencyHint: 'interactive' };
-    const options: AudioContextOptions = state.avatarType === 'ai'
-      ? { sampleRate: aiSampleRate, ...baseOptions }
-      : { ...baseOptions };
+    // Force 16000Hz for both windows.
+    // AI window: Matches raw TTS PCM from server.
+    // User window: Automatically handles hardware (48k) -> AI (16k) resampling.
+    // This ensures PCM data sent to Python is exactly 16000 samples per second.
+    const sampleRate = state.settings.electron?.ai_audio_sample_rate || 16000;
+    const options: AudioContextOptions = {
+      sampleRate,
+      latencyHint: 'interactive'
+    };
     audioContext = new AudioContext(options);
 
     analyser = audioContext.createAnalyser();
     analyser.fftSize = FFT_SIZE;
     analyser.smoothingTimeConstant = SMOOTHING_TIME_CONSTANT;
-    logStatus(`Audio System: ${audioContext.sampleRate}Hz`);
+
+    const actualRate = audioContext.sampleRate;
+    logStatus(`Audio: ${actualRate}Hz ${state.avatarType === 'ai' ? '(AI)' : '(User)'}`);
+    console.log(`[Parcera] AudioContext Initialized. Rate: ${actualRate}Hz, Type: ${state.avatarType}`);
   } catch (e) {
     console.error('AudioContext error:', e);
     logStatus('Audio Init Failed');

@@ -68,14 +68,18 @@ class ParceraAvatarBase:
         # 2. Warm-up TTS (Engine startup)
         # Synthesize a tiny silent character to wake up the engine/audio device
         try:
-            # Using asyncio.to_thread if synchronous, but most TTS clients are async-capable (or wrapped)
-            # Assuming self.tts.synthesize is async or fast enough
-            if asyncio.iscoroutinefunction(self.tts.voice_text_to_wav):
-                tasks.append(self.tts.voice_text_to_wav("。"))
+            # Check for synthesize (our custom class) or voice_text_to_wav (aiavatar legacy/fallback)
+            synth_method = getattr(self.tts, "synthesize", getattr(self.tts, "voice_text_to_wav", None))
+
+            if synth_method:
+                if asyncio.iscoroutinefunction(synth_method):
+                    tasks.append(synth_method("。"))
+                else:
+                    # If sync, run in executor
+                    loop = asyncio.get_running_loop()
+                    tasks.append(loop.run_in_executor(None, synth_method, "。"))
             else:
-                # If sync, run in executor
-                loop = asyncio.get_running_loop()
-                tasks.append(loop.run_in_executor(None, self.tts.voice_text_to_wav, "。"))
+                logger.warning("TTS component has no synthesize or voice_text_to_wav method.")
         except Exception as e:
              logger.warning(f"TTS Warm-up setup failed: {e}")
 
