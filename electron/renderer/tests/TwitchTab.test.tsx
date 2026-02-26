@@ -89,6 +89,10 @@ describe('TwitchTab', () => {
     const wakeWordInput = screen.getByLabelText('Wake Word (正規表現)');
     fireEvent.change(wakeWordInput, { target: { value: 'ハロー' } });
     expect(mockUpdateNested).toHaveBeenCalledWith('twitch', 'wake_word', 'ハロー');
+
+    const speedSelect = screen.getByLabelText('反応までの待ち時間');
+    fireEvent.change(speedSelect, { target: { value: 'fast' } });
+    expect(mockUpdateNested).toHaveBeenCalledWith('twitch', 'response_speed', 'fast');
   });
 
   it('shows authorized status when authenticated', async () => {

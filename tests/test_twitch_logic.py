@@ -47,6 +47,13 @@ async def test_twitch_client_refresh_callback():
 async def test_twitch_router_init_success(client):
     # Setup mock server state
     parcera_server.config = MagicMock()
+    parcera_server.config.get.side_effect = lambda key, default=None: {
+        "sensitivity_presets": {"medium": [16.0, 0.35, 0.9]},
+        "response_sensitivity": "medium",
+        "force_keywords": [],
+        "stt": {"ignore_sentences": []}
+    }.get(key, default)
+
     parcera_server.config.settings = {
         "twitch": {
             "client_id": "config_id",
@@ -141,6 +148,26 @@ async def test_twitch_client_chat_filtering():
     # 3. Valid message with wake word
     msg_match = MagicMock()
     msg_match.user.name = "RealUser"
+    msg_match.user.display_name = "リアルユーザー"
     msg_match.text = "ねえパルセラ！"
     await client._on_chat_message(msg_match)
-    callback.assert_called_once_with("RealUser", "ねえパルセラ！")
+    # Callback should be called with display_name
+    callback.assert_called_once_with("リアルユーザー", "ねえパルセラ！")
+
+@pytest.mark.anyio
+async def test_twitch_wait_time_calculation():
+    from src.run_server import ParceraServer
+    server = ParceraServer()
+
+    # 1. Instant mode (fixed 0.1s regardless of text)
+    server.config.get = MagicMock(return_value={"response_speed": "instant"})
+    assert server._calculate_twitch_wait_time("おはようございます") == 0.1
+
+    # 2. Natural mode (base 0.5s + weighted char count)
+    server.config.get = MagicMock(return_value={"response_speed": "natural"})
+    # "あ" (1) -> 0.5 + 1 * 0.12 = 0.62
+    assert server._calculate_twitch_wait_time("あ") == pytest.approx(0.62)
+    # "漢" (2) -> 0.5 + 2 * 0.12 = 0.74
+    assert server._calculate_twitch_wait_time("漢") == pytest.approx(0.74)
+    # "！" (ignored) -> 0.5 + 0 = 0.5
+    assert server._calculate_twitch_wait_time("！") == pytest.approx(0.5)
