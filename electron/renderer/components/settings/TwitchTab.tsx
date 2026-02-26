@@ -8,7 +8,6 @@ export const TwitchTab: React.FC<TabProps> = ({
   setStatus,
 }) => {
   const [isAuthorized, setIsAuthorized] = useState(false);
-  // @ts-ignore
   const [isChecking, setIsChecking] = useState(true);
 
   const checkAuthStatus = useCallback(async () => {
@@ -26,7 +25,7 @@ export const TwitchTab: React.FC<TabProps> = ({
     checkAuthStatus();
 
     // Listen for auth success
-    const removeListener = window.electronAPI.onTwitchAuthStatus((status) => {
+    const removeListener = window.electronAPI.onTwitchAuthStatus((status: { success: boolean }) => {
       if (status.success) {
         setIsAuthorized(true);
         setStatus({ message: 'Twitch認証に成功しました！', type: 'success' });
@@ -63,12 +62,13 @@ export const TwitchTab: React.FC<TabProps> = ({
       <div className="setting-group">
         <div className="setting-item-row">
           <div className="setting-label-col">
-            <span className="setting-label">連携を有効にする</span>
+            <label htmlFor="twitch-enabled" className="setting-label">連携を有効にする</label>
             <p className="setting-description">Twitchチャットへの自動応答や配信イベントへの反応を有効にします。</p>
           </div>
           <div className="setting-input-col">
             <label className="switch">
               <input
+                id="twitch-enabled"
                 type="checkbox"
                 checked={twitchSettings.enabled || false}
                 onChange={(e) => updateNested('twitch', 'enabled', e.target.checked)}
@@ -89,8 +89,9 @@ export const TwitchTab: React.FC<TabProps> = ({
         </p>
 
         <div className="setting-item">
-          <label className="setting-label">Client ID</label>
+          <label htmlFor="twitch-client-id" className="setting-label">Client ID</label>
           <input
+            id="twitch-client-id"
             type="text"
             className="input-field"
             value={twitchSettings.client_id || ''}
@@ -100,8 +101,9 @@ export const TwitchTab: React.FC<TabProps> = ({
         </div>
 
         <div className="setting-item">
-          <label className="setting-label">Client Secret</label>
+          <label htmlFor="twitch-client-secret" className="setting-label">Client Secret</label>
           <input
+            id="twitch-client-secret"
             type="password"
             className="input-field"
             value={twitchSettings.client_secret || ''}
@@ -138,9 +140,10 @@ export const TwitchTab: React.FC<TabProps> = ({
         <h3 className="setting-group-title">応答ロジック</h3>
 
         <div className="setting-item">
-          <label className="setting-label">Wake Word (正規表現)</label>
+          <label htmlFor="twitch-wake-word" className="setting-label">Wake Word (正規表現)</label>
           <p className="setting-description">チャットのどこかにこの正規表現にマッチする単語が含まれる場合のみ反応します。</p>
           <input
+            id="twitch-wake-word"
             type="text"
             className="input-field"
             value={twitchSettings.wake_word || ''}
@@ -150,9 +153,10 @@ export const TwitchTab: React.FC<TabProps> = ({
         </div>
 
         <div className="setting-item">
-          <label className="setting-label">無視するユーザー</label>
+          <label htmlFor="twitch-ignored-users" className="setting-label">無視するユーザー</label>
           <p className="setting-description">カンマ区切りで入力（例: Nightbot, Moobot）</p>
           <input
+            id="twitch-ignored-users"
             type="text"
             className="input-field"
             value={(twitchSettings.ignored_users || []).join(', ')}
