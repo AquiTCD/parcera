@@ -10,7 +10,7 @@ interface TabHeaderProps {
  */
 export const TabHeader: React.FC<TabHeaderProps> = ({ title, onRestoreDefaults }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-    <h2 style={{ color: '#61dafb', margin: 0 }}>{title}</h2>
+    <h2 style={{ color: '#61dafb', margin: 0, fontSize: '1.1rem' }}>{title}</h2>
     <button
       onClick={onRestoreDefaults}
       style={{

@@ -79,7 +79,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 
   return (
     <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-      <h3 style={{ marginTop: 0, fontSize: '16px' }}>Faster Whisper 設定</h3>
+      <h3 style={{ marginTop: 0, fontSize: '14px' }}>Faster Whisper 設定</h3>
 
       <InputSetting
         label="モデル (HuggingFace形式)"
@@ -255,7 +255,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
       {renderTabHeader?.('音声認識（耳）')}
 
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px' }}>VAD設定 (声の検出)</h3>
+        <h3 style={{ marginTop: 0, fontSize: '14px' }}>VAD設定 (声の検出)</h3>
 
         <div style={{ marginBottom: '20px' }}>
           <SelectSetting
@@ -384,7 +384,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
 
       {currentSTTProvider === 'google' && (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google STT 設定</h3>
+          <h3 style={{ marginTop: 0, fontSize: '14px' }}>Google STT 設定</h3>
           <PasswordSetting
             label="APIキー"
             placeholder="Google Cloud API Key"
@@ -402,7 +402,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
 
       {currentSTTProvider === 'azure' && (
         <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>Azure STT 設定</h3>
+          <h3 style={{ marginTop: 0, fontSize: '14px' }}>Azure STT 設定</h3>
           <PasswordSetting
             label="APIキー"
             placeholder="Azure API Key"

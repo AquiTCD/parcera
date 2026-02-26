@@ -20,6 +20,6 @@ export const inputStyle = {
   border: '1px solid #555',
   background: '#1e1e1e',
   color: '#fff',
-  fontSize: '14px',
+  fontSize: '13px',
   boxSizing: 'border-box' as const,
 };

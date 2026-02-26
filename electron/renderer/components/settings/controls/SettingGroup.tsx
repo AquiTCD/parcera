@@ -10,7 +10,7 @@ export const SettingGroup: React.FC<{
   <div className="form-group" style={{ marginBottom: '15px' }}>
     <label
       htmlFor={contentId}
-      style={{ display: 'block', marginBottom: description ? '2px' : '5px', ...labelStyle }}
+      style={{ display: 'block', marginBottom: description ? '2px' : '5px', fontSize: '13.5px', ...labelStyle }}
     >
       {label}
     </label>

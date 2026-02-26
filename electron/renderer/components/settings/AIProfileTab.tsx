@@ -16,7 +16,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
 
       {/* AI Profile Section */}
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>AI キャラクター設定</h3>
+        <h3 style={{ marginTop: 0, fontSize: '14px', borderBottom: '1px solid #444', paddingBottom: '6px' }}>AI キャラクター設定</h3>
 
         <InputSetting
           label="名前"
@@ -83,7 +83,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
 
       {/* User Profile Section */}
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>ユーザー設定 (あなたについて)</h3>
+        <h3 style={{ marginTop: 0, fontSize: '14px', borderBottom: '1px solid #444', paddingBottom: '6px' }}>ユーザー設定 (あなたについて)</h3>
 
         <div style={{ display: 'flex', gap: '15px' }}>
           <div style={{ flex: 1 }}>
@@ -129,7 +129,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
 
       {/* Knowledge Base Section */}
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>追加知識 / シチュエーション</h3>
+        <h3 style={{ marginTop: 0, fontSize: '14px', borderBottom: '1px solid #444', paddingBottom: '6px' }}>追加知識 / シチュエーション</h3>
         <p style={{ fontSize: '12px', color: '#aaa', margin: '8px 0' }}>
           AIが知っておくべき背景情報や攻略情報、現在のシチュエーションを記述します。
         </p>

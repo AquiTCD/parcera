@@ -66,7 +66,7 @@ export const LLMTab: React.FC<TabProps> = ({
       />
 
       <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px' }}>{currentLLMProvider} の設定</h3>
+        <h3 style={{ marginTop: 0, fontSize: '14px' }}>{currentLLMProvider} の設定</h3>
         <PasswordSetting
           label="1. APIキー (必須)"
           placeholder="API Key"

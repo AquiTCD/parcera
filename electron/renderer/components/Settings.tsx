@@ -102,11 +102,11 @@ export const Settings: React.FC = () => {
 
   return (
     <div className="settings-container" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100vh', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', background: '#1e1e1e', boxSizing: 'border-box' }}>
-      <h1 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #333', background: '#252526' }}>Parcera 設定</h1>
+      <h1 style={{ padding: '12px 20px', margin: 0, borderBottom: '1px solid #333', background: '#252526', fontSize: '1.2rem' }}>Parcera 設定</h1>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Sidebar Tabs */}
-        <div style={{ width: '180px', borderRight: '1px solid #333', background: '#2d2d30', overflowY: 'auto' }}>
+        <div style={{ width: '170px', borderRight: '1px solid #333', background: '#2d2d30', overflowY: 'auto' }}>
           {TABS.map(tab => (
             <button
               key={tab.id}
@@ -114,14 +114,14 @@ export const Settings: React.FC = () => {
               style={{
                 display: 'block',
                 width: '100%',
-                padding: '15px 20px',
+                padding: '10px 16px',
                 textAlign: 'left',
                 background: activeTab === tab.id ? '#37373d' : 'transparent',
                 color: activeTab === tab.id ? '#fff' : '#ccc',
                 border: 'none',
                 borderLeft: activeTab === tab.id ? '4px solid #61dafb' : '4px solid transparent',
                 cursor: 'pointer',
-                fontSize: '15px',
+                fontSize: '13px',
                 transition: 'all 0.2s'
               }}
             >
@@ -131,7 +131,7 @@ export const Settings: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#1e1e1e' }}>
+        <div style={{ flex: 1, padding: '20px 25px', overflowY: 'auto', background: '#1e1e1e' }}>
           {activeTab === 'profile' && <AIProfileTab {...tabProps} />}
           {activeTab === 'llm' && <LLMTab {...tabProps} />}
           {activeTab === 'stt' && <STTTab {...tabProps} />}
@@ -152,13 +152,13 @@ export const Settings: React.FC = () => {
         <button
           onClick={() => window.electronAPI.closeWindow()}
           style={{
-            padding: '10px 25px',
+            padding: '8px 20px',
             background: 'transparent',
             color: '#ccc',
             border: '1px solid #444',
             borderRadius: '4px',
             cursor: 'pointer',
-            fontSize: '15px',
+            fontSize: '14px',
             transition: 'all 0.2s'
           }}
           onMouseOver={(e) => {
@@ -175,14 +175,14 @@ export const Settings: React.FC = () => {
         <button
           onClick={handleSave}
           style={{
-            padding: '10px 25px',
+            padding: '8px 20px',
             background: '#61dafb',
             color: '#000',
             border: 'none',
             borderRadius: '4px',
             fontWeight: 'bold',
             cursor: 'pointer',
-            fontSize: '15px',
+            fontSize: '14px',
             transition: 'background 0.2s'
           }}
           onMouseOver={(e) => e.currentTarget.style.background = '#4fa8c7'}
