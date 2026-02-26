@@ -133,7 +133,8 @@ class ParceraComponentFactory:
                 wrapped_recognizer=recognizer_instance,
                 is_busy_handler=is_busy_handler,
                 set_busy_handler=set_busy_handler,
-                response_filter=response_filter
+                response_filter=response_filter,
+                on_recognized_callback=on_recognized_callback
             )
 
         elif provider == "azure":
@@ -153,7 +154,8 @@ class ParceraComponentFactory:
                 wrapped_recognizer=recognizer_instance,
                 is_busy_handler=is_busy_handler,
                 set_busy_handler=set_busy_handler,
-                response_filter=response_filter
+                response_filter=response_filter,
+                on_recognized_callback=on_recognized_callback
             )
 
         else:

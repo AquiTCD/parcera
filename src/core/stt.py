@@ -68,7 +68,15 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         if self.set_busy_handler:
             self.set_busy_handler(session_id, True)
 
-        text = await self.transcribe(data, session_id)
+        text = ""
+        try:
+            text = await self.transcribe(data, session_id)
+        except Exception as e:
+            logger.error(f"STT: Transcription error: {e}")
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
+            return SpeechRecognitionResult(text="")
+
         if text:
             logger.info(f"STT: Recognized (Raw): {text}")
 
@@ -84,23 +92,25 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
                 logger.info(f"STT: Ignored by filter (Silence Mode): {text}")
                 return SpeechRecognitionResult(text="")
 
-        return SpeechRecognitionResult(text=text)
+            return SpeechRecognitionResult(text=text)
+
+        else:
+            # transcription result is empty (silence/noise)
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
+            return SpeechRecognitionResult(text="")
 
     async def transcribe(self, data: bytes, session_id: str = None) -> str:
         audio_int16 = np.frombuffer(data, dtype=np.int16)
         audio_float32 = audio_int16.astype(np.float32) / 32768.0
 
         # Diagnostics: Sample Rate Check
-        # We expect 16000Hz. If duration is wildly off from real time, there's a problem.
         duration_internal = len(audio_float32) / 16000
         logger.debug(f"STT: Received {len(data)} bytes. Internal duration assuming 16kHz: {duration_internal:.2f}s")
 
         async with self._transcribe_lock:
-            # Double-check busy status after waiting for the lock
-            if self.is_busy_handler and self.is_busy_handler(session_id):
-                logger.info(f"STT: AI became busy while waiting for transcription lock ({session_id}). Skipping.")
-                return ""
-
+            # 🌙 Note: We removed the busy check here to prevent self-blocking
+            # when recognize sets the busy flag right before calling transcribe.
             loop = asyncio.get_event_loop()
             def _execute_transcribe():
                 segments_iter, info = self.model.transcribe(
@@ -111,7 +121,6 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
                     vad_filter=self.whisper_vad_filter,
                     temperature=0.0,
                 )
-                # Crucial: Exhaust the iterator inside the thread!
                 return [s.text for s in segments_iter]
 
             collected_texts = await loop.run_in_executor(None, _execute_transcribe)

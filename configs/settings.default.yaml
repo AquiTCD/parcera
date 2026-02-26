@@ -12,8 +12,8 @@ response_sensitivity: "medium"  # "high" | "medium" | "low"
 # Weighted Length Sigmoid Presets: (midpoint, slope, max_prob)
 sensitivity_presets:
   high:   [10.0, 0.45, 0.95]
-  medium: [21.0, 0.35, 0.90]
-  low:    [30.0, 0.15, 0.50]
+  medium: [16.0, 0.35, 0.90]
+  low:    [25.0, 0.20, 0.60]
 
 # TTS Busy Duration Estimation
 tts_timing:

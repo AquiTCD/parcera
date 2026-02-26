@@ -38,7 +38,7 @@ class ParceraAvatarBase:
     def _is_ai_busy_check(self, session_id: str) -> bool:
         return session_id in self._busy_sessions
 
-    def set_busy(self, session_id: str, busy: bool, timeout: float = 60.0):
+    def set_busy(self, session_id: str, busy: bool, timeout: float = 15.0):
         # Cancel existing timer if any
         if session_id in self._busy_sessions:
             self._busy_sessions[session_id].cancel()

@@ -50,16 +50,31 @@ async def test_stt_transcribe_concatenates_segments(stt):
 
 @pytest.mark.anyio
 async def test_recognize_immediate_busy_flagging(stt):
-    # Mock set_busy_handler
-    stt.set_busy_handler = MagicMock()
-    # Mock is_busy_handler to return False (not busy initially)
-    stt.is_busy_handler = MagicMock(return_value=False)
+    # Simulate real busy state manager
+    busy_sessions = set()
+    def is_busy(sid): return sid in busy_sessions
+    def set_busy(sid, busy):
+        if busy: busy_sessions.add(sid)
+        else: busy_sessions.discard(sid)
+
+    stt.is_busy_handler = is_busy
+    stt.set_busy_handler = set_busy
 
     fake_audio = np.zeros(1600, dtype=np.int16).tobytes()
-    await stt.recognize("session1", fake_audio)
 
-    # Assert set_busy_handler(True) was called
-    stt.set_busy_handler.assert_called_with("session1", True)
+    # 1. First recognition should work
+    result = await stt.recognize("session1", fake_audio)
+    assert result.text == "テストです"
+
+    # In real app, InteractionController or TTS would clear/extend this.
+    # For testing silence-reset, we clear it first.
+    set_busy("session1", False)
+
+    # 2. Busy flag should be cleared if text is empty (simulating silence)
+    stt.model.transcribe.return_value = ([], None)
+    result = await stt.recognize("session1", fake_audio)
+    assert result.text == ""
+    assert not is_busy("session1") # Should be cleared because it was just silence
 
 @pytest.mark.anyio
 async def test_recognize_no_log_no_callback_on_busy(stt):

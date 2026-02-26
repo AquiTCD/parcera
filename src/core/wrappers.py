@@ -85,7 +85,15 @@ class ParceraSTTWrapper:
             self.set_busy_handler(session_id, True)
 
         # 2. Delegate to wrapped recognizer
-        result = await self.wrapped.recognize(session_id, data)
+        try:
+            result = await self.wrapped.recognize(session_id, data)
+        except Exception as e:
+            logger.error(f"STT Wrapper: Error during delegation: {e}")
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
+            from aiavatar.sts.stt.base import SpeechRecognitionResult
+            return SpeechRecognitionResult(text="")
+
         result_text = result.text if hasattr(result, "text") else str(result)
 
         if result_text:
@@ -102,5 +110,10 @@ class ParceraSTTWrapper:
                 logger.debug(f"STT Wrapper: Ignored by filter (Silence Mode): {result_text}")
                 from aiavatar.sts.stt.base import SpeechRecognitionResult
                 return SpeechRecognitionResult(text="")
+
+        else:
+            # Result text is empty (silence/noise)
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
 
         return result
