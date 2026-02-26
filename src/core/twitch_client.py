@@ -14,7 +14,7 @@ class TwitchClient:
         self.refresh_token = None
         self.scopes = [
             AuthScope.CHAT_READ,
-            AuthScope.CHAT_WRITE,
+            AuthScope.CHAT_EDIT,
             AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
             AuthScope.MODERATION_READ
         ]

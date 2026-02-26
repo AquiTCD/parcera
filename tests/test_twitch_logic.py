@@ -1,0 +1,109 @@
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch, ANY
+from fastapi.testclient import TestClient
+
+# Mock components before importing app to avoid unwanted initialization
+with patch("src.core.avatar.ParceraComponentFactory"):
+    from src.run_server import app, parcera_server
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+@pytest.mark.anyio
+async def test_twitch_client_initialization():
+    from core.twitch_client import TwitchClient
+
+    mock_twitch_instance = AsyncMock()
+    mock_twitch_instance.set_user_authentication = AsyncMock()
+    mock_twitch_instance.close = AsyncMock()
+
+    # Twitch() is awaited in v4, so we need MockTwitch to be awaitable
+    mock_twitch_constructor = AsyncMock(return_value=mock_twitch_instance)
+
+    with patch("core.twitch_client.Twitch", new=mock_twitch_constructor):
+        client = TwitchClient("test_id", "test_secret")
+        success = await client.initialize("access_token", "refresh_token")
+
+        assert success is True
+        assert client.access_token == "access_token"
+        assert client.refresh_token == "refresh_token"
+        mock_twitch_instance.set_user_authentication.assert_called_once()
+
+@pytest.mark.anyio
+async def test_twitch_client_refresh_callback():
+    from core.twitch_client import TwitchClient
+
+    refresh_callback = AsyncMock()
+    client = TwitchClient("test_id", "test_secret", callback_on_refresh=refresh_callback)
+
+    await client._on_token_refresh("new_access", "new_refresh")
+
+    assert client.access_token == "new_access"
+    assert client.refresh_token == "new_refresh"
+    refresh_callback.assert_called_once_with("new_access", "new_refresh")
+
+@pytest.mark.anyio
+async def test_twitch_router_init_success(client):
+    # Setup mock server state
+    parcera_server.config = MagicMock()
+    parcera_server.config.settings = {
+        "twitch": {
+            "client_id": "config_id",
+            "client_secret": "config_secret"
+        }
+    }
+    # Reset internal state to force initialization
+    parcera_server.twitch_client = None
+
+    # Mock TwitchClient and its methods
+    mock_user = MagicMock()
+    mock_user.display_name = "TestUser"
+    mock_user.login = "testuser"
+
+    with patch("core.twitch_client.TwitchClient") as MockTwitchClient:
+        instance = MockTwitchClient.return_value
+        instance.initialize = AsyncMock(return_value=True)
+        instance.get_me = AsyncMock(return_value=mock_user)
+
+        response = client.post("/twitch/init", json={
+            "access_token": "at",
+            "refresh_token": "rt"
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["user"]["display_name"] == "TestUser"
+
+        # Verify it was initialized with config values
+        MockTwitchClient.assert_called_once_with("config_id", "config_secret", callback_on_refresh=ANY)
+
+def test_twitch_router_init_missing_config(client):
+    parcera_server.config = MagicMock()
+    parcera_server.config.settings = {"twitch": {}} # Missing ID/Secret
+
+    response = client.post("/twitch/init", json={
+        "access_token": "at",
+        "refresh_token": "rt"
+    })
+
+    assert response.status_code == 400
+    assert "missing" in response.json()["detail"].lower()
+
+@pytest.mark.anyio
+async def test_twitch_router_status(client):
+    parcera_server.twitch_client = MagicMock()
+    parcera_server.twitch_client.twitch = MagicMock() # Simulate initialized
+
+    mock_user = MagicMock()
+    mock_user.display_name = "StatusUser"
+    mock_user.login = "statususer"
+    parcera_server.twitch_client.get_me = AsyncMock(return_value=mock_user)
+
+    response = client.get("/twitch/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["initialized"] is True
+    assert data["user"]["display_name"] == "StatusUser"
