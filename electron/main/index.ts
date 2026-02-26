@@ -275,6 +275,12 @@ ipcMain.handle('twitch-get-auth-status', async () => {
 
 ipcMain.handle('twitch-clear-auth', async () => {
   twitchTokenStore.clearTokens();
+
+  const settings = loadSettings();
+  const port = settings.electron?.port || 8676;
+  const url = `http://127.0.0.1:${port}/twitch/stop`;
+  fetch(url, { method: 'POST' }).catch(() => { });
+
   return true;
 });
 
@@ -352,7 +358,10 @@ app.whenReady().then(() => {
   sidecar = new PythonSidecar(store.path, settings.electron?.port || 8676, (source, text) => {
     logManager.addLog(source, text);
   });
-  sidecar.start().catch((err) => {
+  sidecar.start().then(() => {
+    // Give backend a moment to start, then sync Twitch if tokens exist
+    setTimeout(() => syncTwitchWithBackend(), 2000);
+  }).catch((err) => {
     console.error('[Parcera] Failed to start Python sidecar:', err);
   });
 
@@ -428,6 +437,9 @@ ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSettings)
+    }).then(() => {
+      // After config reload, ensure Twitch is also initialized (it needs tokens from Electron)
+      syncTwitchWithBackend();
     }).catch(e => console.warn('[Parcera] Python reload notification failed (likely server not running):', e.message));
 
     return { success: true };
@@ -436,6 +448,34 @@ ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => 
     return { success: false, error: String(e) };
   }
 });
+
+export async function syncTwitchWithBackend() {
+  const tokens = twitchTokenStore.loadTokens();
+  if (!tokens) return;
+
+  const settings = loadSettings();
+  const port = settings.electron?.port || 8676;
+  const url = `http://127.0.0.1:${port}/twitch/init`;
+
+  console.log('[Twitch] Syncing tokens with backend...');
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token
+      })
+    });
+    if (!res.ok) {
+      console.warn('[Twitch] Backend init failed:', await res.text());
+    } else {
+      console.log('[Twitch] Backend init successful.');
+    }
+  } catch (e: any) {
+    console.warn('[Twitch] Could not sync with backend:', e.message);
+  }
+}
 
 import { Menu } from 'electron';
 

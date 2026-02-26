@@ -64,4 +64,13 @@ def create_twitch_router(get_server):
             "user": user_info
         }
 
+    @router.post("/stop")
+    async def stop_twitch():
+        server = get_server()
+        if hasattr(server, "twitch_client") and server.twitch_client:
+            await server.twitch_client.close()
+            server.twitch_client = None
+            logger.info("Twitch client stopped and cleared.")
+        return {"success": True}
+
     return router

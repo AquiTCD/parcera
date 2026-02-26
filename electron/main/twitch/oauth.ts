@@ -48,6 +48,10 @@ export class TwitchOAuthHandler {
             const tokens = await this.exchangeCodeForTokens(clientId, clientSecret, code);
             twitchTokenStore.saveTokens(tokens);
 
+            // Sync with backend immediately
+            const { syncTwitchWithBackend } = await import('../index');
+            syncTwitchWithBackend();
+
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(`
               <html>
