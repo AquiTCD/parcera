@@ -19,26 +19,16 @@ export const LogTab: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ marginBottom: '15px' }}>
-        <h2 style={{ margin: 0 }}>システムログ</h2>
-        <p style={{ color: '#888', margin: '5px 0' }}>Pythonエンジンの稼働状況をリアルタイムで表示します。</p>
+      <div className="tab-header-container">
+        <div>
+          <h2 className="tab-header-title">システムログ</h2>
+          <p className="setting-group-description" style={{ marginBottom: 0 }}>Pythonエンジンの稼働状況をリアルタイムで表示します。</p>
+        </div>
       </div>
 
       <div
         ref={scrollRef}
-        style={{
-          flex: 1,
-          background: '#000',
-          color: '#0f0',
-          fontFamily: 'monospace',
-          padding: '15px',
-          borderRadius: '8px',
-          overflowY: 'auto',
-          fontSize: '13px',
-          lineHeight: '1.5',
-          border: '1px solid #333',
-          userSelect: 'text'
-        }}
+        className="log-viewer"
       >
         {logs.length === 0 && <div style={{ color: '#444' }}>ログを待機中...</div>}
         {logs.map((log, i) => {
@@ -64,16 +54,9 @@ export const LogTab: React.FC = () => {
       <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
         <button
           onClick={() => setLogs([])}
-          style={{
-            padding: '5px 15px',
-            background: '#333',
-            color: '#ccc',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
+          className="btn btn-outline"
         >
-          クリア
+          表示ログをクリア
         </button>
       </div>
     </div>

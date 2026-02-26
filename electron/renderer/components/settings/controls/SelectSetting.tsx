@@ -1,5 +1,4 @@
 import React from 'react';
-import { inputStyle } from '../types';
 import { SettingGroup } from './SettingGroup';
 
 interface SelectSettingProps {
@@ -33,8 +32,9 @@ export const SelectSetting: React.FC<SelectSettingProps> = ({
       <select
         id={selectId}
         value={currentValue}
+        className="setting-input"
         onChange={(e) => onChange(e.target.value)}
-        style={{ ...inputStyle, ...style }}
+        style={style}
         disabled={disabled}
       >
         {options.map((opt) => (

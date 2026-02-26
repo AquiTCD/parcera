@@ -8,14 +8,14 @@ import { WindowSettingsSection } from './WindowSettingsSection';
 
 export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, renderTabHeader, handleSelectDir }) => {
   return (
-    <section className="animate-fade-in">
+    <section className="tab-content-section">
       {renderTabHeader?.('アバター設定')}
 
       <div style={{ display: 'flex', gap: '20px', flexDirection: 'column' }}>
         <SettingGroup label="アバター画像・透過設定">
           <div style={{ display: 'flex', gap: '15px' }}>
             {/* USER Avatar Column */}
-            <div style={{ flex: 1, background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
+            <div className="setting-card" style={{ flex: 1, marginBottom: 0 }}>
               <InputSetting
                 label="USERアバター パス"
                 defaultValue={defaultSettings?.avatars?.user?.assets_dir}
@@ -24,7 +24,8 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
               />
               <button
                 onClick={() => handleSelectDir?.('user')}
-                style={{ marginTop: '5px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer', marginBottom: '15px' }}
+                className="btn btn-outline"
+                style={{ marginTop: '5px', marginBottom: '15px', width: 'auto' }}
               >
                 📁 フォルダ選択
               </button>
@@ -58,7 +59,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
             </div>
 
             {/* AI Avatar Column */}
-            <div style={{ flex: 1, background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
+            <div className="setting-card" style={{ flex: 1, marginBottom: 0 }}>
               <InputSetting
                 label="AIアバター パス"
                 defaultValue={defaultSettings?.avatars?.ai?.assets_dir}
@@ -67,7 +68,8 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
               />
               <button
                 onClick={() => handleSelectDir?.('ai')}
-                style={{ marginTop: '5px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer', marginBottom: '15px' }}
+                className="btn btn-outline"
+                style={{ marginTop: '5px', marginBottom: '15px', width: 'auto' }}
               >
                 📁 フォルダ選択
               </button>
@@ -127,37 +129,39 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
         />
       </div>
 
-      <SettingGroup label="呼吸アニメーション設定">
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <div style={{ flex: 1 }}>
-            <InputSetting
-              label="呼吸のスケーリング幅"
-              type="number"
-              defaultValue={defaultSettings?.avatars?.breathe_scale}
-              value={settings.avatars?.breathe_scale}
-              onChange={(val: number) => updateNested('avatars', 'breathe_scale', val)}
-            />
+      <div className="setting-card">
+        <SettingGroup label="呼吸アニメーション設定">
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1 }}>
+              <InputSetting
+                label="呼吸のスケーリング幅"
+                type="number"
+                defaultValue={defaultSettings?.avatars?.breathe_scale}
+                value={settings.avatars?.breathe_scale}
+                onChange={(val: number) => updateNested('avatars', 'breathe_scale', val)}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <InputSetting
+                label="呼吸の上下動幅 (px)"
+                type="number"
+                defaultValue={defaultSettings?.avatars?.breathe_amplitude}
+                value={settings.avatars?.breathe_amplitude}
+                onChange={(val: number) => updateNested('avatars', 'breathe_amplitude', val)}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <InputSetting
+                label="呼吸の周期基準 (ms)"
+                type="number"
+                defaultValue={defaultSettings?.avatars?.breathe_duration}
+                value={settings.avatars?.breathe_duration}
+                onChange={(val: number) => updateNested('avatars', 'breathe_duration', val)}
+              />
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <InputSetting
-              label="呼吸の上下動幅 (px)"
-              type="number"
-              defaultValue={defaultSettings?.avatars?.breathe_amplitude}
-              value={settings.avatars?.breathe_amplitude}
-              onChange={(val: number) => updateNested('avatars', 'breathe_amplitude', val)}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <InputSetting
-              label="呼吸の周期基準 (ms)"
-              type="number"
-              defaultValue={defaultSettings?.avatars?.breathe_duration}
-              value={settings.avatars?.breathe_duration}
-              onChange={(val: number) => updateNested('avatars', 'breathe_duration', val)}
-            />
-          </div>
-        </div>
-      </SettingGroup>
+        </SettingGroup>
+      </div>
     </section>
   );
 };

@@ -12,7 +12,7 @@ export const CheckboxSetting: React.FC<{
   const isChecked = (checked !== undefined && checked !== null) ? checked : (defaultValue ?? false);
   return (
     <div className="form-group" style={{ marginBottom: '15px', ...style }}>
-      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', ...labelStyle }}>
+      <label className="checkbox-label" style={labelStyle}>
         <input
           type="checkbox"
           checked={isChecked}
@@ -22,7 +22,7 @@ export const CheckboxSetting: React.FC<{
         {label}
       </label>
       {description && (
-        <small style={{ display: 'block', color: '#888', marginTop: '4px', marginLeft: '26px', fontSize: '12px', lineHeight: '1.4' }}>
+        <small className="checkbox-description">
           {description}
         </small>
       )}

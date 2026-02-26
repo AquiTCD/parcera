@@ -12,14 +12,3 @@ export interface TabProps {
   updateTTSSettings?: (key: string, value: any) => void;
   handleSelectDir?: (target: 'user' | 'ai') => Promise<void>;
 }
-
-export const inputStyle = {
-  width: '100%',
-  padding: '8px 12px',
-  borderRadius: '4px',
-  border: '1px solid #555',
-  background: '#1e1e1e',
-  color: '#fff',
-  fontSize: '13px',
-  boxSizing: 'border-box' as const,
-};

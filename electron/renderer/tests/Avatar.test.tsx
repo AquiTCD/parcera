@@ -31,6 +31,7 @@ vi.mock('../lib/audio', () => ({
     sampleRate: 44100,
   })),
   getAnalyser: vi.fn(() => ({})),
+  connectToAnalyser: vi.fn(),
   setNoiseGateDb: vi.fn(),
   getEnvelope: vi.fn(() => 0),
   getRMS: vi.fn(() => 0),

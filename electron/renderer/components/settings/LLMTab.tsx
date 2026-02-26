@@ -52,7 +52,7 @@ export const LLMTab: React.FC<TabProps> = ({
   };
 
   return (
-    <section className="animate-fade-in">
+    <section className="tab-content-section">
       {renderTabHeader?.('対話エンジン（脳）')}
 
       <SelectSetting
@@ -65,8 +65,8 @@ export const LLMTab: React.FC<TabProps> = ({
         ]}
       />
 
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '14px' }}>{currentLLMProvider} の設定</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">{currentLLMProvider} の設定</h3>
         <PasswordSetting
           label="1. APIキー (必須)"
           placeholder="API Key"
@@ -75,7 +75,7 @@ export const LLMTab: React.FC<TabProps> = ({
           buttonAction={
             <button
               onClick={handleFetchModels}
-              style={{ padding: '6px 12px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}
+              className="btn btn-outline"
               disabled={isFetchingModels}
             >
               APIキーを使ってモデル一覧を取得する
@@ -94,7 +94,7 @@ export const LLMTab: React.FC<TabProps> = ({
           ] : [{ value: '', label: '(取得失敗: APIキーを確認してください)' }])}
         />
 
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="setting-form-row">
           <div style={{ flex: 1 }}>
             <InputSetting
               label="表現のランダム性 (Temperature)"

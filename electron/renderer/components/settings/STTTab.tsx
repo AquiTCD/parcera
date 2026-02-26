@@ -78,8 +78,8 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
   };
 
   return (
-    <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-      <h3 style={{ marginTop: 0, fontSize: '14px' }}>Faster Whisper 設定</h3>
+    <div className="setting-card">
+      <h3 className="setting-card-title">Faster Whisper 設定</h3>
 
       <InputSetting
         label="モデル (HuggingFace形式)"
@@ -251,11 +251,11 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
 
 
   return (
-    <section className="animate-fade-in">
+    <section className="tab-content-section">
       {renderTabHeader?.('音声認識（耳）')}
 
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '14px' }}>VAD設定 (声の検出)</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">VAD設定 (声の検出)</h3>
 
         <div style={{ marginBottom: '20px' }}>
           <SelectSetting
@@ -293,7 +293,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           </div>
         </SettingGroup>
 
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="setting-form-row">
           <div style={{ flex: 1 }}>
             <InputSetting
               label="発話終了判定の無音時間 (秒)"
@@ -319,8 +319,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
         </div>
       </div>
 
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px' }}>割り込み・応答感度設定</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">割り込み・応答感度設定</h3>
 
         <InputSetting
           label="強制応答キーワード"
@@ -383,8 +383,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
       )}
 
       {currentSTTProvider === 'google' && (
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '14px' }}>Google STT 設定</h3>
+        <div className="setting-card">
+          <h3 className="setting-card-title">Google STT 設定</h3>
           <PasswordSetting
             label="APIキー"
             placeholder="Google Cloud API Key"
@@ -401,8 +401,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
       )}
 
       {currentSTTProvider === 'azure' && (
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '14px' }}>Azure STT 設定</h3>
+        <div className="setting-card">
+          <h3 className="setting-card-title">Azure STT 設定</h3>
           <PasswordSetting
             label="APIキー"
             placeholder="Azure API Key"

@@ -7,19 +7,20 @@ export const SettingGroup: React.FC<{
   labelStyle?: React.CSSProperties;
   contentId?: string;
 }> = ({ label, description, children, labelStyle, contentId }) => (
-  <div className="form-group" style={{ marginBottom: '15px' }}>
+  <div className="form-group" style={{ marginBottom: '14px' }}>
     <label
       htmlFor={contentId}
-      style={{ display: 'block', marginBottom: description ? '2px' : '5px', fontSize: '13.5px', ...labelStyle }}
+      className="setting-group-label"
+      style={labelStyle}
     >
       {label}
     </label>
     {description && (
-      <small style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '12px', lineHeight: '1.4' }}>
+      <small className="setting-group-description">
         {description}
       </small>
     )}
-    <div id={contentId ? undefined : undefined}>
+    <div>
       {children}
     </div>
   </div>

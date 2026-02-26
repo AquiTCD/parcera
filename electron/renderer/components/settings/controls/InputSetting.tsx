@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { inputStyle } from '../types';
 import { SettingGroup } from './SettingGroup';
 
 interface InputSettingProps {
@@ -70,7 +69,7 @@ export const InputSetting: React.FC<InputSettingProps> = ({
         value={localValue}
         step={step}
         onChange={handleChange}
-        style={inputStyle}
+        className="setting-input"
       />
     </SettingGroup>
   );
