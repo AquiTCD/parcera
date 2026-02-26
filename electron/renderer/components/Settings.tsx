@@ -101,29 +101,17 @@ export const Settings: React.FC = () => {
   };
 
   return (
-    <div className="settings-container" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100vh', color: '#e0e0e0', fontFamily: 'system-ui, sans-serif', background: '#1e1e1e', boxSizing: 'border-box' }}>
-      <h1 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #333', background: '#252526' }}>Parcera 設定</h1>
+    <div className="settings-window">
+      <h1 className="settings-header">Parcera 設定</h1>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="settings-layout">
         {/* Sidebar Tabs */}
-        <div style={{ width: '180px', borderRight: '1px solid #333', background: '#2d2d30', overflowY: 'auto' }}>
+        <div className="settings-sidebar">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '15px 20px',
-                textAlign: 'left',
-                background: activeTab === tab.id ? '#37373d' : 'transparent',
-                color: activeTab === tab.id ? '#fff' : '#ccc',
-                border: 'none',
-                borderLeft: activeTab === tab.id ? '4px solid #61dafb' : '4px solid transparent',
-                cursor: 'pointer',
-                fontSize: '15px',
-                transition: 'all 0.2s'
-              }}
+              className={`settings-tab-button ${activeTab === tab.id ? 'active' : ''}`}
             >
               {tab.label}
             </button>
@@ -131,7 +119,7 @@ export const Settings: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div style={{ flex: 1, padding: '30px', overflowY: 'auto', background: '#1e1e1e' }}>
+        <div className="settings-content">
           {activeTab === 'profile' && <AIProfileTab {...tabProps} />}
           {activeTab === 'llm' && <LLMTab {...tabProps} />}
           {activeTab === 'stt' && <STTTab {...tabProps} />}
@@ -143,27 +131,21 @@ export const Settings: React.FC = () => {
       </div>
 
       {/* Action Bar */}
-      <div style={{ background: '#252526', padding: '15px 30px', borderTop: '1px solid #333', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '15px' }}>
+      <div className="settings-footer">
         {status.message && (
-          <span style={{ color: status.type === 'error' ? '#ff6b6b' : '#51cf66', marginRight: 'auto' }}>
+          <span className={`settings-status ${status.type}`}>
             {status.message}
           </span>
         )}
         <button
+          onClick={() => window.electronAPI.closeWindow()}
+          className="btn btn-secondary"
+        >
+          閉じる
+        </button>
+        <button
           onClick={handleSave}
-          style={{
-            padding: '10px 25px',
-            background: '#61dafb',
-            color: '#000',
-            border: 'none',
-            borderRadius: '4px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            fontSize: '15px',
-            transition: 'background 0.2s'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.background = '#4fa8c7'}
-          onMouseOut={(e) => e.currentTarget.style.background = '#61dafb'}
+          className="btn btn-primary"
         >
           保存する
         </button>

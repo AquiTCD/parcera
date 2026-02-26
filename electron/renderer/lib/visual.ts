@@ -22,7 +22,8 @@ let currentMouthFile = 'base.png';
 let mouthHoldTimer = 0;
 
 // Natural Breathing State
-let breatheTime = 0;
+// Initialize with random offset to prevent synchronization between different windows
+let breatheTime = Math.random() * 100;
 let lastFrameTime = performance.now();
 
 // --- Public API ---

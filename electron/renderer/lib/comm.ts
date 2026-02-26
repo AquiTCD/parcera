@@ -6,7 +6,7 @@
  */
 import { state, logStatus } from './state';
 import type { ServerMessage } from './state';
-import { getContext, getAnalyser } from './audio';
+import { getContext, getAnalyser, connectToAnalyser } from './audio';
 import processorUrl from './pcm-processor.js?url';
 
 // --- Module State ---
@@ -87,7 +87,7 @@ async function playNextChunk(retryData?: string): Promise<void> {
     const source = audioContext.createBufferSource();
     source.buffer = audioData;
 
-    source.connect(analyser);
+    connectToAnalyser(source);
     // analyser→destination is connected once via initPlaybackRoute()
 
     currentSource = source;
@@ -173,12 +173,21 @@ function scheduleReconnect(): void {
 export function startWebSocket(): void {
   if (state.avatarType !== 'ai') return;
 
+  const port = state.settings.electron?.port || 8080;
+  const wsUrl = `ws://localhost:${port}/ws`;
+
+  // Skip if we are already connected or connecting to the correct URL
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    if (socket.url === wsUrl) {
+      console.log('[Parcera] WebSocket already active for:', wsUrl);
+      return;
+    }
+  }
+
   initPlaybackRoute(); // wire analyser→destination once
 
   // Close any stale connection before opening a new one
   closeExistingSocket();
-
-  const port = state.settings.electron?.port || 8080;
 
   // Check server health before attempting WebSocket connection
   checkServerHealth(port).then((healthy) => {
@@ -226,13 +235,36 @@ export function startWebSocket(): void {
 // =====================
 // Mic Streaming (AudioWorklet — off main thread)
 // =====================
+// --- Mic Streaming State ---
+let currentMicSource: MediaStreamAudioSourceNode | null = null;
+let currentWorkletNode: AudioWorkletNode | null = null;
+
 export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Promise<void> {
   const audioContext = getContext();
   if (!audioContext) return;
 
-  // Load the worklet processor (Vite resolves the URL via ?url import)
+  // 1. Clean up previous streaming nodes
+  if (currentWorkletNode) {
+    console.log('[Parcera] Cleaning up previous mic worklet...');
+    currentWorkletNode.port.onmessage = null;
+    try {
+      currentWorkletNode.disconnect();
+    } catch (e) { /* ignore */ }
+    currentWorkletNode = null;
+  }
+  if (currentMicSource) {
+    try {
+      currentMicSource.disconnect();
+    } catch (e) { /* ignore */ }
+    currentMicSource = null;
+  }
+
+  // 2. Initialize the worklet (Vite resolves the URL via ?url import)
   await audioContext.audioWorklet.addModule(processorUrl);
   const workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
+
+  currentMicSource = source;
+  currentWorkletNode = workletNode;
 
   source.connect(workletNode);
 
@@ -243,10 +275,10 @@ export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Pro
   silentGain.connect(audioContext.destination);
 
   // Receive PCM buffers from the worklet thread
-  workletNode.port.onmessage = (e: MessageEvent) => {
+  workletNode.port.onmessage = (e) => {
     if (state.isAIPlaying) return;
     if (socket && socket.readyState === WebSocket.OPEN) {
-      const base64Data = uint8ToBase64(new Uint8Array(e.data as ArrayBuffer));
+      const base64Data = uint8ToBase64(new Uint8Array(e.data));
       socket.send(JSON.stringify({
         type: 'data',
         session_id: 'parcera-session',

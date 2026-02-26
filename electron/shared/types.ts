@@ -110,6 +110,7 @@ export interface ElectronSettings {
   port?: number;
   ai_audio_sample_rate?: number;
   gpu_acceleration?: boolean;        // If false, calls app.disableHardwareAcceleration()
+  mic_device_id?: string;            // Selected microphone device ID
   windows?: Record<string, WindowConfig>;
 }
 
@@ -198,7 +199,9 @@ export interface ElectronAPI {
   getAvatarWindowBounds: (type: 'user' | 'ai') => Promise<{ x: number; y: number; width: number; height: number } | null>;
   resolveLocalPath: (filePath: string) => string;
   setResizable: (resizable: boolean) => void;
+  closeWindow: () => void;
   onLogMessage: (callback: (log: SidecarLogMessage) => void) => () => void;
+  getLogHistory: () => Promise<SidecarLogMessage[]>;
 }
 
 declare global {

@@ -6,12 +6,12 @@ from aiavatar.sts.llm.context_manager import SQLiteContextManager
 from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
-from .config import ParceraConfig
-from .stt import KotobaWhisperRecognizer, NoOpRecognizer
-from .tts import FineTunedVoicevoxTTS
-from .gemini import FixedGeminiService
-from .wrappers import ParceraLLMWrapper, ParceraSTTWrapper # New wrappers
-from .filters import ResponseWeightFilter
+from core.config import ParceraConfig
+from core.stt import KotobaWhisperRecognizer, NoOpRecognizer
+from core.tts import FineTunedVoicevoxTTS
+from core.gemini import FixedGeminiService
+from core.wrappers import ParceraLLMWrapper, ParceraSTTWrapper
+from core.filters import ResponseWeightFilter
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class ParceraComponentFactory:
 
         return service_instance
 
-    def build_stt(self, on_recognized_callback=None, is_busy_handler=None):
+    def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None):
         stt_cfg = self.config.get("stt", {})
         provider = stt_cfg.get("provider", "faster_whisper")
         providers = stt_cfg.get("providers", {})
@@ -81,7 +81,8 @@ class ParceraComponentFactory:
         response_filter = ResponseWeightFilter(
             force_keywords=force_keywords,
             ignore_sentences=ignore_sentences,
-            sensitivity=sensitivity
+            sensitivity=sensitivity,
+            presets=self.config.get("sensitivity_presets")
         )
 
         recognizer_instance = None
@@ -111,6 +112,7 @@ class ParceraComponentFactory:
                     whisper_vad_filter=whisper_vad_filter,
                     on_recognized_callback=on_recognized_callback,
                     is_busy_handler=is_busy_handler,
+                    set_busy_handler=set_busy_handler,
                     debug=self.config.verbose
                 )
             except Exception as e:
@@ -130,7 +132,9 @@ class ParceraComponentFactory:
             return ParceraSTTWrapper(
                 wrapped_recognizer=recognizer_instance,
                 is_busy_handler=is_busy_handler,
-                response_filter=response_filter
+                set_busy_handler=set_busy_handler,
+                response_filter=response_filter,
+                on_recognized_callback=on_recognized_callback
             )
 
         elif provider == "azure":
@@ -149,7 +153,9 @@ class ParceraComponentFactory:
             return ParceraSTTWrapper(
                 wrapped_recognizer=recognizer_instance,
                 is_busy_handler=is_busy_handler,
-                response_filter=response_filter
+                set_busy_handler=set_busy_handler,
+                response_filter=response_filter,
+                on_recognized_callback=on_recognized_callback
             )
 
         else:

@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
 import { PythonSidecar } from './sidecar';
+import { logManager } from './logger';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,9 @@ if (!app.isPackaged) {
 
 // Avoids needing a user click to start AudioContext/Media
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows', 'true');
 
 export const VITE_DEV_SERVER_URL: string | undefined = process.env['VITE_DEV_SERVER_URL'];
 export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist');
@@ -37,7 +41,6 @@ export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist')
 let userWindow: BrowserWindow | null = null;
 let aiWindow: BrowserWindow | null = null;
 let sidecar: PythonSidecar | null = null;
-
 process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
   app.quit();
@@ -134,6 +137,7 @@ function createAvatarWindow(type: string): BrowserWindow {
     height: winCfg.height,
     x: winCfg.x,
     y: winCfg.y,
+    title: type === 'ai' ? 'Parcera - AI' : 'Parcera - User',
     alwaysOnTop: winCfg.alwaysOnTop,
     transparent: true,
     frame: false,
@@ -143,6 +147,9 @@ function createAvatarWindow(type: string): BrowserWindow {
       preload: path.join(__dirname, 'preload.js'),
       sandbox: false, // Allow preload full access
       contextIsolation: true, // Default, but explicit
+      backgroundThrottling: false,
+      // @ts-ignore
+      disableOcclusionTracking: true,
     },
   });
 
@@ -205,6 +212,13 @@ ipcMain.on('set-resizable', (event, resizable: boolean) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
     win.setResizable(resizable);
+  }
+});
+
+ipcMain.on('close-window', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.close();
   }
 });
 
@@ -308,14 +322,7 @@ app.whenReady().then(() => {
   // Initialize sidecar
   const settings = loadSettings();
   sidecar = new PythonSidecar(store.path, settings.electron?.port || 8676, (source, text) => {
-    const logMsg = {
-      source,
-      text,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send('sidecar-log', logMsg);
-    });
+    logManager.addLog(source, text);
   });
   sidecar.start().catch((err) => {
     console.error('[Parcera] Failed to start Python sidecar:', err);
@@ -355,7 +362,7 @@ function createSettingsWindow() {
 
   const settings = loadSettings();
   const win = new BrowserWindow({
-    width: 900,
+    width: 600,
     height: 800,
     title: 'Parcera Settings',
     webPreferences: {

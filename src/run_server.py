@@ -21,12 +21,9 @@ from routers.config_router import create_config_router
 from routers.tts_router import create_tts_router
 
 logger = logging.getLogger(__name__)
-chat_logger = logging.getLogger("parcera.chat")
+from core.chat_logger import chat_logger
 
-# ─── Chat Logger Colors ───
-C_USER = "\033[1;36m"  # Bold Cyan
-C_AI = "\033[1;32m"    # Bold Green
-C_RESET = "\033[0m"
+from core.interaction import InteractionController
 
 class ParceraServer(ParceraAvatarBase):
     def __init__(self):
@@ -34,6 +31,8 @@ class ParceraServer(ParceraAvatarBase):
         self.config.setup_logging()
         self.tts_engine_manager = None
 
+        # Interaction Controller (Orchestrates the pipeline)
+        self.controller = InteractionController(self, self.config)
 
         # Track current providers for hot-swapping
         self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
@@ -60,13 +59,21 @@ class ParceraServer(ParceraAvatarBase):
             voice_recorder_enabled=False
         )
 
-        # Attach callbacks (One-time)
+        # Attach callbacks to controller
         if hasattr(self.stt, "on_recognized_callback"):
-            self.stt.on_recognized_callback = self.on_recognized
-        self.aiavatar_server.on_response(self.on_response)
+            self.stt.on_recognized_callback = self.controller.on_recognized
+        self.aiavatar_server.on_response(self.controller.on_response)
 
         # Initial sync
         self._sync_to_server()
+
+    async def on_recognized(self, session_id, text, is_filtered=False):
+        """Legacy delegate for backward compatibility or direct calls."""
+        await self.controller.on_recognized(session_id, text, is_filtered)
+
+    async def on_response(self, aiavatar_response, sts_response):
+        """Legacy delegate for backward compatibility or direct calls."""
+        await self.controller.on_response(aiavatar_response, sts_response)
 
     def reload_stt(self):
         """Re-initialize STT component. Useful after a model is downloaded."""
@@ -80,60 +87,12 @@ class ParceraServer(ParceraAvatarBase):
     def _sync_to_server(self):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""
         if hasattr(self.stt, "on_recognized_callback"):
-            self.stt.on_recognized_callback = self.on_recognized
+            self.stt.on_recognized_callback = self.controller.on_recognized
 
         self.aiavatar_server.llm = self.llm
         self.aiavatar_server.stt = self.stt
         self.aiavatar_server.tts = self.tts
         self.aiavatar_server.vad = self.vad
-
-    async def on_recognized(self, session_id, text):
-        # Hot-reload config if changed (backup mechanism)
-        if self.config.refresh():
-            self.apply_runtime_config()
-            logger.info("Config hot-reloaded automatically during recognition.")
-
-        if self.config.profile_mode:
-            import time
-            start_time = time.time()
-            logger.info(f"[PERF] STT Recognized: '{text}' at {start_time:.3f}")
-
-        chat_logger.info(f"{C_USER}[USER]: {text}{C_RESET}")
-
-        # Dynamic Merge Threshold
-        length = len(text)
-        dynamic_threshold = max(0.5, min(1.5, 0.5 + (length * 0.05)))
-        self.aiavatar_server.merge_request_threshold = dynamic_threshold
-
-        # First-Wins: Mark as busy
-        self.set_busy(session_id, True)
-
-        if session_id in self.aiavatar_server.websockets:
-            ws = self.aiavatar_server.websockets[session_id]
-            try:
-                await ws.send_json({
-                    "type": "thinking",
-                    "session_id": session_id,
-                    "text": text
-                })
-            except Exception as e:
-                logger.error(f"Error sending 'thinking' signal: {e}")
-
-    async def on_response(self, aiavatar_response, sts_response):
-        if self.config.profile_mode:
-            import time
-            now = time.time()
-
-        if sts_response.type == "final":
-            self.set_busy(aiavatar_response.session_id, False)
-            if self.config.profile_mode:
-                logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")
-
-            chat_logger.info(f"{C_AI}[AI]:   {sts_response.text}{C_RESET}")
-
-        if sts_response.type == "chunk":
-            if self.config.profile_mode:
-                logger.info(f"[PERF] Response Chunk (TTS Start): '{sts_response.text}' at {now:.3f}")
 
     def apply_runtime_config(self):
         """Apply non-structural settings (prompts, thresholds) to current components."""
@@ -143,6 +102,16 @@ class ParceraServer(ParceraAvatarBase):
         if hasattr(self.vad, "volume_db_threshold"):
             new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
             self.vad.volume_db_threshold = new_threshold
+
+        # Update STT filters
+        if hasattr(self.stt, "response_filter") and self.stt.response_filter:
+            stt_cfg = self.config.get("stt", {})
+            self.stt.response_filter.update_config(
+                force_keywords=self.config.get("force_keywords"),
+                ignore_sentences=stt_cfg.get("ignore_sentences"),
+                sensitivity=self.config.get("response_sensitivity"),
+                presets=self.config.get("sensitivity_presets")
+            )
 
 
 # ─── Initialization ─────────────────────────────────────────

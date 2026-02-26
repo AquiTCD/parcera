@@ -113,8 +113,8 @@ export const TTSTab: React.FC<TabProps> = ({
       />
 
       {(currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') ? (
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>{currentTTSProvider === 'aivisspeech' ? 'AivisSpeech' : currentTTSProvider === 'voicevox' ? 'VOICEVOX' : currentTTSProvider} エンジン設定</h3>
+        <div className="setting-card">
+          <h3 className="setting-card-title">{currentTTSProvider === 'aivisspeech' ? 'AivisSpeech' : currentTTSProvider === 'voicevox' ? 'VOICEVOX' : currentTTSProvider} エンジン設定</h3>
           <InputSetting
             label="エンジンのAPI URL"
             description={`デフォルト: ${defaultProviderSettings?.api_url}`}
@@ -133,14 +133,8 @@ export const TTSTab: React.FC<TabProps> = ({
           <div style={{ display: 'flex', gap: '10px', marginTop: '10px', marginBottom: '15px' }}>
             <button
               onClick={handleFetchSpeakers}
-              style={{
-                padding: '8px 16px',
-                background: '#3e3e42',
-                border: '1px solid #4d4d50',
-                color: '#fff',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
+              className="btn btn-secondary"
+              style={{ fontSize: '12px', padding: '6px 14px' }}
             >
               キャラクターリストを取得
             </button>
@@ -158,8 +152,8 @@ export const TTSTab: React.FC<TabProps> = ({
           />
         </div >
       ) : currentTTSProvider === 'google' ? (
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 設定</h3>
+        <div className="setting-card">
+          <h3 className="setting-card-title">Google TTS 設定</h3>
           <PasswordSetting
             label="1. APIキー (必須)"
             placeholder="Google Cloud API Key"
@@ -190,8 +184,8 @@ export const TTSTab: React.FC<TabProps> = ({
 
       {
         (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') && (
-          <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
-            <h3 style={{ marginTop: 0, fontSize: '16px' }}>共通音声パラメーター</h3>
+          <div className="setting-card" style={{ borderTop: 'none', paddingTop: '0' }}>
+            <h3 className="setting-card-title">共通音声パラメーター</h3>
             <InputSetting
               label="話速 (Speed Scale)"
               description="全体の喋る速さを調整します。(標準: 1.0)"
@@ -249,8 +243,8 @@ export const TTSTab: React.FC<TabProps> = ({
 
       {
         currentTTSProvider === 'google' && (
-          <div style={{ borderTop: '1px solid #444', paddingTop: '20px' }}>
-            <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google TTS 音声パラメーター</h3>
+          <div className="setting-card" style={{ borderTop: 'none', paddingTop: '0' }}>
+            <h3 className="setting-card-title">Google TTS 音声パラメーター</h3>
             <InputSetting
               label="話速 (Speaking Rate)"
               description="Google Cloud TTSのネイティブな話速設定です。(標準: 1.0)"

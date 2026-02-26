@@ -35,12 +35,14 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         whisper_vad_filter=False,
         on_recognized_callback=None,
         is_busy_handler=None,
+        set_busy_handler=None,
         download_root=None,
         debug=False
     ):
         super().__init__(debug=debug)
         self.on_recognized_callback = on_recognized_callback
         self.is_busy_handler = is_busy_handler
+        self.set_busy_handler = set_busy_handler
         self.model_name = model_name
         self.whisper_vad_filter = whisper_vad_filter
         self.download_root = download_root
@@ -55,51 +57,77 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         self.initial_prompt = initial_prompt or ""
         logger.info(f"Initialized STT with prompt: {self.initial_prompt}")
         self.response_filter = response_filter
+        self._transcribe_lock = asyncio.Lock()
 
     async def recognize(self, session_id: str, data: bytes) -> SpeechRecognitionResult:
         if self.is_busy_handler and self.is_busy_handler(session_id):
             logger.info(f"STT: AI is busy. Ignoring input for session {session_id} (First-Wins).")
             return SpeechRecognitionResult(text="")
 
-        text = await self.transcribe(data, session_id)
+        # Immediate Busy Flag: Mark as busy AS SOON AS we start processing
+        if self.set_busy_handler:
+            self.set_busy_handler(session_id, True)
+
+        text = ""
+        try:
+            text = await self.transcribe(data, session_id)
+        except Exception as e:
+            logger.error(f"STT: Transcription error: {e}")
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
+            return SpeechRecognitionResult(text="")
+
         if text:
-            logger.info(f"STT: Recognized: {text}")
+            logger.info(f"STT: Recognized (Raw): {text}")
+
+            # Determine if we should ignore this based on the filter
+            is_filtered = False
+            if self.response_filter and not self.response_filter.should_respond(text):
+                is_filtered = True
+
             if self.on_recognized_callback:
-                asyncio.create_task(self.on_recognized_callback(session_id, text))
-        return SpeechRecognitionResult(text=text)
+                await self.on_recognized_callback(session_id, text, is_filtered)
+
+            if is_filtered:
+                logger.info(f"STT: Ignored by filter (Silence Mode): {text}")
+                return SpeechRecognitionResult(text="")
+
+            return SpeechRecognitionResult(text=text)
+
+        else:
+            # transcription result is empty (silence/noise)
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
+            return SpeechRecognitionResult(text="")
 
     async def transcribe(self, data: bytes, session_id: str = None) -> str:
         audio_int16 = np.frombuffer(data, dtype=np.int16)
         audio_float32 = audio_int16.astype(np.float32) / 32768.0
 
-        duration = len(audio_float32) / 16000
-        max_vol = np.max(np.abs(audio_float32))
-        logger.debug(f"STT: Transcribing {duration:.2f}s, Max Vol: {max_vol:.4f}")
+        # Diagnostics: Sample Rate Check
+        duration_internal = len(audio_float32) / 16000
+        logger.debug(f"STT: Received {len(data)} bytes. Internal duration assuming 16kHz: {duration_internal:.2f}s")
 
-        loop = asyncio.get_event_loop()
-        segments, info = await loop.run_in_executor(
-            None,
-            lambda: self.model.transcribe(
-                audio_float32,
-                language="ja",
-                initial_prompt=self.initial_prompt if self.initial_prompt else None,
-                beam_size=5,
-                vad_filter=self.whisper_vad_filter,
-                temperature=0.0,
-                # vad_parameters=dict(min_silence_duration_ms=500)
-            )
-        )
+        async with self._transcribe_lock:
+            # 🌙 Note: We removed the busy check here to prevent self-blocking
+            # when recognize sets the busy flag right before calling transcribe.
+            loop = asyncio.get_event_loop()
+            def _execute_transcribe():
+                segments_iter, info = self.model.transcribe(
+                    audio_float32,
+                    language="ja",
+                    initial_prompt=self.initial_prompt if self.initial_prompt else None,
+                    beam_size=5,
+                    vad_filter=self.whisper_vad_filter,
+                    temperature=0.0,
+                )
+                return [s.text for s in segments_iter]
 
-        collected_segments = []
-        for s in segments:
-            collected_segments.append(s.text)
-            logger.debug(f"STT: Segment: {s.text} (prob: {s.avg_logprob:.2f})")
+            collected_texts = await loop.run_in_executor(None, _execute_transcribe)
 
-        text = "".join(collected_segments).strip()
+        for t in collected_texts:
+            logger.debug(f"STT: Segment: {t}")
 
-        if self.response_filter and text:
-            if not self.response_filter.should_respond(text):
-                logger.info(f"STT: Ignored by filter: {text}")
-                return ""
+        text = "".join(collected_texts).strip()
 
         return text

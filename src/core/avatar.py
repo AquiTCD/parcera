@@ -1,8 +1,8 @@
 import logging
 import os
 import asyncio
-from .config import ParceraConfig
-from .factory import ParceraComponentFactory
+from core.config import ParceraConfig
+from core.factory import ParceraComponentFactory
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +25,37 @@ class ParceraAvatarBase:
                 logger.warning(f"Failed to delete {db_path}: {e}")
 
         self.factory = ParceraComponentFactory(self.config)
-        self._busy_sessions = set()
+        self._busy_sessions = {}  # session_id -> Timer task
 
         self.llm = self.factory.build_llm()
-        self.stt = self.factory.build_stt(is_busy_handler=self._is_ai_busy_check)
+        self.stt = self.factory.build_stt(
+            is_busy_handler=self._is_ai_busy_check,
+            set_busy_handler=self.set_busy
+        )
         self.tts = self.factory.build_tts()
         self.vad = self.factory.build_vad()
 
     def _is_ai_busy_check(self, session_id: str) -> bool:
         return session_id in self._busy_sessions
 
-    def set_busy(self, session_id: str, busy: bool):
+    def set_busy(self, session_id: str, busy: bool, timeout: float = 15.0):
+        # Cancel existing timer if any
+        if session_id in self._busy_sessions:
+            self._busy_sessions[session_id].cancel()
+            del self._busy_sessions[session_id]
+
         if busy:
-            self._busy_sessions.add(session_id)
+            logger.debug(f"Setting busy flag for {session_id} (Timeout: {timeout}s)")
+
+            def clear_busy():
+                if session_id in self._busy_sessions:
+                    logger.warning(f"Busy flag timeout reached for {session_id}. Forcing reset.")
+                    del self._busy_sessions[session_id]
+
+            loop = asyncio.get_event_loop()
+            self._busy_sessions[session_id] = loop.call_later(timeout, clear_busy)
         else:
-            self._busy_sessions.discard(session_id)
+            logger.debug(f"Clearing busy flag for {session_id}")
 
     async def warmup(self):
         """
@@ -55,14 +71,18 @@ class ParceraAvatarBase:
         # 2. Warm-up TTS (Engine startup)
         # Synthesize a tiny silent character to wake up the engine/audio device
         try:
-            # Using asyncio.to_thread if synchronous, but most TTS clients are async-capable (or wrapped)
-            # Assuming self.tts.synthesize is async or fast enough
-            if asyncio.iscoroutinefunction(self.tts.voice_text_to_wav):
-                tasks.append(self.tts.voice_text_to_wav("。"))
+            # Check for synthesize (our custom class) or voice_text_to_wav (aiavatar legacy/fallback)
+            synth_method = getattr(self.tts, "synthesize", getattr(self.tts, "voice_text_to_wav", None))
+
+            if synth_method:
+                if asyncio.iscoroutinefunction(synth_method):
+                    tasks.append(synth_method("。"))
+                else:
+                    # If sync, run in executor
+                    loop = asyncio.get_running_loop()
+                    tasks.append(loop.run_in_executor(None, synth_method, "。"))
             else:
-                # If sync, run in executor
-                loop = asyncio.get_running_loop()
-                tasks.append(loop.run_in_executor(None, self.tts.voice_text_to_wav, "。"))
+                logger.warning("TTS component has no synthesize or voice_text_to_wav method.")
         except Exception as e:
              logger.warning(f"TTS Warm-up setup failed: {e}")
 

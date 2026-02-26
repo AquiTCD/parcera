@@ -78,8 +78,8 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
   };
 
   return (
-    <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-      <h3 style={{ marginTop: 0, fontSize: '16px' }}>Faster Whisper 設定</h3>
+    <div className="setting-card">
+      <h3 className="setting-card-title">Faster Whisper 設定</h3>
 
       <InputSetting
         label="モデル (HuggingFace形式)"
@@ -219,13 +219,53 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 
 export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
   const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
+  const [devices, setDevices] = useState<{ value: string, label: string }[]>([]);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = allDevices
+          .filter(d => d.kind === 'audioinput')
+          .map(d => ({
+            value: d.deviceId,
+            label: d.label || 'Microphone'
+          }))
+          .filter((v, i, a) => v.value && a.findIndex(t => t.value === v.value) === i); // Unique IDs
+
+        setDevices([
+          { value: 'default', label: 'システムデフォルト' },
+          ...audioInputs.filter(d => d.value !== 'default' && d.value !== '')
+        ]);
+      } catch (err) {
+        console.error('Failed to list audio devices:', err);
+      }
+    };
+    fetchDevices();
+
+    navigator.mediaDevices.addEventListener('devicechange', fetchDevices);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', fetchDevices);
+    };
+  }, []);
+
 
   return (
-    <section className="animate-fade-in">
+    <section className="tab-content-section">
       {renderTabHeader?.('音声認識（耳）')}
 
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px' }}>VAD設定 (声の検出)</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">VAD設定 (声の検出)</h3>
+
+        <div style={{ marginBottom: '20px' }}>
+          <SelectSetting
+            label="使用するマイク"
+            description="音声入力に使用するデバイスを選択します。"
+            value={settings.electron?.mic_device_id ?? 'default'}
+            onChange={(val) => updateNested('electron', 'mic_device_id', val)}
+            options={devices}
+          />
+        </div>
 
         <CheckboxSetting
           label="起動時にマイクをミュートにする"
@@ -253,7 +293,7 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           </div>
         </SettingGroup>
 
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="setting-form-row">
           <div style={{ flex: 1 }}>
             <InputSetting
               label="発話終了判定の無音時間 (秒)"
@@ -279,8 +319,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
         </div>
       </div>
 
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px' }}>割り込み・応答感度設定</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">割り込み・応答感度設定</h3>
 
         <InputSetting
           label="強制応答キーワード"
@@ -343,8 +383,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
       )}
 
       {currentSTTProvider === 'google' && (
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>Google STT 設定</h3>
+        <div className="setting-card">
+          <h3 className="setting-card-title">Google STT 設定</h3>
           <PasswordSetting
             label="APIキー"
             placeholder="Google Cloud API Key"
@@ -361,8 +401,8 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
       )}
 
       {currentSTTProvider === 'azure' && (
-        <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-          <h3 style={{ marginTop: 0, fontSize: '16px' }}>Azure STT 設定</h3>
+        <div className="setting-card">
+          <h3 className="setting-card-title">Azure STT 設定</h3>
           <PasswordSetting
             label="APIキー"
             placeholder="Azure API Key"

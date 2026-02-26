@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { state, logStatus } from '../lib/state';
 import type { AvatarType, AvatarConfig, ParceraSettings } from '../lib/state';
-import { initAudioContext, getContext, getAnalyser, setNoiseGateDb } from '../lib/audio';
+import { initAudioContext, getContext, getAnalyser, setNoiseGateDb, connectToAnalyser } from '../lib/audio';
 import { initVisual } from '../lib/visual';
 import { startWebSocket, setupMicStreaming } from '../lib/comm';
 
@@ -9,6 +9,11 @@ import { startWebSocket, setupMicStreaming } from '../lib/comm';
 const params = new URLSearchParams(window.location.search);
 state.avatarType = (params.get('type') as AvatarType) || 'user';
 console.log('[Parcera] Avatar Type Initialized:', state.avatarType);
+if (state.avatarType === 'ai') {
+  document.title = 'Parcera - AI';
+} else if (state.avatarType === 'user') {
+  document.title = 'Parcera - User';
+}
 
 export const Avatar: React.FC = () => {
   const avatarImageRef = useRef<HTMLImageElement>(null);
@@ -21,6 +26,8 @@ export const Avatar: React.FC = () => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [mode, setMode] = useState<'soliloquy' | 'conversation'>('soliloquy');
   const [controlCorner, setControlCorner] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
+  const [micId, setMicId] = useState<string | undefined>(undefined);
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -96,13 +103,24 @@ export const Avatar: React.FC = () => {
       }
 
       if (winConf?.locked !== undefined) {
-        setIsLocked(winConf.locked);
-        window.electronAPI.setResizable(!winConf.locked);
+        setIsLocked(prev => {
+          if (prev === !!winConf.locked) return prev;
+          window.electronAPI.setResizable(!winConf.locked);
+          return !!winConf.locked;
+        });
       }
 
       const newMode = settings.user_profile?.mode || 'soliloquy';
-      setMode(newMode);
+      setMode(prev => (prev === newMode ? prev : newMode));
+
+      const newMicId = settings.electron?.mic_device_id || 'default';
+      setMicId(prev => {
+        if (prev === newMicId) return prev;
+        console.log(`[Parcera] Mic ID changing: ${prev} -> ${newMicId}`);
+        return newMicId;
+      });
     };
+
 
     window.electronAPI.getSettings().then((s: ParceraSettings) => {
       applySettings(s);
@@ -119,6 +137,8 @@ export const Avatar: React.FC = () => {
     });
   }, []);
 
+
+
   // Audio/Mic Startup
   useEffect(() => {
     let active = true;
@@ -132,9 +152,24 @@ export const Avatar: React.FC = () => {
       if (ctx.state === 'suspended') await ctx.resume();
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-        });
+        // Stop previous track if exists
+        if (micTrackRef.current) {
+          micTrackRef.current.stop();
+        }
+
+        const constraints: MediaStreamConstraints = {
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 16000,
+            channelCount: 1,
+            deviceId: micId && micId !== 'default' ? { exact: micId } : undefined
+          }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
 
         const track = stream.getAudioTracks()[0];
         micTrackRef.current = track;
@@ -157,16 +192,24 @@ export const Avatar: React.FC = () => {
         const analyser = getAnalyser();
 
         if (state.avatarType === 'user') {
-          if (analyser) micSource.connect(analyser);
+          connectToAnalyser(micSource);
           updateStatus('User Mic Active');
         } else {
           await setupMicStreaming(micSource);
           updateStatus('AI System Listening...');
         }
       } catch (err) {
-        console.error('Mic Access Denied:', err);
+        console.error('Mic Access Error:', err);
+        // Fallback to default if a specific micId failed
+        if (micId && micId !== 'default') {
+          console.warn('[Parcera] Specific mic failed, falling back to default...');
+          updateStatus('Mic Fallback');
+          setMicId('default');
+          return; // The useEffect dependency [micId] will trigger a re-run with 'default'
+        }
         updateStatus('Mic Error');
       }
+
 
       if (state.avatarType === 'ai') startWebSocket();
       if (active) updateStatus('System Live');
@@ -174,7 +217,8 @@ export const Avatar: React.FC = () => {
 
     startup();
     return () => { active = false; };
-  }, []);
+  }, [micId]);
+
 
   const handleImageError = () => {
     if (!avatarImageRef.current) return;

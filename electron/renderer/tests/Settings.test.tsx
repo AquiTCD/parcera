@@ -12,6 +12,7 @@ const mockElectron = {
   resolveLocalPath: vi.fn((p) => `file://${p}`),
   getDefaultSettings: vi.fn(),
   getAvatarWindowBounds: vi.fn(),
+  getLogHistory: vi.fn().mockResolvedValue([]),
 };
 (window as any).electronAPI = mockElectron;
 vi.stubGlobal('electronAPI', mockElectron);

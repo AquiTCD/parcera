@@ -65,10 +65,12 @@ class ParceraSTTWrapper:
     Wraps any SpeechRecognizer to filter inputs when AI is busy or based on content.
     Note: Can't inherit SpeechRecognizer easily because we need to wrap the instance.
     """
-    def __init__(self, wrapped_recognizer, is_busy_handler=None, response_filter=None):
+    def __init__(self, wrapped_recognizer, is_busy_handler=None, set_busy_handler=None, response_filter=None, on_recognized_callback=None):
         self.wrapped = wrapped_recognizer
         self.is_busy_handler = is_busy_handler
+        self.set_busy_handler = set_busy_handler
         self.response_filter = response_filter
+        self.on_recognized_callback = on_recognized_callback
 
     async def recognize(self, session_id: str, data: bytes):
         # 1. Busy Check
@@ -78,26 +80,40 @@ class ParceraSTTWrapper:
             from aiavatar.sts.stt.base import SpeechRecognitionResult
             return SpeechRecognitionResult(text="")
 
+        # Immediate Busy Flag
+        if self.set_busy_handler:
+            self.set_busy_handler(session_id, True)
+
         # 2. Delegate to wrapped recognizer
-        result = await self.wrapped.recognize(session_id, data)
-
-        # NOTE: aiavatar's base.recognize signature might vary slightly depending on version,
-        # but typically takes data. Some implementations utilize session_id if custom.
-        # However, SpeechRecognizer.recognize usually just takes audio_data.
-        # We assume `aiavatar` calls `recognize(audio_data)`.
-
-        # Wait, the `KotobaWhisperRecognizer` implemented `recognize(session_id, data)`.
-        # The base `SpeechRecognizer` in `aiavatarkit` defines `recognize(self, audio_data: bytes)`.
-        # Parcera's `run_server.py` calls `stt.recognize(session_id, data)`.
-        # If we switch to standard `GoogleSpeechRecognizer`, it WON'T accept session_id.
-        # So this Wrapper ensures the interface consistency!
+        try:
+            result = await self.wrapped.recognize(session_id, data)
+        except Exception as e:
+            logger.error(f"STT Wrapper: Error during delegation: {e}")
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
+            from aiavatar.sts.stt.base import SpeechRecognitionResult
+            return SpeechRecognitionResult(text="")
 
         result_text = result.text if hasattr(result, "text") else str(result)
 
-        # 3. Response Filter
-        if self.response_filter and result_text:
-            if not self.response_filter.should_respond(result_text):
-                logger.debug(f"STT Wrapper: Ignored by filter: {result_text}")
-                return type(result)(text="") # Return empty result of same type
+        if result_text:
+            # Determine if we should ignore this based on the filter
+            is_filtered = False
+            if self.response_filter and not self.response_filter.should_respond(result_text):
+                is_filtered = True
+
+            if self.on_recognized_callback:
+                await self.on_recognized_callback(session_id, result_text, is_filtered)
+
+            # Filtering happens AFTER the callback so the text can be logged
+            if is_filtered:
+                logger.debug(f"STT Wrapper: Ignored by filter (Silence Mode): {result_text}")
+                from aiavatar.sts.stt.base import SpeechRecognitionResult
+                return SpeechRecognitionResult(text="")
+
+        else:
+            # Result text is empty (silence/noise)
+            if self.set_busy_handler:
+                self.set_busy_handler(session_id, False)
 
         return result

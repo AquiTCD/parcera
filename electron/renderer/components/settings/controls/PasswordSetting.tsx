@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { inputStyle } from '../types';
 import { SettingGroup } from './SettingGroup';
 
 interface PasswordSettingProps {
@@ -31,19 +30,12 @@ export const PasswordSetting: React.FC<PasswordSettingProps> = ({
           placeholder={placeholder}
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value)}
-          style={inputStyle}
+          className="setting-input"
         />
         <button
           onClick={() => setShow(!show)}
-          style={{
-            padding: '0 10px',
-            background: '#333',
-            border: '1px solid #555',
-            color: 'white',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap'
-          }}
+          className="btn btn-outline"
+          style={{ whiteSpace: 'nowrap', padding: '0 12px' }}
         >
           {show ? '隠す' : '表示'}
         </button>

@@ -77,20 +77,21 @@ class ParceraConfig:
         self.settings = {}
         self.refresh()
 
-    def refresh(self, new_settings: dict = None):
-        """Reload settings and prompts. Use disk if new_settings is None."""
+    def refresh(self, new_settings: dict = None) -> bool:
+        """Reload settings and prompts. Use disk if new_settings is None. Returns True if changed."""
         try:
-            self._load_settings(new_settings)
-            self._build_prompts()
-            self._build_stt_prompt()
-            self.setup_logging()
-            return True
+            changed = self._load_settings(new_settings)
+            if changed:
+                self._build_prompts()
+                self._build_stt_prompt()
+                self.setup_logging()
+                return True
         except Exception as e:
             logger.error(f"Error refreshing config: {e}")
         return False
 
-    def _load_settings(self, new_settings: dict = None):
-        """Load defaults, then overlay user settings (from memory or disk)."""
+    def _load_settings(self, new_settings: dict = None) -> bool:
+        """Load defaults, then overlay user settings. Returns True if settings were updated."""
         defaults_path = os.path.join(self.base_path, "configs", "settings.default.yaml")
         defaults = load_config_file(defaults_path)
 
@@ -104,12 +105,13 @@ class ParceraConfig:
                 logger.debug(f"User settings file not found: {self.settings_path}")
             else:
                 current_mtime = os.path.getmtime(self.settings_path)
-                if current_mtime <= self.last_mtime:
-                    return  # No change on disk
+                if current_mtime <= self.last_mtime and self.settings:
+                    return False  # No change on disk
                 user_settings = load_config_file(self.settings_path)
                 self.last_mtime = current_mtime
 
         self.settings = deep_merge(defaults, user_settings)
+        return True
 
     def _build_prompts(self):
         """Load prompt templates from disk and fill placeholders."""

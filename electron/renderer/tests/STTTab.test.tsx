@@ -17,6 +17,21 @@ global.fetch = vi.fn().mockResolvedValue({
   reloadModel: vi.fn(),
 };
 
+// Mock MediaDevices
+const mockEnumerateDevices = vi.fn().mockResolvedValue([
+  { kind: 'audioinput', deviceId: 'mic1', label: 'Mic 1' },
+  { kind: 'audioinput', deviceId: 'mic2', label: 'Mic 2' },
+]);
+
+Object.defineProperty(navigator, 'mediaDevices', {
+  value: {
+    enumerateDevices: mockEnumerateDevices,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  },
+  configurable: true,
+});
+
 describe('STTTab', () => {
   const mockUpdateNested = vi.fn();
   const mockUpdateRoot = vi.fn();
@@ -66,6 +81,22 @@ describe('STTTab', () => {
     expect(screen.getByLabelText('起動時にマイクをミュートにする')).toBeInTheDocument();
     expect(screen.getByText(/音声検出の音量閾値/)).toBeInTheDocument();
     expect(screen.getByLabelText('発話終了判定の無音時間 (秒)')).toBeInTheDocument();
+  });
+
+  it('renders and updates the microphone list', async () => {
+    render(<STTTab {...props} />);
+
+    expect(screen.getByText('使用するマイク')).toBeInTheDocument();
+
+    // Wait for devices to be fetched
+    await waitFor(() => {
+      const select = screen.getByLabelText('使用するマイク');
+      expect(select).toBeInTheDocument();
+    });
+
+    const select = screen.getByLabelText('使用するマイク');
+    fireEvent.change(select, { target: { value: 'mic1' } });
+    expect(mockUpdateNested).toHaveBeenCalledWith('electron', 'mic_device_id', 'mic1');
   });
 
   it('renders interruption and dictionary settings', async () => {

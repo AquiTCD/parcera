@@ -1,5 +1,5 @@
 import React from 'react';
-import { TabProps, inputStyle } from './types';
+import { TabProps } from './types';
 import { InputSetting } from './controls/InputSetting';
 import { SelectSetting } from './controls/SelectSetting';
 
@@ -11,12 +11,12 @@ export const AIProfileTab: React.FC<TabProps> = ({
   renderTabHeader
 }) => {
   return (
-    <section className="animate-fade-in">
+    <section className="tab-content-section">
       {renderTabHeader?.('キャラクター設定')}
 
       {/* AI Profile Section */}
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>AI キャラクター設定</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">AI キャラクター設定</h3>
 
         <InputSetting
           label="名前"
@@ -26,7 +26,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
           onChange={(val: string) => updateNested('ai_profile', 'name', val)}
         />
 
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="setting-form-row">
           <div style={{ flex: 1 }}>
             <InputSetting
               label="種族"
@@ -61,7 +61,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
           onChange={(val: string) => updateNested('ai_profile', 'tone', val)}
         />
 
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="setting-form-row">
           <div style={{ flex: 1 }}>
             <InputSetting
               label="一人称"
@@ -82,10 +82,10 @@ export const AIProfileTab: React.FC<TabProps> = ({
       </div>
 
       {/* User Profile Section */}
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>ユーザー設定 (あなたについて)</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">ユーザー設定 (あなたについて)</h3>
 
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="setting-form-row">
           <div style={{ flex: 1 }}>
             <InputSetting
               label="あなたの名前"
@@ -104,7 +104,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="setting-form-row">
           <div style={{ flex: 1 }}>
             <InputSetting
               label="性別"
@@ -128,18 +128,13 @@ export const AIProfileTab: React.FC<TabProps> = ({
       </div>
 
       {/* Knowledge Base Section */}
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>追加知識 / シチュエーション</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">追加知識 / シチュエーション</h3>
         <p style={{ fontSize: '12px', color: '#aaa', margin: '8px 0' }}>
           AIが知っておくべき背景情報や攻略情報、現在のシチュエーションを記述します。
         </p>
         <textarea
-          style={{
-            ...inputStyle,
-            height: '120px',
-            resize: 'vertical',
-            fontFamily: 'inherit'
-          }}
+          className="setting-input"
           value={settings.knowledge || ''}
           onChange={(e) => updateRoot('knowledge', e.target.value)}
           placeholder="例: A.K.I.の中足はガードさせて有利"

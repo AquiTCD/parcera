@@ -24,8 +24,8 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
   };
 
   return (
-    <div style={{ flex: 1, padding: '10px', background: '#333', borderRadius: '4px' }}>
-      <h4 style={{ marginTop: 0, marginBottom: '15px', fontSize: '14px', color: '#61dafb' }}>
+    <div className="setting-card" style={{ flex: 1, padding: '12px' }}>
+      <h4 className="setting-card-title" style={{ color: '#61dafb', borderBottom: 'none' }}>
         {labelPrefix}ウィンドウ
       </h4>
 
@@ -64,22 +64,14 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
               alert(`${labelPrefix}ウィンドウが見つかりません`);
             }
           }}
-          style={{
-            padding: '6px 12px',
-            background: '#3368ff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            width: '100%'
-          }}
+          className="btn btn-primary"
+          style={{ width: '100%', fontSize: '11px', padding: '6px' }}
         >
           📍 現在の{labelPrefix}ウィンドウの座標・サイズを取得
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+      <div className="setting-form-row">
         <div style={{ flex: 1 }}>
           <InputSetting
             label="X座標"
@@ -102,7 +94,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+      <div className="setting-form-row">
         <div style={{ flex: 1 }}>
           <InputSetting
             label="幅"

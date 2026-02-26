@@ -27,11 +27,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return filePath;
   },
   setResizable: (resizable: boolean): void => ipcRenderer.send('set-resizable', resizable),
+  closeWindow: (): void => ipcRenderer.send('close-window'),
   onLogMessage: (callback: (log: any) => void): (() => void) => {
     const listener = (_event: any, log: any) => callback(log);
     ipcRenderer.on('sidecar-log', listener);
     return () => ipcRenderer.removeListener('sidecar-log', listener);
   },
+  getLogHistory: (): Promise<any[]> => ipcRenderer.invoke('get-log-history'),
 
   // --- Model Management ---
   checkModelCached: async (modelName: string, port: number = 8676): Promise<boolean> => {
