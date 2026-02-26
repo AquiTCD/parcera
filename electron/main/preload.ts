@@ -98,4 +98,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return { success: false, error: err.message };
     }
   },
+
+  // --- Twitch ---
+  twitchStartAuth: (): Promise<void> => ipcRenderer.invoke('twitch-start-auth'),
+  twitchGetAuthStatus: (): Promise<boolean> => ipcRenderer.invoke('twitch-get-auth-status'),
+  twitchClearAuth: (): Promise<boolean> => ipcRenderer.invoke('twitch-clear-auth'),
+  onTwitchAuthStatus: (callback: (status: { success: boolean }) => void): (() => void) => {
+    const listener = (_event: any, status: { success: boolean }) => callback(status);
+    ipcRenderer.on('twitch-auth-status', listener);
+    return () => ipcRenderer.removeListener('twitch-auth-status', listener);
+  },
 });

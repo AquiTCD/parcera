@@ -7,6 +7,8 @@ import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
 import { PythonSidecar } from './sidecar';
 import { logManager } from './logger';
+import { twitchTokenStore } from './twitch/tokenStore';
+import { twitchOAuthHandler } from './twitch/oauth';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -253,6 +255,32 @@ ipcMain.handle('get-window-bounds', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return null;
   return win.getBounds();
+});
+
+ipcMain.handle('twitch-start-auth', async () => {
+  const settings = loadSettings();
+  const clientId = settings.twitch?.client_id;
+  const clientSecret = settings.twitch?.client_secret;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Twitch Client ID or Client Secret is missing in settings.');
+  }
+
+  await twitchOAuthHandler.startAuth(clientId, clientSecret);
+});
+
+ipcMain.handle('twitch-get-auth-status', async () => {
+  return twitchTokenStore.loadTokens() !== null;
+});
+
+ipcMain.handle('twitch-clear-auth', async () => {
+  twitchTokenStore.clearTokens();
+  return true;
+});
+
+ipcMain.handle('twitch-get-tokens', async () => {
+  // Only for internal use or highly trusted calls
+  return twitchTokenStore.loadTokens();
 });
 
 ipcMain.handle('get-avatar-window-bounds', async (_event, type: 'user' | 'ai') => {
