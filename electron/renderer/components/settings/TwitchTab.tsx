@@ -129,13 +129,13 @@ export const TwitchTab: React.FC<TabProps> = ({
           value={twitchSettings.wake_word || ''}
           defaultValue={defaultSettings?.twitch?.wake_word}
           onChange={(val) => updateNested('twitch', 'wake_word', val)}
-          placeholder="パルセラ"
         />
 
         <InputSetting
           label="無視するユーザー"
           description="カンマ区切りで入力（例: Nightbot, Moobot）"
           value={(twitchSettings.ignored_users || []).join(', ')}
+          defaultValue={defaultSettings?.twitch?.ignored_users?.join(', ')}
           onChange={(val) => updateNested('twitch', 'ignored_users', val.split(',').map((s: string) => s.trim()).filter((s: string) => s))}
         />
       </div>
