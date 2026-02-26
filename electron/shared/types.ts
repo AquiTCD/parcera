@@ -36,6 +36,7 @@ export interface TwitchSettings {
   wake_word?: string;
   ng_words?: string[];
   ignored_users?: string[];
+  response_speed?: string;
 }
 
 export interface LLMSettings {

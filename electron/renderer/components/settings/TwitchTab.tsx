@@ -3,6 +3,7 @@ import { TabProps } from './types';
 import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
+import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
 
 export const TwitchTab: React.FC<TabProps> = ({
@@ -122,6 +123,19 @@ export const TwitchTab: React.FC<TabProps> = ({
 
       <div className="setting-card">
         <h3 className="setting-card-title">応答ロジック</h3>
+
+        <SelectSetting
+          label="反応までの待ち時間"
+          description="チャットが届いてからパルセラが反応するまでの時間を調整します。棒読みちゃんの読み上げ待ちなどを考慮できます。"
+          value={twitchSettings.response_speed || 'natural'}
+          options={[
+            { label: 'なし', value: 'instant' },
+            { label: '短め', value: 'fast' },
+            { label: '標準', value: 'natural' },
+            { label: '長め', value: 'slow' },
+          ]}
+          onChange={(val) => updateNested('twitch', 'response_speed', val)}
+        />
 
         <InputSetting
           label="Wake Word (正規表現)"

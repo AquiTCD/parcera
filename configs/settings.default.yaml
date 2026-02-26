@@ -224,3 +224,4 @@ twitch:
     - "Nightbot"
     - "StreamElements"
     - "Moobot"
+  response_speed: "natural" # "instant" | "fast" | "natural" | "slow"
