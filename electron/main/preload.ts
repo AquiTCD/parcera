@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('sidecar-log', listener);
     return () => ipcRenderer.removeListener('sidecar-log', listener);
   },
+  getLogHistory: (): Promise<any[]> => ipcRenderer.invoke('get-log-history'),
 
   // --- Model Management ---
   checkModelCached: async (modelName: string, port: number = 8676): Promise<boolean> => {

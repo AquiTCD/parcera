@@ -201,6 +201,7 @@ export interface ElectronAPI {
   setResizable: (resizable: boolean) => void;
   closeWindow: () => void;
   onLogMessage: (callback: (log: SidecarLogMessage) => void) => () => void;
+  getLogHistory: () => Promise<SidecarLogMessage[]>;
 }
 
 declare global {

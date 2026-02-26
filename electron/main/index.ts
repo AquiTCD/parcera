@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
 import type { ParceraSettings, WindowConfig } from '../shared/types';
 import { PythonSidecar } from './sidecar';
+import { logManager } from './logger';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,7 +41,6 @@ export const RENDERER_DIST: string = path.join(process.env['APP_ROOT']!, 'dist')
 let userWindow: BrowserWindow | null = null;
 let aiWindow: BrowserWindow | null = null;
 let sidecar: PythonSidecar | null = null;
-
 process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
   app.quit();
@@ -322,14 +322,7 @@ app.whenReady().then(() => {
   // Initialize sidecar
   const settings = loadSettings();
   sidecar = new PythonSidecar(store.path, settings.electron?.port || 8676, (source, text) => {
-    const logMsg = {
-      source,
-      text,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send('sidecar-log', logMsg);
-    });
+    logManager.addLog(source, text);
   });
   sidecar.start().catch((err) => {
     console.error('[Parcera] Failed to start Python sidecar:', err);

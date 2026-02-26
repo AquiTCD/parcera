@@ -6,6 +6,11 @@ export const LogTab: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Fetch initial log history
+    window.electronAPI.getLogHistory().then((history) => {
+      setLogs(history.slice(-100));
+    });
+
     return window.electronAPI.onLogMessage((log) => {
       setLogs((prev) => [...prev.slice(-100), log]); // Keep last 100 logs to save memory
     });
@@ -36,11 +41,20 @@ export const LogTab: React.FC = () => {
           const cleanText = log.text.replace(/\x1b\[[0-9;]*m/g, '');
 
           // Determine color based on content
-          let contentColor = '#0f0'; // Default green
+          let contentColor = '#ccc'; // Default neutral grey
           if (log.source === 'stderr') contentColor = '#ff6b6b'; // Error
-          if (cleanText.includes('[USER]')) contentColor = '#61dafb'; // User (Cyan)
-          if (cleanText.includes('[AI]')) contentColor = '#f06292'; // AI (Pink)
-          if (cleanText.includes('INFO:')) contentColor = '#e0e0e0'; // Standard Info (Greyish)
+
+          if (cleanText.includes('(ignored)')) {
+            contentColor = '#888'; // Grey for ignored (Matches Python white/skipped)
+          } else if (cleanText.includes('[USER]')) {
+            contentColor = '#22d3ee'; // Bold Cyan (Matches Python \033[1;36m)
+          } else if (cleanText.includes('[AI]')) {
+            contentColor = '#4ade80'; // Bold Green (Matches Python \033[1;32m)
+          } else if (cleanText.includes('[Main]')) {
+            contentColor = '#888'; // Main process (Medium grey)
+          } else if (cleanText.includes('INFO:')) {
+            contentColor = '#bbb'; // Standard Info (Light grey)
+          }
 
           return (
             <div key={i} style={{ marginBottom: '4px', whiteSpace: 'pre-wrap' }}>

@@ -6,11 +6,11 @@ import { SelectSetting } from './controls/SelectSetting';
 
 export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updateRoot, updateNested, renderTabHeader }) => {
   return (
-    <section className="animate-fade-in">
+    <section className="tab-content-section">
       {renderTabHeader?.('システム')}
 
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px' }}>デバッグ・ログ設定</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">デバッグ・ログ設定</h3>
 
         <SelectSetting
           label="ログ出力レベル"
@@ -41,8 +41,8 @@ export const SystemTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
         />
       </div>
 
-      <div style={{ background: '#2d2d30', padding: '15px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0, fontSize: '16px' }}>通信・基本設定</h3>
+      <div className="setting-card">
+        <h3 className="setting-card-title">通信・基本設定</h3>
         <div style={{ marginBottom: '20px' }}>
           <InputSetting
             label="WebSocket ポート番号"

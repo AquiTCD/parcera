@@ -52,6 +52,7 @@ const mockElectron = {
   getWindowBounds: vi.fn(),
   setResizable: vi.fn(),
   saveSettings: vi.fn(),
+  getLogHistory: vi.fn().mockResolvedValue([]),
 };
 (window as any).electronAPI = mockElectron;
 
