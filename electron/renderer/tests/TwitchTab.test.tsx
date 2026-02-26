@@ -47,7 +47,7 @@ describe('TwitchTab', () => {
     });
 
     expect(screen.getByText('Twitch連携')).toBeInTheDocument();
-    expect(screen.getByLabelText('連携を有効にする')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Twitch連携を有効にする/)).toBeInTheDocument();
     expect(screen.getByDisplayValue('test_client_id')).toBeInTheDocument();
     expect(screen.getByDisplayValue('test_client_secret')).toBeInTheDocument();
     expect(screen.getByDisplayValue('テスト')).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('TwitchTab', () => {
       render(<TwitchTab {...props} />);
     });
 
-    const enabledSwitch = screen.getByLabelText('連携を有効にする');
+    const enabledSwitch = screen.getByLabelText(/Twitch連携を有効にする/);
     fireEvent.click(enabledSwitch);
     expect(mockUpdateNested).toHaveBeenCalledWith('twitch', 'enabled', true);
 
