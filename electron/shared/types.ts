@@ -24,7 +24,18 @@ export interface ParceraSettings {
   avatars?: AvatarSettings;
   ai_profile?: AIProfileSettings;
   user_profile?: UserProfileSettings;
+  twitch?: TwitchSettings;
   knowledge?: string;
+}
+
+export interface TwitchSettings {
+  enabled?: boolean;
+  client_id?: string;
+  client_secret?: string;
+  redirect_uri?: string;
+  wake_word?: string;
+  ng_words?: string[];
+  ignored_users?: string[];
 }
 
 export interface LLMSettings {
@@ -202,6 +213,12 @@ export interface ElectronAPI {
   closeWindow: () => void;
   onLogMessage: (callback: (log: SidecarLogMessage) => void) => () => void;
   getLogHistory: () => Promise<SidecarLogMessage[]>;
+
+  // Twitch
+  twitchStartAuth: () => Promise<void>;
+  twitchGetAuthStatus: () => Promise<boolean>;
+  twitchClearAuth: () => Promise<boolean>;
+  onTwitchAuthStatus: (callback: (status: { success: boolean }) => void) => () => void;
 }
 
 declare global {
