@@ -4,7 +4,7 @@ import { URL } from 'node:url';
 import crypto from 'node:crypto';
 import { twitchTokenStore } from './tokenStore';
 
-const PORT = 3000;
+const PORT = 8677;
 const REDIRECT_URI = `http://localhost:${PORT}/auth/callback`;
 
 export class TwitchOAuthHandler {
@@ -18,7 +18,7 @@ export class TwitchOAuthHandler {
     authUrl.searchParams.append('client_id', clientId);
     authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
     authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('scope', 'chat:read chat:write channel:read:subscriptions moderation:read');
+    authUrl.searchParams.append('scope', 'chat:read chat:edit channel:read:subscriptions moderation:read');
     authUrl.searchParams.append('state', this.state);
 
     this.startLocalServer(clientId, clientSecret);

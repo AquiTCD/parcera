@@ -217,7 +217,7 @@ twitch:
   enabled: false
   client_id: ""
   client_secret: ""
-  redirect_uri: "http://localhost:3000"
+  redirect_uri: "http://localhost:8677/auth/callback"
   wake_word: "パルセラ|Parcera"
   ng_words: []
   ignored_users:

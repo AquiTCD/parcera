@@ -85,7 +85,7 @@ export const TwitchTab: React.FC<TabProps> = ({
           <a href="https://dev.twitch.tv/console" target="_blank" rel="noreferrer" style={{ color: '#9146FF', textDecoration: 'none' }}>
             Twitch Developer Console ↗
           </a> で作成したアプリケーションの情報を入力してください。<br />
-          OAuthリダイレクトURIには <code>http://localhost:3000/auth/callback</code> を登録する必要があります。
+          OAuthリダイレクトURIには <code>http://localhost:8677/auth/callback</code> を登録する必要があります。
         </p>
 
         <div className="setting-item">

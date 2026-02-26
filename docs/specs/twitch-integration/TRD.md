@@ -16,8 +16,8 @@ Twitch連携は、以下の3層構造で実現する。
 ### 2.2 認証フロー (OAuth 2.0 Authorization Code Flow)
 1.  **認可の開始**: Electron の設定画面から「Twitch連携」ボタンを押下。ランダムな `state` 文字列を生成。
 2.  **認可要求**: Twitch の認可 URL (`https://id.twitch.tv/oauth2/authorize`) を外部ブラウザまたは Electron サブウィンドウで開く。
-    - 必須 Scope: `chat:read`, `chat:write`, `channel:read:subscriptions`, `moderation:read`.
-3.  **コードのキャッチ**: 認可後、`http://localhost:XXXX` にリダイレクト。Electron 内のローカルサーバー、またはカスタムプロトコル (`parcera://`) で `code` を受け取る。
+    - 必須 Scope: `chat:read`, `chat:edit`, `channel:read:subscriptions`, `moderation:read`.
+3.  **コードのキャッチ**: 認可後、`http://localhost:8677` にリダイレクト。Electron 内のローカルサーバー、またはカスタムプロトコル (`parcera://`) で `code` を受け取る。
 4.  **トークン交換**: 取得した `code` を Client ID / Secret と共に Twitch サーバーへ送信し、`access_token` と `refresh_token` を取得。
 5.  **セキュア保存**: `electron-safe-storage` を使用してトークンを暗号化し、ローカルに保存。
 6.  **自動更新 (Refresh)**: `access_token` の有効期限が切れる前に、`refresh_token` を使用してバックグラウンドで自動更新を行う（Python エンジン内の `twitchAPI` が担当）。
