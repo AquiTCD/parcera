@@ -7,6 +7,7 @@ import { VisualTab } from './settings/VisualTab';
 import { SystemTab } from './settings/SystemTab';
 import { AIProfileTab } from './settings/AIProfileTab';
 import { LogTab } from './settings/LogTab';
+import { TwitchTab } from './settings/TwitchTab';
 import { TabHeader } from './settings/TabHeader';
 import { useSettingsState } from './settings/useSettingsState';
 import { getDefaultsForTab } from './settings/restoreDefaults';
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'llm', label: '思考・返答（頭脳）' },
   { id: 'tts', label: '音声出力（口）' },
   { id: 'visual', label: 'アバター設定' },
+  { id: 'twitch', label: 'Twitch連携' },
   { id: 'system', label: 'システム' },
   { id: 'logs', label: 'ログ' },
 ];
@@ -125,6 +127,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'stt' && <STTTab {...tabProps} />}
           {activeTab === 'tts' && <TTSTab {...tabProps} updateTTSSettings={updateTTSSettings} />}
           {activeTab === 'visual' && <VisualTab {...tabProps} handleSelectDir={handleSelectDir} />}
+          {activeTab === 'twitch' && <TwitchTab {...tabProps} />}
           {activeTab === 'system' && <SystemTab {...tabProps} />}
           {activeTab === 'logs' && <LogTab />}
         </div>
