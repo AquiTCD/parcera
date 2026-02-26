@@ -137,7 +137,20 @@ class ParceraServer(ParceraAvatarBase):
                 async def chat_callback(user_name, text):
                     logger.info(f"Twitch Chat -> AI: [{user_name}] {text}")
                     full_text = f"[Twitch Chat] {user_name}: {text}"
-                    asyncio.create_task(self.aiavatar_server.chat(full_text))
+
+                    async def invoke_internal():
+                        from aiavatar.sts.models import STSRequest
+                        try:
+                            async for r in self.aiavatar_server.sts.invoke(STSRequest(
+                                type="invoke",
+                                session_id="parcera-session",
+                                text=full_text
+                            )):
+                                await self.aiavatar_server.handle_response(r)
+                        except Exception as e:
+                            logger.error(f"Error invoking AI from Twitch Chat: {e}", exc_info=True)
+
+                    asyncio.create_task(invoke_internal())
 
                 await self.twitch_client.start_chat(on_message=chat_callback)
         else:
