@@ -17,6 +17,7 @@ dependencies = [
   "openai>=2.20.0",
   "google-cloud-speech>=2.36.1",
   "azure-cognitiveservices-speech>=1.48.1",
+  "twitchapi>=4.5.0",
 ]
 
 [dependency-groups]

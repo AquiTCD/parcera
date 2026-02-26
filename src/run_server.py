@@ -19,6 +19,7 @@ from core.engine import TTSEngineManager
 from core.config import load_config_file
 from routers.config_router import create_config_router
 from routers.tts_router import create_tts_router
+from routers.twitch_router import create_twitch_router
 
 logger = logging.getLogger(__name__)
 from core.chat_logger import chat_logger
@@ -274,6 +275,7 @@ async def reload_model():
 # Register routers
 app.include_router(create_config_router(_get_server))
 app.include_router(create_tts_router(_get_server))
+app.include_router(create_twitch_router(_get_server))
 app.include_router(parcera_server.aiavatar_server.get_websocket_router())
 
 
