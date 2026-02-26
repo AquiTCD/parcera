@@ -101,21 +101,25 @@ class TwitchClient:
 
             self.chat.start()
             self.is_chat_started = True
-            logger.info("Twitch Chat listener started.")
+            logger.info(f"Twitch Chat listener started for broadcaster: {self.client_id}")
             return True
         except Exception as e:
             logger.error(f"Failed to start Twitch chat: {e}")
             return False
 
     async def _on_chat_ready(self, ready_event: EventData):
-        logger.info("Twitch Chat is ready. Joining broadcaster channel...")
+        logger.info(f"Twitch Chat Connected (Ready Event). Channel: {ready_event.channel_name if hasattr(ready_event, 'channel_name') else 'unknown'}")
         # Join the broadcaster's own channel
         user = await self.get_me()
         if user:
             await ready_event.chat.join_room(user.login)
             logger.info(f"Joined Twitch channel: {user.login}")
+        else:
+            logger.error("Failed to get broadcaster user info in _on_chat_ready. Cannot join room.")
 
     async def _on_chat_message(self, msg: ChatMessage):
+        logger.info(f"Twitch Chat Received: <{msg.user.name}> {msg.text}")
+
         # 1. Ignore messages from the bot/broadcaster itself (optional, but usually desired for wake words)
         # Actually, let's just use the ignored_users list.
 
@@ -140,7 +144,7 @@ class TwitchClient:
         if self.on_message_callback:
             # We pass a clean version of the message for the LLM
             # Maybe prefix with [Twitch] to give context to the LLM
-            await self.on_message_callback(msg.user.name, text)
+            await self.on_message_callback(msg.user.display_name, text)
 
     async def _on_token_refresh(self, access_token: str, refresh_token: str):
         logger.info("Twitch access token refreshed.")
