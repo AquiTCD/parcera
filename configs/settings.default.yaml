@@ -218,7 +218,7 @@ twitch:
   client_id: ""
   client_secret: ""
   redirect_uri: "http://localhost:8677/auth/callback"
-  wake_word: "パルセラ|Parcera"
+  wake_word: "パルセラ"
   ng_words: []
   ignored_users:
     - "Nightbot"

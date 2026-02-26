@@ -30,8 +30,9 @@ class TwitchClient:
         self.is_chat_started = False
         self.wake_word_pattern: Optional[re.Pattern] = None
         self.ignored_users = set()
+        self.ng_words_patterns: List[re.Pattern] = []
 
-    def update_settings(self, wake_word: str = None, ignored_users: List[str] = None):
+    def update_settings(self, wake_word: str = None, ignored_users: List[str] = None, ng_words: List[str] = None):
         """Update filtering settings dynamically."""
         if wake_word:
             try:
@@ -39,6 +40,15 @@ class TwitchClient:
                 logger.info(f"Twitch wake word updated: {wake_word}")
             except re.error as e:
                 logger.error(f"Invalid wake word regex: {e}")
+
+        if ng_words is not None:
+            self.ng_words_patterns = []
+            for word in ng_words:
+                try:
+                    self.ng_words_patterns.append(re.compile(word, re.IGNORECASE))
+                except re.error as e:
+                    logger.error(f"Invalid NG word regex '{word}': {e}")
+            logger.info(f"Twitch NG words updated: {ng_words}")
 
         if ignored_users is not None:
             self.ignored_users = {u.lower() for u in ignored_users}
@@ -112,6 +122,11 @@ class TwitchClient:
         # 2. Filter by ignored users
         if msg.user.name.lower() in self.ignored_users:
             return
+
+        # 2.5 Filter by NG words
+        for pattern in self.ng_words_patterns:
+            if pattern.search(msg.text):
+                return
 
         # 3. Check Wake Word
         text = msg.text

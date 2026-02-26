@@ -7,6 +7,7 @@ import { SettingGroup } from './controls/SettingGroup';
 
 export const TwitchTab: React.FC<TabProps> = ({
   settings,
+  defaultSettings,
   updateNested,
   renderTabHeader,
   setStatus,
@@ -126,8 +127,9 @@ export const TwitchTab: React.FC<TabProps> = ({
           label="Wake Word (正規表現)"
           description="チャットのどこかにこの正規表現にマッチする単語が含まれる場合のみ反応します。"
           value={twitchSettings.wake_word || ''}
+          defaultValue={defaultSettings?.twitch?.wake_word}
           onChange={(val) => updateNested('twitch', 'wake_word', val)}
-          placeholder="パルセラ|Parcera"
+          placeholder="パルセラ"
         />
 
         <InputSetting

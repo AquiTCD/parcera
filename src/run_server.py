@@ -127,7 +127,8 @@ class ParceraServer(ParceraAvatarBase):
         # 1. Update filters
         self.twitch_client.update_settings(
             wake_word=settings.get("wake_word"),
-            ignored_users=settings.get("ignored_users")
+            ignored_users=settings.get("ignored_users"),
+            ng_words=settings.get("ng_words")
         )
 
         # 2. Control Chat Listener
