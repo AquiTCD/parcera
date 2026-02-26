@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,12 +23,11 @@ def create_twitch_router(get_server):
         if not client_id or not client_secret:
             raise HTTPException(status_code=400, detail="Twitch Client ID or Secret missing in server config.")
 
-        # Lazy initialization of twitch_client on the server instance
+        # Lazy initialization of twitch_client
         if not hasattr(server, "twitch_client") or server.twitch_client is None:
             from core.twitch_client import TwitchClient
 
             async def on_refresh(at, rt):
-                # Optionally notify Electron back (TBD in Phase 2/3)
                 logger.info("Twitch tokens refreshed in background.")
 
             server.twitch_client = TwitchClient(client_id, client_secret, callback_on_refresh=on_refresh)
@@ -35,6 +35,9 @@ def create_twitch_router(get_server):
         success = await server.twitch_client.initialize(req.access_token, req.refresh_token)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to initialize Twitch client.")
+
+        # Apply filtering and start chat if enabled
+        await server.sync_twitch_client()
 
         user = await server.twitch_client.get_me()
         return {

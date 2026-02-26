@@ -114,6 +114,35 @@ class ParceraServer(ParceraAvatarBase):
                 presets=self.config.get("sensitivity_presets")
             )
 
+        # Sync Twitch Client
+        asyncio.create_task(self.sync_twitch_client())
+
+    async def sync_twitch_client(self):
+        """Synchronize twitch client state with current config."""
+        if not hasattr(self, "twitch_client") or self.twitch_client is None:
+            return
+
+        settings = self.config.settings.get("twitch", {})
+
+        # 1. Update filters
+        self.twitch_client.update_settings(
+            wake_word=settings.get("wake_word"),
+            ignored_users=settings.get("ignored_users")
+        )
+
+        # 2. Control Chat Listener
+        if settings.get("enabled"):
+            if not self.twitch_client.is_chat_started:
+                async def chat_callback(user_name, text):
+                    logger.info(f"Twitch Chat -> AI: [{user_name}] {text}")
+                    full_text = f"[Twitch Chat] {user_name}: {text}"
+                    asyncio.create_task(self.aiavatar_server.chat(full_text))
+
+                await self.twitch_client.start_chat(on_message=chat_callback)
+        else:
+            if self.twitch_client.is_chat_started:
+                await self.twitch_client.stop_chat()
+
 
 # ─── Initialization ─────────────────────────────────────────
 

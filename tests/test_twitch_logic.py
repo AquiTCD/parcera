@@ -65,6 +65,10 @@ async def test_twitch_router_init_success(client):
         instance = MockTwitchClient.return_value
         instance.initialize = AsyncMock(return_value=True)
         instance.get_me = AsyncMock(return_value=mock_user)
+        instance.start_chat = AsyncMock()
+        instance.stop_chat = AsyncMock()
+        instance.update_settings = MagicMock()
+        instance.is_chat_started = False
 
         response = client.post("/twitch/init", json={
             "access_token": "at",
@@ -78,6 +82,7 @@ async def test_twitch_router_init_success(client):
 
         # Verify it was initialized with config values
         MockTwitchClient.assert_called_once_with("config_id", "config_secret", callback_on_refresh=ANY)
+        instance.update_settings.assert_called_once()
 
 def test_twitch_router_init_missing_config(client):
     parcera_server.config = MagicMock()
@@ -107,3 +112,35 @@ async def test_twitch_router_status(client):
     data = response.json()
     assert data["initialized"] is True
     assert data["user"]["display_name"] == "StatusUser"
+
+@pytest.mark.anyio
+async def test_twitch_client_chat_filtering():
+    from src.core.twitch_client import TwitchClient
+
+    client = TwitchClient("id", "secret")
+    # Set wake word and ignored users
+    client.update_settings(wake_word="パルセラ", ignored_users=["BotUser"])
+
+    callback = AsyncMock()
+    client.on_message_callback = callback
+
+    # 1. Ignored user message
+    msg_ignored = MagicMock()
+    msg_ignored.user.name = "BotUser"
+    msg_ignored.text = "パルセラ こんにちは"
+    await client._on_chat_message(msg_ignored)
+    callback.assert_not_called()
+
+    # 2. Message without wake word
+    msg_no_wake = MagicMock()
+    msg_no_wake.user.name = "RealUser"
+    msg_no_wake.text = "こんにちは"
+    await client._on_chat_message(msg_no_wake)
+    callback.assert_not_called()
+
+    # 3. Valid message with wake word
+    msg_match = MagicMock()
+    msg_match.user.name = "RealUser"
+    msg_match.text = "ねえパルセラ！"
+    await client._on_chat_message(msg_match)
+    callback.assert_called_once_with("RealUser", "ねえパルセラ！")
