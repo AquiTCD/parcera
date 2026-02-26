@@ -67,6 +67,7 @@ class ParceraServer(ParceraAvatarBase):
 
         # Initial sync
         self._sync_to_server()
+        self.apply_runtime_config()
 
     async def on_recognized(self, session_id, text, is_filtered=False):
         """Legacy delegate for backward compatibility or direct calls."""
@@ -97,8 +98,8 @@ class ParceraServer(ParceraAvatarBase):
 
     def apply_runtime_config(self):
         """Apply non-structural settings (prompts, thresholds) to current components."""
-        if hasattr(self.llm, "system_message"):
-            self.llm.system_message = self.config.full_system_prompt
+        if hasattr(self.llm, "system_prompt"):
+            self.llm.system_prompt = self.config.full_system_prompt
 
         if hasattr(self.vad, "volume_db_threshold"):
             new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
@@ -132,27 +133,35 @@ class ParceraServer(ParceraAvatarBase):
         )
 
         # 2. Control Chat Listener
-        if settings.get("enabled"):
+        enabled = settings.get("enabled", False)
+
+        main_loop = asyncio.get_running_loop()
+
+        if enabled:
+            async def chat_callback(user_name, text):
+                chat_logger.log_twitch(user_name, text)
+                full_text = f"[Twitch] {user_name}: {text}"
+
+                async def invoke_internal():
+                    from aiavatar.sts.models import STSRequest
+                    try:
+                        async for r in self.aiavatar_server.sts.invoke(STSRequest(
+                            type="invoke",
+                            session_id="parcera-session",
+                            text=full_text
+                        )):
+                            await self.aiavatar_server.handle_response(r)
+                    except Exception as e:
+                        logger.error(f"Error invoking AI from Twitch Chat: {e}", exc_info=True)
+
+                # Dispatch to main loop
+                asyncio.run_coroutine_threadsafe(invoke_internal(), main_loop)
+
             if not self.twitch_client.is_chat_started:
-                async def chat_callback(user_name, text):
-                    logger.info(f"Twitch Chat -> AI: [{user_name}] {text}")
-                    full_text = f"[Twitch Chat] {user_name}: {text}"
-
-                    async def invoke_internal():
-                        from aiavatar.sts.models import STSRequest
-                        try:
-                            async for r in self.aiavatar_server.sts.invoke(STSRequest(
-                                type="invoke",
-                                session_id="parcera-session",
-                                text=full_text
-                            )):
-                                await self.aiavatar_server.handle_response(r)
-                        except Exception as e:
-                            logger.error(f"Error invoking AI from Twitch Chat: {e}", exc_info=True)
-
-                    asyncio.create_task(invoke_internal())
-
                 await self.twitch_client.start_chat(on_message=chat_callback)
+            else:
+                # Update callback even if already started
+                self.twitch_client.on_message_callback = chat_callback
         else:
             if self.twitch_client.is_chat_started:
                 await self.twitch_client.stop_chat()

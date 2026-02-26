@@ -36,8 +36,9 @@ def create_twitch_router(get_server):
         if not success:
             raise HTTPException(status_code=500, detail="Failed to initialize Twitch client.")
 
-        # Apply filtering and start chat if enabled
-        await server.sync_twitch_client()
+        # Rebuild prompt and start chat (apply_runtime_config calls sync_twitch_client)
+        server.config.refresh()
+        server.apply_runtime_config()
 
         user = await server.twitch_client.get_me()
         return {
