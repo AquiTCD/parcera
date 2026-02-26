@@ -26,7 +26,7 @@ class ParceraAvatarBase:
 
         self.factory = ParceraComponentFactory(self.config)
         self._busy_sessions = {}  # session_id -> Timer task
-
+        self._busy_sources = {}   # session_id -> source name (e.g. "user", "twitch")
         self.llm = self.factory.build_llm()
         self.stt = self.factory.build_stt(
             is_busy_handler=self._is_ai_busy_check,
@@ -38,19 +38,31 @@ class ParceraAvatarBase:
     def _is_ai_busy_check(self, session_id: str) -> bool:
         return session_id in self._busy_sessions
 
-    def set_busy(self, session_id: str, busy: bool, timeout: float = 15.0):
+    def is_busy(self, source: str = None) -> bool:
+        """Check if AI is busy, optionally filtered by source."""
+        if source is None:
+            return len(self._busy_sessions) > 0
+        return any(s == source for s in self._busy_sources.values())
+
+    def set_busy(self, session_id: str, busy: bool, timeout: float = 15.0, source: str = None):
         # Cancel existing timer if any
         if session_id in self._busy_sessions:
             self._busy_sessions[session_id].cancel()
             del self._busy_sessions[session_id]
+            if session_id in self._busy_sources:
+                del self._busy_sources[session_id]
 
         if busy:
-            logger.debug(f"Setting busy flag for {session_id} (Timeout: {timeout}s)")
+            logger.debug(f"Setting busy flag for {session_id} (Source: {source}, Timeout: {timeout}s)")
+            if source:
+                self._busy_sources[session_id] = source
 
             def clear_busy():
                 if session_id in self._busy_sessions:
                     logger.warning(f"Busy flag timeout reached for {session_id}. Forcing reset.")
                     del self._busy_sessions[session_id]
+                    if session_id in self._busy_sources:
+                        del self._busy_sources[session_id]
 
             loop = asyncio.get_event_loop()
             self._busy_sessions[session_id] = loop.call_later(timeout, clear_busy)

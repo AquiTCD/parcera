@@ -21,6 +21,11 @@ class InteractionController:
             self.avatar.apply_runtime_config()
             logger.info("Config hot-reloaded automatically during recognition.")
 
+        # Check if AI is occupied with high-priority Twitch response
+        if self.avatar.is_busy(source="twitch"):
+            logger.info(f"Dropping user input because AI is busy with Twitch: {text}")
+            return
+
         # 1. Ignored Speech
         if is_filtered:
             chat_logger.log_user(text, ignored=True)
@@ -65,8 +70,11 @@ class InteractionController:
             weight = ResponseWeightFilter.calculate_weight(sts_response.text)
             estimated_duration = (weight / cps) + buffer
 
-            logger.info(f"Response Final: Weight={weight}, CPS={cps}, BusyTimeout={estimated_duration:.2f}s")
-            self.avatar.set_busy(aiavatar_response.session_id, True, timeout=estimated_duration)
+            # Determine source: Twitch uses a specific session_id
+            source = "twitch" if aiavatar_response.session_id == "twitch-session" else "user"
+
+            logger.info(f"Response Final ({source}): Weight={weight}, CPS={cps}, BusyTimeout={estimated_duration:.2f}s")
+            self.avatar.set_busy(aiavatar_response.session_id, True, timeout=estimated_duration, source=source)
 
             if self.config.profile_mode:
                 logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")

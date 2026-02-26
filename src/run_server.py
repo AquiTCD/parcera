@@ -60,6 +60,8 @@ class ParceraServer(ParceraAvatarBase):
             voice_recorder_enabled=False
         )
 
+        self.twitch_queue = asyncio.Queue()
+
         # Attach callbacks to controller
         if hasattr(self.stt, "on_recognized_callback"):
             self.stt.on_recognized_callback = self.controller.on_recognized
@@ -116,7 +118,11 @@ class ParceraServer(ParceraAvatarBase):
             )
 
         # Sync Twitch Client
-        asyncio.create_task(self.sync_twitch_client())
+        try:
+            asyncio.get_running_loop().create_task(self.sync_twitch_client())
+        except RuntimeError:
+            # Skip if no loop is running (e.g. during test import or CLI initialization)
+            pass
 
     async def sync_twitch_client(self):
         """Synchronize twitch client state with current config."""
@@ -140,31 +146,82 @@ class ParceraServer(ParceraAvatarBase):
         if enabled:
             async def chat_callback(user_name, text):
                 chat_logger.log_twitch(user_name, text)
-                full_text = f"[Twitch] {user_name}: {text}"
 
-                async def invoke_internal():
-                    from aiavatar.sts.models import STSRequest
-                    try:
-                        async for r in self.aiavatar_server.sts.invoke(STSRequest(
-                            type="invoke",
-                            session_id="parcera-session",
-                            text=full_text
-                        )):
-                            await self.aiavatar_server.handle_response(r)
-                    except Exception as e:
-                        logger.error(f"Error invoking AI from Twitch Chat: {e}", exc_info=True)
+                async def enqueue():
+                    await self.twitch_queue.put((user_name, text))
 
-                # Dispatch to main loop
-                asyncio.run_coroutine_threadsafe(invoke_internal(), main_loop)
+                asyncio.run_coroutine_threadsafe(enqueue(), main_loop)
 
             if not self.twitch_client.is_chat_started:
                 await self.twitch_client.start_chat(on_message=chat_callback)
             else:
-                # Update callback even if already started
                 self.twitch_client.on_message_callback = chat_callback
         else:
             if self.twitch_client.is_chat_started:
                 await self.twitch_client.stop_chat()
+
+    def _calculate_twitch_wait_time(self, text: str) -> float:
+        import re
+        twitch_cfg = self.config.get("twitch", {})
+        speed = twitch_cfg.get("response_speed", "natural")
+
+        presets = {
+            "instant": [0.1, 0.0],
+            "fast":    [0.3, 0.05],
+            "natural": [0.5, 0.12],
+            "slow":    [1.0, 0.25],
+        }
+        base, spw = presets.get(speed, presets["natural"])
+
+        if speed == "instant":
+            return base
+
+        # Weight: Kanji=2, others=1. Ignore symbols.
+        clean_text = re.sub(r"[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]", "", text)
+        weight = sum(2 if "\u4e00" <= c <= "\u9fff" else 1 for c in clean_text)
+
+        return base + (weight * spw)
+
+    async def _process_twitch_queue(self):
+        logger.info("Twitch queue processor started.")
+        while True:
+            try:
+                user_name, text = await self.twitch_queue.get()
+
+                # 1. Wait while AI is busy with anything
+                while self.is_busy():
+                    await asyncio.sleep(0.5)
+
+                # 2. Emulate stream reader lag
+                wait_time = self._calculate_twitch_wait_time(text)
+                await asyncio.sleep(wait_time)
+
+                # 3. Check again if busy (priority to user)
+                while self.is_busy():
+                    await asyncio.sleep(0.5)
+                # 4. Invoke AI with specific session ID
+                await self._invoke_twitch_response(user_name, text)
+
+                self.twitch_queue.task_done()
+
+                # Space out consecutive queued messages
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logger.error(f"Error in Twitch queue processor: {e}", exc_info=True)
+                await asyncio.sleep(1.0)
+
+    async def _invoke_twitch_response(self, user_name, text):
+        from aiavatar.sts.models import STSRequest
+        full_text = f"[Twitch] {user_name}: {text}"
+        try:
+            async for r in self.aiavatar_server.sts.invoke(STSRequest(
+                type="invoke",
+                session_id="twitch-session",
+                text=full_text
+            )):
+                await self.aiavatar_server.handle_response(r)
+        except Exception as e:
+            logger.error(f"Error invoking AI from Twitch Chat: {e}")
 
 
 # ─── Initialization ─────────────────────────────────────────
@@ -198,6 +255,7 @@ async def lifespan(app: FastAPI):
         parcera_server.current_tts_provider = provider
 
     asyncio.create_task(parcera_server.warmup())
+    asyncio.create_task(parcera_server._process_twitch_queue())
 
     yield
 
