@@ -6,15 +6,6 @@ import math
 logger = logging.getLogger(__name__)
 
 class ResponseWeightFilter:
-    # Tuning presets: (midpoint, slope, max_prob)
-    # Midpoint: Weighted length where response probability is 50%
-    # Max_prob: The ceiling of response probability for very long sentences
-    presets = {
-        "high":   (10.0, 0.45, 0.95),  # Chatty
-        "medium": (21.0, 0.35, 0.90),  # Natural
-        "low":    (30.0, 0.15, 0.50),  # Quiet
-    }
-
     @staticmethod
     def calculate_weight(text: str) -> float:
         """
@@ -30,28 +21,39 @@ class ResponseWeightFilter:
         kanji_count = len(re.findall(r'[一-龠]', clean_text))
         return float(raw_len + kanji_count)
 
-    def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium"):
+    def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium", presets=None):
+        # Default presets if none provided (as fallback)
+        self.presets = presets or {
+            "high":   (10.0, 0.45, 0.95),
+            "medium": (21.0, 0.35, 0.90),
+            "low":    (30.0, 0.15, 0.50),
+        }
+
         # Initial state from arguments
         self.force_keywords = force_keywords if force_keywords is not None else []
         self.ignore_sentences = ignore_sentences if ignore_sentences is not None else []
         self.sensitivity = sensitivity.lower() if sensitivity else "medium"
         self.midpoint = self.slope = self.max_prob = 0.0
 
-        # Sync internal probability parameters based on the initial sensitivity
+        # Sync internal probability parameters
         self.update_config()
 
-    def update_config(self, force_keywords=None, ignore_sentences=None, sensitivity=None):
+    def update_config(self, force_keywords=None, ignore_sentences=None, sensitivity=None, presets=None):
         if force_keywords is not None:
             self.force_keywords = force_keywords
         if ignore_sentences is not None:
             self.ignore_sentences = ignore_sentences
         if sensitivity is not None:
             self.sensitivity = sensitivity.lower()
+        if presets is not None:
+            self.presets = presets
 
         # Guard against invalid sensitivity strings
-        preset = self.presets.get(self.sensitivity, self.presets["medium"])
-        self.midpoint, self.slope, self.max_prob = preset
-        logger.info(f"ResponseFilter Updated: Sensitivity='{self.sensitivity}' (mid={self.midpoint}, slope={self.slope}, max={self.max_prob}), ForceKWs={len(self.force_keywords)}, Ignore={len(self.ignore_sentences)}")
+        # Config provides list [mid, slope, max], we map it to tuple
+        raw_preset = self.presets.get(self.sensitivity, self.presets["medium"])
+        self.midpoint, self.slope, self.max_prob = tuple(raw_preset)
+
+        logger.info(f"ResponseFilter Updated: Sensitivity='{self.sensitivity}' (mid={self.midpoint}, slope={self.slope}, max={self.max_prob})")
 
     def should_respond(self, text: str) -> bool:
         if not text:

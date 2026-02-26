@@ -4,8 +4,22 @@ verbose: false         # Show detailed debug logs
 profile_mode: false    # Enable performance logging ([PERF]) to measure latency
 simple_log: true       # If true, only chat logs are shown in terminal
 log_level: "INFO"      # Logging level: DEBUG, INFO, WARNING, ERROR
-merge_request_threshold: 0.6  # [Seconds] Wait time after STT before LLM starts. Combined with VAD silence, defines total gap.
-response_sensitivity: "medium"  # "high" | "medium" | "low" - Controls how often AI responds to non-keyword speech
+# Interaction Pipeline Settings
+# ==========================================
+merge_request_threshold: 0.6  # [Seconds] Wait time after STT before LLM starts.
+response_sensitivity: "medium"  # "high" | "medium" | "low"
+
+# Weighted Length Sigmoid Presets: (midpoint, slope, max_prob)
+sensitivity_presets:
+  high:   [10.0, 0.45, 0.95]
+  medium: [21.0, 0.35, 0.90]
+  low:    [30.0, 0.15, 0.50]
+
+# TTS Busy Duration Estimation
+tts_timing:
+  chars_per_second: 6.0
+  buffer_latency: 1.0
+
 force_keywords:       # AI will always respond if these keywords are detected
   - パルセラ
   - Parcera

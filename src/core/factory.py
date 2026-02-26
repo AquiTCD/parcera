@@ -81,7 +81,8 @@ class ParceraComponentFactory:
         response_filter = ResponseWeightFilter(
             force_keywords=force_keywords,
             ignore_sentences=ignore_sentences,
-            sensitivity=sensitivity
+            sensitivity=sensitivity,
+            presets=self.config.get("sensitivity_presets")
         )
 
         recognizer_instance = None
