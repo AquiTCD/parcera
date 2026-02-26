@@ -138,6 +138,14 @@ export const TwitchTab: React.FC<TabProps> = ({
           defaultValue={defaultSettings?.twitch?.ignored_users?.join(', ')}
           onChange={(val) => updateNested('twitch', 'ignored_users', val.split(',').map((s: string) => s.trim()).filter((s: string) => s))}
         />
+
+        <InputSetting
+          label="NGワード (正規表現)"
+          description="これらの単語が含まれるチャットを無視します。カンマ区切りで入力。"
+          value={(twitchSettings.ng_words || []).join(', ')}
+          defaultValue={defaultSettings?.twitch?.ng_words?.join(', ')}
+          onChange={(val) => updateNested('twitch', 'ng_words', val.split(',').map((s: string) => s.trim()).filter((s: string) => s))}
+        />
       </div>
     </section>
   );
