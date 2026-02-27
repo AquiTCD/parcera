@@ -23,10 +23,10 @@ def test_should_respond_with_weight_threshold():
     import math
 
     # We expect a weight of 4.0 ("天気") to have a low probability
-    # P = 0.9 / (1 + exp(-0.35 * (4.0 - 18.0)))
-    # P = 0.9 / (1 + exp(4.9)) = 0.9 / (1 + 134) = 0.006...
-    # So even with a 0.1 roll, it should be False.
-    with patch("random.random", return_value=0.1):
+    # P = 0.6 / (1 + exp(-0.10 * (4.0 - 18.0)))
+    # P = 0.6 / (1 + exp(1.4)) = 0.6 / (1 + 4.05) = 0.6 / 5.05 = 0.118...
+    # So with a 0.2 roll, it should be False.
+    with patch("random.random", return_value=0.2):
         assert f.should_respond("天気") is False
     # Setup filter with ignore sentences
     ignore = ["無視して", "スキップ"]
@@ -69,13 +69,13 @@ def test_filter_length_probability():
 def test_filter_sensitivity_presets():
     # High sensitivity should be more chatty (lower midpoint)
     f_high = ResponseWeightFilter(sensitivity="high")
-    assert f_high.midpoint == 10.0
+    assert f_high.midpoint == 12.0
 
     # Low sensitivity should be quiet (higher midpoint)
     f_low = ResponseWeightFilter(sensitivity="low")
-    assert f_low.midpoint == 30.0
+    assert f_low.midpoint == 20.0
 
     # Unknown sensitivity should fallback
     f_unknown = ResponseWeightFilter(sensitivity="super-chatty")
     assert f_unknown.sensitivity == "super-chatty"
-    assert f_unknown.midpoint == 21.0 # default medium
+    assert f_unknown.midpoint == 18.0 # default medium

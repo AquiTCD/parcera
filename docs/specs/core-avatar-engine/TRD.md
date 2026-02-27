@@ -14,8 +14,11 @@ Python 3.11+ 上で動作し、FastAPI による WebSocket サーバーを介し
 
 ### 2.1 コンポーネント・ファクトリ (`src/core/factory.py`)
 `ParceraComponentFactory` クラスが設定に基づき各インスタンス（LLM/STT/TTS/VAD）を動的に生成する。
-- **STT**: `KotobaWhisperRecognizer` (CTranslate2) を使用し、Macでの実行時はMPSの有無を自動判定（現在はCPU+int8に安全に倒す設定）。
+- **STT**: `KotobaWhisperRecognizer` (CTranslate2) を使用。Macでの実行時はMPSの有無を自動判定（現在はCPU+int8に安全に倒す設定）。SileroVADの自動ロードによる詰まりを避けるため、標準的な音量ベースのVADを使用。
 - **LLM Wrapper**: プロファイリング（思考時間計測）やプロンプトの動的結合を行う。
+    - **Note on SQLite Persistence**: AIAvatarライブラリ標準のままだとGemini提供のPydanticモデルがシリアライズエラーを起こすため、`src/gemini_fix.py` 内の `FixedGeminiService` でJSONシリアライズによる回避策を適用している。
+- **TTS**: Voicevox / AivisSpeech (Local API)
+    - **Parameter Note**: AivisSpeech等の特定環境では `voicevox_url` ではなく `tts_voicevox_url` パラメータの使用が必須。
 
 ### 2.2 通信プロトコル
 WebSocket (`ws://localhost:{port}/ws`) を使用。
@@ -50,3 +53,12 @@ WebSocket (`ws://localhost:{port}/ws`) を使用。
     - 文長に基づく確率制御（短すぎる発話は無視）。
     - 登録された `force_keywords` が含まれる場合は確率 1.0 で反応。
     - `ignore_sentences` に含まれるフレーズは無視。
+
+#### 4.1 反応確率プリセット (Response Probability Presets)
+文の重み（Weight = 文字数 + 漢字数）に基づくシグモイド関数による確率制御。
+
+| プリセット | midpoint | slope | max_prob | 特徴 |
+| :--- | :---: | :---: | :---: | :--- |
+| **high** (頻繁) | 12.0 | 0.15 | 0.80 | 短い言葉（W=10）で34%、長い言葉や重要な発言で約80%反応。 |
+| **medium** (普通) | 18.0 | 0.10 | 0.60 | 短い言葉で18%、文字数が増えても最大60%に抑えた自然な反応。 |
+| **low** (低い) | 20.0 | 0.12 | 0.50 | 短い言葉は10%程度、長くても最大50%に抑制された控えめな挙動。 |

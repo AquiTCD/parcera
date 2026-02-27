@@ -16,6 +16,11 @@ class InteractionController:
 
     async def on_recognized(self, session_id: str, text: str, is_filtered: bool = False):
         """Callback handled after STT processing."""
+        # Hot-reload check (Always check, even if filtered, so settings stay fresh)
+        if self.config.refresh():
+            self.avatar.apply_runtime_config()
+            logger.info("Config hot-reloaded automatically during recognition.")
+
         # 1. Ignored Speech
         if is_filtered:
             chat_logger.log_user(text, ignored=True)
@@ -27,11 +32,6 @@ class InteractionController:
 
         if self.config.profile_mode:
             logger.info(f"[PERF] STT Recognized: '{text}' at {time.time():.3f}")
-
-        # Hot-reload check
-        if self.config.refresh():
-            self.avatar.apply_runtime_config()
-            logger.info("Config hot-reloaded automatically during recognition.")
 
         # Update Dynamic Merge Threshold
         weight = ResponseWeightFilter.calculate_weight(text)
