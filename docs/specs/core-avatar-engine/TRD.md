@@ -14,8 +14,11 @@ Python 3.11+ 上で動作し、FastAPI による WebSocket サーバーを介し
 
 ### 2.1 コンポーネント・ファクトリ (`src/core/factory.py`)
 `ParceraComponentFactory` クラスが設定に基づき各インスタンス（LLM/STT/TTS/VAD）を動的に生成する。
-- **STT**: `KotobaWhisperRecognizer` (CTranslate2) を使用し、Macでの実行時はMPSの有無を自動判定（現在はCPU+int8に安全に倒す設定）。
+- **STT**: `KotobaWhisperRecognizer` (CTranslate2) を使用。Macでの実行時はMPSの有無を自動判定（現在はCPU+int8に安全に倒す設定）。SileroVADの自動ロードによる詰まりを避けるため、標準的な音量ベースのVADを使用。
 - **LLM Wrapper**: プロファイリング（思考時間計測）やプロンプトの動的結合を行う。
+    - **Note on SQLite Persistence**: AIAvatarライブラリ標準のままだとGemini提供のPydanticモデルがシリアライズエラーを起こすため、`src/gemini_fix.py` 内の `FixedGeminiService` でJSONシリアライズによる回避策を適用している。
+- **TTS**: Voicevox / AivisSpeech (Local API)
+    - **Parameter Note**: AivisSpeech等の特定環境では `voicevox_url` ではなく `tts_voicevox_url` パラメータの使用が必須。
 
 ### 2.2 通信プロトコル
 WebSocket (`ws://localhost:{port}/ws`) を使用。
