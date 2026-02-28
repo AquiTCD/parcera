@@ -2,11 +2,9 @@ import logging
 import time
 from core.chat_logger import chat_logger
 from core.filters import ResponseWeightFilter
+from core.constants import TWITCH_SESSION_ID
 
 logger = logging.getLogger(__name__)
-
-# Constants
-TWITCH_SESSION_ID = "twitch-session"
 
 class InteractionController:
     """
