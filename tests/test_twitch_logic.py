@@ -159,15 +159,15 @@ async def test_twitch_wait_time_calculation():
     from src.run_server import ParceraServer
     server = ParceraServer()
 
-    # 1. Instant mode (fixed 0.1s regardless of text)
+    # 1. Instant mode (fixed 0.0s regardless of text)
     server.config.get = MagicMock(return_value={"response_speed": "instant"})
-    assert server._calculate_twitch_wait_time("おはようございます") == 0.1
+    assert server._calculate_twitch_wait_time("おはようございます") == 0.0
 
-    # 2. Natural mode (base 0.5s + weighted char count)
+    # 2. Natural mode (base 0.2s + weighted char count)
     server.config.get = MagicMock(return_value={"response_speed": "natural"})
-    # "あ" (1) -> 0.5 + 1 * 0.12 = 0.62
-    assert server._calculate_twitch_wait_time("あ") == pytest.approx(0.62)
-    # "漢" (2) -> 0.5 + 2 * 0.12 = 0.74
-    assert server._calculate_twitch_wait_time("漢") == pytest.approx(0.74)
-    # "！" (ignored) -> 0.5 + 0 = 0.5
-    assert server._calculate_twitch_wait_time("！") == pytest.approx(0.5)
+    # "あ" (1) -> 0.2 + 1 * 0.07 = 0.27
+    assert server._calculate_twitch_wait_time("あ") == pytest.approx(0.27)
+    # "漢" (2) -> 0.2 + 2 * 0.07 = 0.34
+    assert server._calculate_twitch_wait_time("漢") == pytest.approx(0.34)
+    # "！" (ignored) -> 0.2 + 0 = 0.2
+    assert server._calculate_twitch_wait_time("！") == pytest.approx(0.2)

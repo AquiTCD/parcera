@@ -28,11 +28,16 @@ Twitch連携は、以下の3層構造で実現する。
     - `Chat` (IRC) を購読し、正規表現で Wake Word (`Parcera|パルセラ`) を抽出。
 - **Dynamic Response Delay (動的待機時間)**:
     - 外部の読み上げツール（棒読みちゃん等）の読み上げ終了を待つため、チャットの文字数に応じた待機時間を計算。
-    - **計算式**: `Delay = Base_Delay + (Char_Count * Seconds_Per_Char)`
-    - デフォルト設定値:
-        - `Base_Delay`: 1.5s（処理開始の最小バッファ）
-        - `Seconds_Per_Char`: 0.2s（1文字あたりの平均読み上げ速度）
-    - 例：1文字「草」なら約1.7秒、20文字なら約5.5秒待機してから返答を開始。
+    - **計算式**: `Delay = Base_Delay + (Weighted_Char_Count * Seconds_Per_Char)`
+    - **プリセット設定値**:
+        | Preset | Base Wait (s) | Seconds Per Char (s) | Description |
+        | :--- | :--- | :--- | :--- |
+        | **Instant** | 0.0 | 0.0 | 遅延なし。即座に応答。 |
+        | **Fast** | 0.1 | 0.03 | 素早く読み上げて応答。 |
+        | **Natural** | 0.2 | 0.07 | 標準的な人間の読解ペース。 |
+        | **Slow** | 0.5 | 0.12 | じっくりと読んでから応答。 |
+    - **文字カウント重み**: 漢字=2, 英数字/かな=1, 記号=0。
+    - **並列処理**: LLMの推論と待機時間は並列で実行され、推論が待機時間を超えた場合は準備ができ次第即座に応答を開始する。
 - **レートリミット管理**:
     - `In-Memory Map` を使用し、`last_response_times` を秒単位で管理。
 - **排他制御**:

@@ -70,7 +70,7 @@ class InteractionController:
             # Estimate TTS duration
             timing_cfg = self.config.get("tts_timing", {})
             cps = timing_cfg.get("chars_per_second", 6.0)
-            buffer = timing_cfg.get("buffer_latency", 1.0)
+            buffer = timing_cfg.get("buffer_latency", 2.5) # Increased for stability
 
             weight = ResponseWeightFilter.calculate_weight(sts_response.text)
             estimated_duration = (weight / cps) + buffer

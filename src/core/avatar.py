@@ -38,11 +38,13 @@ class ParceraAvatarBase:
     def _is_ai_busy_check(self, session_id: str) -> bool:
         return session_id in self._busy_sessions
 
-    def is_busy(self, source: str = None) -> bool:
-        """Check if AI is busy, optionally filtered by source."""
+    def is_busy(self, source: str = None, exclude_session: str = None) -> bool:
+        """Check if AI is busy, optionally filtered by source or excluding a session."""
         if source is None:
+            if exclude_session is not None:
+                return any(sid != exclude_session for sid in self._busy_sessions)
             return len(self._busy_sessions) > 0
-        return any(s == source for s in self._busy_sources.values())
+        return any(s == source for sid, s in self._busy_sources.items() if sid != exclude_session)
 
     def set_busy(self, session_id: str, busy: bool, timeout: float = 15.0, source: str = None):
         # Cancel existing timer if any

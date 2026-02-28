@@ -195,10 +195,10 @@ class ParceraServer(ParceraAvatarBase):
         speed = twitch_cfg.get("response_speed", "natural")
 
         presets = {
-            "instant": [0.1, 0.0],
-            "fast":    [0.3, 0.05],
-            "natural": [0.5, 0.12],
-            "slow":    [1.0, 0.25],
+            "instant": [0.0, 0.0],
+            "fast":    [0.1, 0.03],
+            "natural": [0.2, 0.07],
+            "slow":    [0.5, 0.12],
         }
         base, spw = presets.get(speed, presets["natural"])
 
@@ -218,15 +218,12 @@ class ParceraServer(ParceraAvatarBase):
                 user_name, text = await self.twitch_queue.get()
                 logger.debug(f"Twitch Queue: Processing message from <{user_name}>")
 
-                # 1. Wait while AI is busy with anything
-                while self.is_busy():
-                    await asyncio.sleep(0.5)
-
-                # 2. Start LLM invocation AND emulate reading lag in parallel
+                # 2. Start LLM invocation IMMEDIATELY (Background thinking)
+                # Even if AI is busy with the user, we can start generating the response.
                 wait_time = self._calculate_twitch_wait_time(text)
-                logger.info(f"Twitch Queue: Processing <{user_name}> (reading wait: {wait_time:.2f}s)")
+                logger.info(f"Twitch Queue: Starting LLM background thinking for <{user_name}> (reading wait: {wait_time:.2f}s)")
 
-                # Start invocation but inject the wait time inside to delay only the AUDIO start
+                # Invoke AI. It will handle the internal busy-wait and reading delay before audio starts.
                 await self._invoke_twitch_response(user_name, text, audio_delay=wait_time)
 
                 self.twitch_queue.task_done()
@@ -238,11 +235,8 @@ class ParceraServer(ParceraAvatarBase):
                 await asyncio.sleep(1.0)
 
     async def _invoke_twitch_response(self, user_name, text, audio_delay: float = 0.0):
-        full_text = f"[Twitch] {user_name}: {text}"
-        logger.info(f"Invoking Twitch Response for <{user_name}>: {text}")
-
-        # Set Twitch as busy immediately to lock out user priority drops
-        self.set_busy(TWITCH_SESSION_ID, True, timeout=20.0, source="twitch")
+        full_text = f"[Twitch Viewer] {user_name}: {text}"
+        logger.info(f"Invoking Twitch Response (Thinking) for <{user_name}>: {text}")
 
         start_time = asyncio.get_event_loop().time()
         first_chunk = True
@@ -254,19 +248,23 @@ class ParceraServer(ParceraAvatarBase):
                 text=full_text
             )):
                 # If this is the first response chunk (usually TTS starting),
-                # ensure we've waited at least audio_delay since we started processing.
-                if first_chunk and audio_delay > 0:
-                    elapsed = asyncio.get_event_loop().time() - start_time
-                    remaining = audio_delay - elapsed
-                    if remaining > 0:
-                        logger.debug(f"Twitch: LLM was fast ({elapsed:.2f}s), waiting {remaining:.2f}s more to finish reading.")
-                        await asyncio.sleep(remaining)
-                    else:
-                        logger.debug(f"Twitch: Reading time covered by LLM latency ({elapsed:.2f}s).")
+                # we wait for both 'reading delay' AND 'user busy' state before speaking.
+                if first_chunk:
+                    # 1. Wait for other sessions (like parcera-session) to finish
+                    while self.is_busy(exclude_session=TWITCH_SESSION_ID):
+                        await asyncio.sleep(0.2)
 
-                    # Double check if user became busy during LLM thinking
-                    # (This is rare but could happen if user STT finished exactly now)
-                    # For now, we trust the Twitch busy flag we set earlier.
+                    # 2. Lock the busy flag for Twitch now that we are actually about to speak
+                    self.set_busy(TWITCH_SESSION_ID, True, timeout=20.0, source="twitch")
+
+                    # 3. Ensure emulated reading wait is satisfied
+                    if audio_delay > 0:
+                        elapsed = asyncio.get_event_loop().time() - start_time
+                        remaining = audio_delay - elapsed
+                        if remaining > 0:
+                            logger.debug(f"Twitch: LLM was fast ({elapsed:.2f}s), waiting {remaining:.2f}s more.")
+                            await asyncio.sleep(remaining)
+
                     first_chunk = False
 
                 await self.aiavatar_server.handle_response(r)
