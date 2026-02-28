@@ -28,8 +28,8 @@ async def test_on_recognized_drops_when_twitch_busy(mock_avatar, mock_config):
 
     await controller.on_recognized("session", "Hello")
 
-    # Should NOT log user or set busy because it was dropped
-    mock_avatar.set_busy.assert_not_called()
+    # Should call set_busy(False) to clear the flag for the dropped session
+    mock_avatar.set_busy.assert_called_once_with("session", False)
 
 @pytest.mark.anyio
 async def test_on_response_sets_source_correctly(mock_avatar, mock_config):

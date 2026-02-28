@@ -24,6 +24,8 @@ class InteractionController:
         # Check if AI is occupied with high-priority Twitch response
         if self.avatar.is_busy(source="twitch"):
             logger.info(f"Dropping user input because AI is busy with Twitch: {text}")
+            # Ensure the user session busy flag is cleared so UI/State can reset
+            self.avatar.set_busy(session_id, False)
             return
 
         # 1. Ignored Speech
