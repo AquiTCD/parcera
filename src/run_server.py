@@ -31,6 +31,15 @@ logger = logging.getLogger(__name__)
 # Constants
 TWITCH_SESSION_ID = "twitch-session"
 
+class InternalWebSocket:
+    """A dummy WebSocket proxy to prevent KeyError when invoking server-initiated sessions."""
+    async def send_text(self, text: str):
+        # Could broadcast to UI in the future, for now just sink or log
+        pass
+
+    async def close(self, code: int = 1000, reason: str = ""):
+        pass
+
 class ParceraServer(ParceraAvatarBase):
     def __init__(self):
         super().__init__()
@@ -74,6 +83,10 @@ class ParceraServer(ParceraAvatarBase):
 
         # Initial sync
         self._sync_to_server()
+
+        # Register an internal sink for Twitch responses to avoid KeyError in AIAvatarWebSocketServer
+        self.aiavatar_server.websockets[TWITCH_SESSION_ID] = InternalWebSocket()
+
         self.apply_runtime_config()
 
     async def on_recognized(self, session_id, text, is_filtered=False):
@@ -267,6 +280,9 @@ async def lifespan(app: FastAPI):
         parcera_server.tts_engine_manager = TTSEngineManager(tts_engine_path, tts_api_url)
         await parcera_server.tts_engine_manager.start()
         parcera_server.current_tts_provider = provider
+
+    # Ensure runtime configs (like Twitch) are applied once the loop is definitely running
+    parcera_server.apply_runtime_config()
 
     asyncio.create_task(parcera_server.warmup())
     asyncio.create_task(parcera_server._process_twitch_queue())
