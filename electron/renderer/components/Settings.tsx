@@ -9,7 +9,7 @@ import { AIProfileTab } from './settings/AIProfileTab';
 import { LogTab } from './settings/LogTab';
 import { TwitchTab } from './settings/TwitchTab';
 import { TabHeader } from './settings/TabHeader';
-import { useSettingsState } from './settings/useSettingsState';
+import { useSettingsState } from '../lib/hooks/useSettingsState';
 import { getDefaultsForTab } from './settings/restoreDefaults';
 
 const TABS = [

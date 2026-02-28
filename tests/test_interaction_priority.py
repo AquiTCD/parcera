@@ -54,18 +54,18 @@ async def test_twitch_queue_logic():
     from src.run_server import ParceraServer
     server = ParceraServer()
     server.is_busy = MagicMock(return_value=False)
-    server._invoke_twitch_response = AsyncMock()
+    server.twitch_service._invoke_response = AsyncMock()
 
-    # Mock calculate_twitch_wait_time to return fast for testing
-    server._calculate_twitch_wait_time = MagicMock(return_value=0.01)
+    # Mock calculate_wait_time to return fast for testing
+    server.twitch_service._calculate_wait_time = MagicMock(return_value=0.01)
 
     # Put item in queue
-    await server.twitch_queue.put(("User", "Hello"))
+    await server.twitch_service.queue.put(("User", "Hello"))
 
     # Run the processor briefly
-    task = asyncio.create_task(server._process_twitch_queue())
+    task = asyncio.create_task(server.twitch_service.process_queue())
     await asyncio.sleep(0.1)
     task.cancel()
 
     # Verify AI was invoked with delay
-    server._invoke_twitch_response.assert_called_once_with("User", "Hello", audio_delay=0.01)
+    server.twitch_service._invoke_response.assert_called_once_with("User", "Hello", audio_delay=0.01)

@@ -32,13 +32,14 @@ def test_should_respond_with_weight_threshold():
     ignore = ["無視して", "スキップ"]
     f = ResponseWeightFilter(ignore_sentences=ignore)
 
-    # Should ignore exact match
-    assert f.should_respond("無視して") is False
-    # Should ignore normalized match (whitespace/punctuation)
-    assert f.should_respond("無視して！ ") is False
-    # Should not ignore unrelated text
-    # Note: Very short text might be ignored by length logic, so use a longer sentence
-    assert f.should_respond("こんにちは、パルセラさん！今日もいい天気ですね。") is True
+    with patch("random.random", return_value=0.0):
+        # Should ignore exact match
+        assert f.should_respond("無視して") is False
+        # Should ignore normalized match (whitespace/punctuation)
+        assert f.should_respond("無視して！ ") is False
+        # Should not ignore unrelated text
+        # Note: Very short text might be ignored by length logic, so use a longer sentence
+        assert f.should_respond("こんにちは、パルセラさん！今日もいい天気ですね。") is True
 
 def test_filter_force_keywords():
     f = ResponseWeightFilter(force_keywords=["絶対返信"])
