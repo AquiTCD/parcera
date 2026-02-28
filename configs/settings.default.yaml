@@ -209,3 +209,19 @@ knowledge: |
   ## ストリートファイター6
   - 相手が「バーンアウト」したら、一気に攻めるように応援する。
   - 画面端でのプレッシャーが強いから、落ち着くように声をかける。
+
+# ==========================================
+# Twitch Integration Settings
+# ==========================================
+twitch:
+  enabled: false
+  client_id: ""
+  client_secret: ""
+  redirect_uri: "http://localhost:8677/auth/callback"
+  wake_word: "パルセラ|Parcera"
+  ng_words: []
+  ignored_users:
+    - "Nightbot"
+    - "StreamElements"
+    - "Moobot"
+  response_speed: "natural" # "instant" | "fast" | "natural" | "slow"

@@ -123,6 +123,11 @@ class ParceraConfig:
         user_profile = self.get("user_profile", {})
         mode = user_profile.get("mode", "soliloquy")
 
+        if self.get("twitch", {}).get("enabled", False):
+            twitch_guidelines = load_text_file(os.path.join(prompts_dir, "action_guidelines_twitch.md"))
+        else:
+            twitch_guidelines = ""
+
         fill_params = {
             **ai_profile,
             "userName": user_profile.get("name", ""),
@@ -132,6 +137,7 @@ class ParceraConfig:
             "knowledge": self.get("knowledge", ""),
             "situation": _get_default_situation(mode, user_profile.get("name", "")),
             "actionGuidelines": load_text_file(os.path.join(prompts_dir, f"action_guidelines_{mode}.md")),
+            "twitchGuidelines": twitch_guidelines
         }
 
         system_prompt = _fill_placeholders(system_template, fill_params)

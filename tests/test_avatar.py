@@ -26,6 +26,23 @@ def test_set_busy(mock_avatar):
     mock_avatar.set_busy(session_id, False)
     assert mock_avatar._is_ai_busy_check(session_id) is False
 
+def test_is_busy_with_source(mock_avatar):
+    # Test overall busy
+    mock_avatar.set_busy("user1", True, source="user")
+    assert mock_avatar.is_busy() is True
+    assert mock_avatar.is_busy(source="user") is True
+    assert mock_avatar.is_busy(source="twitch") is False
+
+    # Test multiple sources
+    mock_avatar.set_busy("twitch1", True, source="twitch")
+    assert mock_avatar.is_busy(source="user") is True
+    assert mock_avatar.is_busy(source="twitch") is True
+
+    # Clear user, should only remain twitch
+    mock_avatar.set_busy("user1", False)
+    assert mock_avatar.is_busy(source="user") is False
+    assert mock_avatar.is_busy(source="twitch") is True
+
 @pytest.mark.anyio
 async def test_warmup_calls_components():
     # We need a real-ish instance but with mocked components
@@ -37,7 +54,7 @@ async def test_warmup_calls_components():
             factory.build_llm.return_value = mock_llm
 
             mock_tts = MagicMock()
-            mock_tts.voice_text_to_wav = AsyncMock()
+            mock_tts.synthesize = AsyncMock()
             factory.build_tts.return_value = mock_tts
 
             with patch("os.path.exists", return_value=False):
@@ -45,7 +62,7 @@ async def test_warmup_calls_components():
                 await avatar.warmup()
 
                 mock_llm.warmup.assert_called_once()
-                mock_tts.voice_text_to_wav.assert_called_with("。")
+                mock_tts.synthesize.assert_called_with("。")
 
 @pytest.mark.anyio
 async def test_cleanup_calls_tts_close():

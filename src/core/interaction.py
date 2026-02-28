@@ -5,6 +5,9 @@ from core.filters import ResponseWeightFilter
 
 logger = logging.getLogger(__name__)
 
+# Constants
+TWITCH_SESSION_ID = "twitch-session"
+
 class InteractionController:
     """
     Orchestrates the AI interaction pipeline:
@@ -20,6 +23,13 @@ class InteractionController:
         if self.config.refresh():
             self.avatar.apply_runtime_config()
             logger.info("Config hot-reloaded automatically during recognition.")
+
+        # Check if AI is occupied with high-priority Twitch response
+        if self.avatar.is_busy(source="twitch"):
+            logger.info(f"Dropping user input because AI is busy with Twitch: {text}")
+            # Ensure the user session busy flag is cleared so UI/State can reset
+            self.avatar.set_busy(session_id, False)
+            return
 
         # 1. Ignored Speech
         if is_filtered:
@@ -60,13 +70,16 @@ class InteractionController:
             # Estimate TTS duration
             timing_cfg = self.config.get("tts_timing", {})
             cps = timing_cfg.get("chars_per_second", 6.0)
-            buffer = timing_cfg.get("buffer_latency", 1.0)
+            buffer = timing_cfg.get("buffer_latency", 2.5) # Increased for stability
 
             weight = ResponseWeightFilter.calculate_weight(sts_response.text)
             estimated_duration = (weight / cps) + buffer
 
-            logger.info(f"Response Final: Weight={weight}, CPS={cps}, BusyTimeout={estimated_duration:.2f}s")
-            self.avatar.set_busy(aiavatar_response.session_id, True, timeout=estimated_duration)
+            # Determine source: Twitch uses a specific session_id
+            source = "twitch" if aiavatar_response.session_id == TWITCH_SESSION_ID else "user"
+
+            logger.info(f"Response Final ({source}): Weight={weight}, CPS={cps}, BusyTimeout={estimated_duration:.2f}s")
+            self.avatar.set_busy(aiavatar_response.session_id, True, timeout=estimated_duration, source=source)
 
             if self.config.profile_mode:
                 logger.info(f"[PERF] Response Final: '{sts_response.text}' at {now:.3f}")

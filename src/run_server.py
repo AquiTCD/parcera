@@ -19,11 +19,36 @@ from core.engine import TTSEngineManager
 from core.config import load_config_file
 from routers.config_router import create_config_router
 from routers.tts_router import create_tts_router
+from routers.twitch_router import create_twitch_router
+
+import re
+from aiavatar.sts.models import STSRequest
+from core.chat_logger import chat_logger
+from core.interaction import InteractionController
 
 logger = logging.getLogger(__name__)
-from core.chat_logger import chat_logger
 
-from core.interaction import InteractionController
+# Constants
+TWITCH_SESSION_ID = "twitch-session"
+
+class InternalWebSocket:
+    """A virtual WebSocket bridge that satisfies aiavatar's requirements and broadcasts responses to the UI."""
+    def __init__(self, server):
+        self.server = server
+
+    async def send_text(self, text: str):
+        # Forward this response to all real WebSocket clients (UI)
+        # This keeps the UI in sync even for Twitch-triggered interactions.
+        for sid, ws in getattr(self.server, "websockets", {}).items():
+            if sid != TWITCH_SESSION_ID:
+                try:
+                    await ws.send_text(text)
+                except Exception:
+                    # Ignore failures on stale or concurrently closed sockets
+                    pass
+
+    async def close(self, code: int = 1000, reason: str = ""):
+        pass
 
 class ParceraServer(ParceraAvatarBase):
     def __init__(self):
@@ -59,6 +84,8 @@ class ParceraServer(ParceraAvatarBase):
             voice_recorder_enabled=False
         )
 
+        self.twitch_queue = asyncio.Queue()
+
         # Attach callbacks to controller
         if hasattr(self.stt, "on_recognized_callback"):
             self.stt.on_recognized_callback = self.controller.on_recognized
@@ -66,6 +93,8 @@ class ParceraServer(ParceraAvatarBase):
 
         # Initial sync
         self._sync_to_server()
+
+        self.apply_runtime_config()
 
     async def on_recognized(self, session_id, text, is_filtered=False):
         """Legacy delegate for backward compatibility or direct calls."""
@@ -89,6 +118,9 @@ class ParceraServer(ParceraAvatarBase):
         if hasattr(self.stt, "on_recognized_callback"):
             self.stt.on_recognized_callback = self.controller.on_recognized
 
+        # Register/Ensure an internal bridge for Twitch responses
+        self.aiavatar_server.websockets[TWITCH_SESSION_ID] = InternalWebSocket(self.aiavatar_server)
+
         self.aiavatar_server.llm = self.llm
         self.aiavatar_server.stt = self.stt
         self.aiavatar_server.tts = self.tts
@@ -96,8 +128,8 @@ class ParceraServer(ParceraAvatarBase):
 
     def apply_runtime_config(self):
         """Apply non-structural settings (prompts, thresholds) to current components."""
-        if hasattr(self.llm, "system_message"):
-            self.llm.system_message = self.config.full_system_prompt
+        if hasattr(self.llm, "system_prompt"):
+            self.llm.system_prompt = self.config.full_system_prompt
 
         if hasattr(self.vad, "volume_db_threshold"):
             new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
@@ -112,6 +144,133 @@ class ParceraServer(ParceraAvatarBase):
                 sensitivity=self.config.get("response_sensitivity"),
                 presets=self.config.get("sensitivity_presets")
             )
+
+        # Sync Twitch Client
+        try:
+            asyncio.get_running_loop().create_task(self.sync_twitch_client())
+        except RuntimeError:
+            # Skip if no loop is running (e.g. during test import or CLI initialization)
+            pass
+
+    async def sync_twitch_client(self):
+        """Synchronize twitch client state with current config."""
+        if not hasattr(self, "twitch_client") or self.twitch_client is None:
+            return
+
+        settings = self.config.settings.get("twitch", {})
+
+        # 1. Update filters
+        self.twitch_client.update_settings(
+            wake_word=settings.get("wake_word"),
+            ignored_users=settings.get("ignored_users"),
+            ng_words=settings.get("ng_words")
+        )
+
+        # 2. Control Chat Listener
+        enabled = settings.get("enabled", False)
+
+        main_loop = asyncio.get_running_loop()
+
+        if enabled:
+            async def chat_callback(user_name, text):
+                chat_logger.log_twitch(user_name, text)
+
+                async def enqueue():
+                    await self.twitch_queue.put((user_name, text))
+
+                asyncio.run_coroutine_threadsafe(enqueue(), main_loop)
+
+            if not self.twitch_client.is_chat_started:
+                await self.twitch_client.start_chat(on_message=chat_callback)
+            else:
+                self.twitch_client.on_message_callback = chat_callback
+        else:
+            if self.twitch_client.is_chat_started:
+                await self.twitch_client.stop_chat()
+
+    CLEAN_TEXT_RE = re.compile(r"[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]")
+
+    def _calculate_twitch_wait_time(self, text: str) -> float:
+        twitch_cfg = self.config.get("twitch", {})
+        speed = twitch_cfg.get("response_speed", "natural")
+
+        presets = {
+            "instant": [0.0, 0.0],
+            "fast":    [0.1, 0.03],
+            "natural": [0.2, 0.07],
+            "slow":    [0.5, 0.12],
+        }
+        base, spw = presets.get(speed, presets["natural"])
+
+        if speed == "instant":
+            return base
+
+        # Weight: Kanji=2, others=1. Ignore symbols.
+        clean_text = self.CLEAN_TEXT_RE.sub("", text)
+        weight = sum(2 if "\u4e00" <= c <= "\u9fff" else 1 for c in clean_text)
+
+        return base + (weight * spw)
+
+    async def _process_twitch_queue(self):
+        logger.info("Twitch queue processor started.")
+        while True:
+            try:
+                user_name, text = await self.twitch_queue.get()
+                logger.debug(f"Twitch Queue: Processing message from <{user_name}>")
+
+                # 2. Start LLM invocation IMMEDIATELY (Background thinking)
+                # Even if AI is busy with the user, we can start generating the response.
+                wait_time = self._calculate_twitch_wait_time(text)
+                logger.info(f"Twitch Queue: Starting LLM background thinking for <{user_name}> (reading wait: {wait_time:.2f}s)")
+
+                # Invoke AI. It will handle the internal busy-wait and reading delay before audio starts.
+                await self._invoke_twitch_response(user_name, text, audio_delay=wait_time)
+
+                self.twitch_queue.task_done()
+
+                # Space out consecutive queued messages
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logger.error(f"Error in Twitch queue processor: {e}", exc_info=True)
+                await asyncio.sleep(1.0)
+
+    async def _invoke_twitch_response(self, user_name, text, audio_delay: float = 0.0):
+        full_text = f"[Twitch Viewer] {user_name}: {text}"
+        logger.info(f"Invoking Twitch Response (Thinking) for <{user_name}>: {text}")
+
+        start_time = asyncio.get_event_loop().time()
+        first_chunk = True
+
+        try:
+            async for r in self.aiavatar_server.sts.invoke(STSRequest(
+                type="invoke",
+                session_id=TWITCH_SESSION_ID,
+                text=full_text
+            )):
+                # If this is the first response chunk (usually TTS starting),
+                # we wait for both 'reading delay' AND 'user busy' state before speaking.
+                if first_chunk:
+                    # 1. Wait for other sessions (like parcera-session) to finish
+                    while self.is_busy(exclude_session=TWITCH_SESSION_ID):
+                        await asyncio.sleep(0.2)
+
+                    # 2. Lock the busy flag for Twitch now that we are actually about to speak
+                    self.set_busy(TWITCH_SESSION_ID, True, timeout=20.0, source="twitch")
+
+                    # 3. Ensure emulated reading wait is satisfied
+                    if audio_delay > 0:
+                        elapsed = asyncio.get_event_loop().time() - start_time
+                        remaining = audio_delay - elapsed
+                        if remaining > 0:
+                            logger.debug(f"Twitch: LLM was fast ({elapsed:.2f}s), waiting {remaining:.2f}s more.")
+                            await asyncio.sleep(remaining)
+
+                    first_chunk = False
+
+                await self.aiavatar_server.handle_response(r)
+        except Exception as e:
+            logger.error(f"Error invoking AI from Twitch Chat: {e}")
+            self.set_busy(TWITCH_SESSION_ID, False)
 
 
 # ─── Initialization ─────────────────────────────────────────
@@ -144,7 +303,12 @@ async def lifespan(app: FastAPI):
         await parcera_server.tts_engine_manager.start()
         parcera_server.current_tts_provider = provider
 
+    # Ensure runtime configs (like Twitch) are applied once the loop is definitely running
+    logger.info("LIFESPAN: Applying final runtime configuration and syncing Twitch...")
+    parcera_server.apply_runtime_config()
+
     asyncio.create_task(parcera_server.warmup())
+    asyncio.create_task(parcera_server._process_twitch_queue())
 
     yield
 
@@ -274,6 +438,7 @@ async def reload_model():
 # Register routers
 app.include_router(create_config_router(_get_server))
 app.include_router(create_tts_router(_get_server))
+app.include_router(create_twitch_router(_get_server))
 app.include_router(parcera_server.aiavatar_server.get_websocket_router())
 
 

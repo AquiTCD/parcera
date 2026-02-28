@@ -90,6 +90,8 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
 
             if is_filtered:
                 logger.info(f"STT: Ignored by filter (Silence Mode): {text}")
+                if self.set_busy_handler:
+                    self.set_busy_handler(session_id, False)
                 return SpeechRecognitionResult(text="")
 
             return SpeechRecognitionResult(text=text)
