@@ -222,16 +222,12 @@ class ParceraServer(ParceraAvatarBase):
                 while self.is_busy():
                     await asyncio.sleep(0.5)
 
+                # 2. Start LLM invocation AND emulate reading lag in parallel
                 wait_time = self._calculate_twitch_wait_time(text)
-                logger.debug(f"Twitch Queue: Waiting {wait_time:.2f}s (emulated reading)...")
-                await asyncio.sleep(wait_time)
+                logger.info(f"Twitch Queue: Processing <{user_name}> (reading wait: {wait_time:.2f}s)")
 
-                # 3. Check again if busy (priority to user)
-                while self.is_busy():
-                    await asyncio.sleep(0.5)
-
-                # 4. Invoke AI with specific session ID
-                await self._invoke_twitch_response(user_name, text)
+                # Start invocation but inject the wait time inside to delay only the AUDIO start
+                await self._invoke_twitch_response(user_name, text, audio_delay=wait_time)
 
                 self.twitch_queue.task_done()
 
@@ -241,13 +237,15 @@ class ParceraServer(ParceraAvatarBase):
                 logger.error(f"Error in Twitch queue processor: {e}", exc_info=True)
                 await asyncio.sleep(1.0)
 
-    async def _invoke_twitch_response(self, user_name, text):
+    async def _invoke_twitch_response(self, user_name, text, audio_delay: float = 0.0):
         full_text = f"[Twitch] {user_name}: {text}"
         logger.info(f"Invoking Twitch Response for <{user_name}>: {text}")
 
         # Set Twitch as busy immediately to lock out user priority drops
-        # Use a generous 20s timeout for LLM thinking + TTS start
         self.set_busy(TWITCH_SESSION_ID, True, timeout=20.0, source="twitch")
+
+        start_time = asyncio.get_event_loop().time()
+        first_chunk = True
 
         try:
             async for r in self.aiavatar_server.sts.invoke(STSRequest(
@@ -255,6 +253,22 @@ class ParceraServer(ParceraAvatarBase):
                 session_id=TWITCH_SESSION_ID,
                 text=full_text
             )):
+                # If this is the first response chunk (usually TTS starting),
+                # ensure we've waited at least audio_delay since we started processing.
+                if first_chunk and audio_delay > 0:
+                    elapsed = asyncio.get_event_loop().time() - start_time
+                    remaining = audio_delay - elapsed
+                    if remaining > 0:
+                        logger.debug(f"Twitch: LLM was fast ({elapsed:.2f}s), waiting {remaining:.2f}s more to finish reading.")
+                        await asyncio.sleep(remaining)
+                    else:
+                        logger.debug(f"Twitch: Reading time covered by LLM latency ({elapsed:.2f}s).")
+
+                    # Double check if user became busy during LLM thinking
+                    # (This is rare but could happen if user STT finished exactly now)
+                    # For now, we trust the Twitch busy flag we set earlier.
+                    first_chunk = False
+
                 await self.aiavatar_server.handle_response(r)
         except Exception as e:
             logger.error(f"Error invoking AI from Twitch Chat: {e}")

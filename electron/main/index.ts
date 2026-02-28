@@ -449,7 +449,7 @@ ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => 
   }
 });
 
-export async function syncTwitchWithBackend() {
+export async function syncTwitchWithBackend(attempts = 10, delay = 2000) {
   const tokens = twitchTokenStore.loadTokens();
   if (!tokens) return;
 
@@ -457,24 +457,35 @@ export async function syncTwitchWithBackend() {
   const port = settings.electron?.port || 8676;
   const url = `http://127.0.0.1:${port}/twitch/init`;
 
-  console.log('[Twitch] Syncing tokens with backend...');
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token
-      })
-    });
-    if (!res.ok) {
-      console.warn('[Twitch] Backend init failed:', await res.text());
-    } else {
-      console.log('[Twitch] Backend init successful.');
+  console.log(`[Twitch] Syncing tokens with backend (Attempts left: ${attempts})...`);
+
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token
+        })
+      });
+
+      if (res.ok) {
+        console.log('[Twitch] Backend init successful.');
+        return;
+      }
+
+      const errorText = await res.text();
+      console.warn(`[Twitch] Backend init failed (Attempt ${i + 1}/${attempts}):`, errorText);
+    } catch (e: any) {
+      console.warn(`[Twitch] Could not connect to backend (Attempt ${i + 1}/${attempts}):`, e.message);
     }
-  } catch (e: any) {
-    console.warn('[Twitch] Could not sync with backend:', e.message);
+
+    // Wait before retrying
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
+
+  console.error('[Twitch] Failed to sync with backend after multiple attempts.');
 }
 
 import { Menu } from 'electron';

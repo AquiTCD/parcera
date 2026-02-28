@@ -67,5 +67,5 @@ async def test_twitch_queue_logic():
     await asyncio.sleep(0.1)
     task.cancel()
 
-    # Verify AI was invoked
-    server._invoke_twitch_response.assert_called_once_with("User", "Hello")
+    # Verify AI was invoked with delay
+    server._invoke_twitch_response.assert_called_once_with("User", "Hello", audio_delay=0.01)
