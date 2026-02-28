@@ -5,6 +5,9 @@ from core.filters import ResponseWeightFilter
 
 logger = logging.getLogger(__name__)
 
+# Constants
+TWITCH_SESSION_ID = "twitch-session"
+
 class InteractionController:
     """
     Orchestrates the AI interaction pipeline:
@@ -73,7 +76,7 @@ class InteractionController:
             estimated_duration = (weight / cps) + buffer
 
             # Determine source: Twitch uses a specific session_id
-            source = "twitch" if aiavatar_response.session_id == "twitch-session" else "user"
+            source = "twitch" if aiavatar_response.session_id == TWITCH_SESSION_ID else "user"
 
             logger.info(f"Response Final ({source}): Weight={weight}, CPS={cps}, BusyTimeout={estimated_duration:.2f}s")
             self.avatar.set_busy(aiavatar_response.session_id, True, timeout=estimated_duration, source=source)

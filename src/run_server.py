@@ -21,10 +21,15 @@ from routers.config_router import create_config_router
 from routers.tts_router import create_tts_router
 from routers.twitch_router import create_twitch_router
 
-logger = logging.getLogger(__name__)
+import re
+from aiavatar.sts.models import STSRequest
 from core.chat_logger import chat_logger
-
 from core.interaction import InteractionController
+
+logger = logging.getLogger(__name__)
+
+# Constants
+TWITCH_SESSION_ID = "twitch-session"
 
 class ParceraServer(ParceraAvatarBase):
     def __init__(self):
@@ -160,8 +165,9 @@ class ParceraServer(ParceraAvatarBase):
             if self.twitch_client.is_chat_started:
                 await self.twitch_client.stop_chat()
 
+    CLEAN_TEXT_RE = re.compile(r"[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]")
+
     def _calculate_twitch_wait_time(self, text: str) -> float:
-        import re
         twitch_cfg = self.config.get("twitch", {})
         speed = twitch_cfg.get("response_speed", "natural")
 
@@ -177,7 +183,7 @@ class ParceraServer(ParceraAvatarBase):
             return base
 
         # Weight: Kanji=2, others=1. Ignore symbols.
-        clean_text = re.sub(r"[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]", "", text)
+        clean_text = self.CLEAN_TEXT_RE.sub("", text)
         weight = sum(2 if "\u4e00" <= c <= "\u9fff" else 1 for c in clean_text)
 
         return base + (weight * spw)
@@ -211,12 +217,11 @@ class ParceraServer(ParceraAvatarBase):
                 await asyncio.sleep(1.0)
 
     async def _invoke_twitch_response(self, user_name, text):
-        from aiavatar.sts.models import STSRequest
         full_text = f"[Twitch] {user_name}: {text}"
         try:
             async for r in self.aiavatar_server.sts.invoke(STSRequest(
                 type="invoke",
-                session_id="twitch-session",
+                session_id=TWITCH_SESSION_ID,
                 text=full_text
             )):
                 await self.aiavatar_server.handle_response(r)
