@@ -193,18 +193,20 @@ class ParceraServer(ParceraAvatarBase):
         while True:
             try:
                 user_name, text = await self.twitch_queue.get()
+                logger.debug(f"Twitch Queue: Processing message from <{user_name}>")
 
                 # 1. Wait while AI is busy with anything
                 while self.is_busy():
                     await asyncio.sleep(0.5)
 
-                # 2. Emulate stream reader lag
                 wait_time = self._calculate_twitch_wait_time(text)
+                logger.debug(f"Twitch Queue: Waiting {wait_time:.2f}s (emulated reading)...")
                 await asyncio.sleep(wait_time)
 
                 # 3. Check again if busy (priority to user)
                 while self.is_busy():
                     await asyncio.sleep(0.5)
+
                 # 4. Invoke AI with specific session ID
                 await self._invoke_twitch_response(user_name, text)
 
@@ -218,6 +220,12 @@ class ParceraServer(ParceraAvatarBase):
 
     async def _invoke_twitch_response(self, user_name, text):
         full_text = f"[Twitch] {user_name}: {text}"
+        logger.info(f"Invoking Twitch Response for <{user_name}>: {text}")
+
+        # Set Twitch as busy immediately to lock out user priority drops
+        # Use a generous 20s timeout for LLM thinking + TTS start
+        self.set_busy(TWITCH_SESSION_ID, True, timeout=20.0, source="twitch")
+
         try:
             async for r in self.aiavatar_server.sts.invoke(STSRequest(
                 type="invoke",
@@ -227,6 +235,7 @@ class ParceraServer(ParceraAvatarBase):
                 await self.aiavatar_server.handle_response(r)
         except Exception as e:
             logger.error(f"Error invoking AI from Twitch Chat: {e}")
+            self.set_busy(TWITCH_SESSION_ID, False)
 
 
 # ─── Initialization ─────────────────────────────────────────

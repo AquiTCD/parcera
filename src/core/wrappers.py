@@ -108,6 +108,8 @@ class ParceraSTTWrapper:
             # Filtering happens AFTER the callback so the text can be logged
             if is_filtered:
                 logger.debug(f"STT Wrapper: Ignored by filter (Silence Mode): {result_text}")
+                if self.set_busy_handler:
+                    self.set_busy_handler(session_id, False)
                 from aiavatar.sts.stt.base import SpeechRecognitionResult
                 return SpeechRecognitionResult(text="")
 
