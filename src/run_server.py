@@ -32,10 +32,20 @@ logger = logging.getLogger(__name__)
 TWITCH_SESSION_ID = "twitch-session"
 
 class InternalWebSocket:
-    """A dummy WebSocket proxy to prevent KeyError when invoking server-initiated sessions."""
+    """A virtual WebSocket bridge that satisfies aiavatar's requirements and broadcasts responses to the UI."""
+    def __init__(self, server):
+        self.server = server
+
     async def send_text(self, text: str):
-        # Could broadcast to UI in the future, for now just sink or log
-        pass
+        # Forward this response to all real WebSocket clients (UI)
+        # This keeps the UI in sync even for Twitch-triggered interactions.
+        for sid, ws in getattr(self.server, "websockets", {}).items():
+            if sid != TWITCH_SESSION_ID:
+                try:
+                    await ws.send_text(text)
+                except Exception:
+                    # Ignore failures on stale or concurrently closed sockets
+                    pass
 
     async def close(self, code: int = 1000, reason: str = ""):
         pass
@@ -84,9 +94,6 @@ class ParceraServer(ParceraAvatarBase):
         # Initial sync
         self._sync_to_server()
 
-        # Register an internal sink for Twitch responses to avoid KeyError in AIAvatarWebSocketServer
-        self.aiavatar_server.websockets[TWITCH_SESSION_ID] = InternalWebSocket()
-
         self.apply_runtime_config()
 
     async def on_recognized(self, session_id, text, is_filtered=False):
@@ -110,6 +117,9 @@ class ParceraServer(ParceraAvatarBase):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""
         if hasattr(self.stt, "on_recognized_callback"):
             self.stt.on_recognized_callback = self.controller.on_recognized
+
+        # Register/Ensure an internal bridge for Twitch responses
+        self.aiavatar_server.websockets[TWITCH_SESSION_ID] = InternalWebSocket(self.aiavatar_server)
 
         self.aiavatar_server.llm = self.llm
         self.aiavatar_server.stt = self.stt
@@ -282,6 +292,7 @@ async def lifespan(app: FastAPI):
         parcera_server.current_tts_provider = provider
 
     # Ensure runtime configs (like Twitch) are applied once the loop is definitely running
+    logger.info("LIFESPAN: Applying final runtime configuration and syncing Twitch...")
     parcera_server.apply_runtime_config()
 
     asyncio.create_task(parcera_server.warmup())
