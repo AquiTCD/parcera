@@ -169,9 +169,9 @@ async def test_twitch_wait_time_calculation():
 
     # 2. Natural mode (base 0.2s + weighted char count)
     server.config.get = MagicMock(return_value={"response_speed": "natural"})
-    # "あ" (1) -> 0.2 + 1 * 0.07 = 0.27
-    assert server.twitch_service._calculate_wait_time("あ") == pytest.approx(0.27)
-    # "漢" (2) -> 0.2 + 2 * 0.07 = 0.34
-    assert server.twitch_service._calculate_wait_time("漢") == pytest.approx(0.34)
+    # "あ" (1) -> 0.2 + 1 * 0.16 = 0.36
+    assert server.twitch_service._calculate_wait_time("あ") == pytest.approx(0.36)
+    # "漢" (2) -> 0.2 + 2 * 0.16 = 0.52
+    assert server.twitch_service._calculate_wait_time("漢") == pytest.approx(0.52)
     # "！" (ignored) -> 0.2 + 0 = 0.2
     assert server.twitch_service._calculate_wait_time("！") == pytest.approx(0.2)

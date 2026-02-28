@@ -20,9 +20,9 @@ class TwitchService:
 
         presets = {
             "instant": [0.0, 0.0],
-            "fast":    [0.1, 0.03],
-            "natural": [0.2, 0.07],
-            "slow":    [0.5, 0.12],
+            "fast":    [0.1, 0.12],
+            "natural": [0.2, 0.16],
+            "slow":    [0.3, 0.20],
         }
         base, spw = presets.get(speed, presets["natural"])
 
