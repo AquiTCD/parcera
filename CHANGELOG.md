@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-03-01 - Python 3.13 & Library Optimization
+
+### Changed
+- **Runtime Environment**: Upgraded Python from `3.11` to `3.13.12` for better performance and modern C-API support.
+- **Dependency Optimization**: Updated core libraries to their latest versions for Python 3.13 compatibility:
+    - `aiavatar` (0.8.7 -> 0.8.9)
+    - `faster-whisper` (1.2.0 -> 1.2.1)
+    - `azure-cognitiveservices-speech` (1.48.1 -> 1.48.2)
+    - `fastapi` (0.129.0 -> 0.135.0)
+- **Deployment**: Updated `prepare_sidecar.sh` to bundle Python 3.13 based standalone runtime (Astral build tag: `20260203`).
+
 ## [0.2.1] - 2026-02-28 - Refactor & Component Optimization
 
 ### Changed
