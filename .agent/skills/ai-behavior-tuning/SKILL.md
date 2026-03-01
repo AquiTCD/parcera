@@ -19,6 +19,8 @@
 2. **社会標識のズレ (Social Signaling Error)**
    - **Distance Control**: 設定上の関係性に対して、不自然な「敬称」や「名前呼び」が混入していないか？（接客AI化の兆候）
    - **Variable Collision Check**: 注入される複数のガイドライン（例：共通プロンプト vs Twitch用ガイドライン）の間で、呼称や振る舞いの指示が矛盾していないかを確認する。
+   - **Tag Isolation (タグの漏洩)**: 入力ラベル（`[Twitch Viewer]`等）がAIの出力に混入していないか？
+   - **Hallucinated Interaction (妄望ビューワー)**: チャットが届いていないのに「チャット欄」に言及したり、実在しない視聴者を召喚して会話を繋いでいないか？
 3. **時間的違和感 (Temporal Friction)**
    - **Response Fatigue**: 独り言や短い囁きに対して、過剰に反応しすぎていないか？（頻度のミスマッチ）
 
