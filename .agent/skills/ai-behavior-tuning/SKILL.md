@@ -24,7 +24,21 @@
 3. **時間的違和感 (Temporal Friction)**
    - **Response Fatigue**: 独り言や短い囁きに対して、過剰に反応しすぎていないか？（頻度のミスマッチ）
 
-## 🛠 Step 2: Tuning Layers (修正レイヤーの適用)
+## ⚙️ Step 2: Analytical Tuning (データに基づく解析と調整)
+挙動の違和感を感覚だけで調整するのではなく、実際のログデータに基づいたシミュレーションを行い、最適なパラメータを導き出す。
+
+### 1. ログ解析 (Log Analysis)
+過去の対話ログ（`sample3.log` 等）を解析し、現状の「重み（文字数や漢字の密度）」に対する実際の反応率を可視化する。
+- **Tool**: `scripts/research/analyze_interaction.py`
+- **Metric**: `Actual response rate by weight range` を確認し、どの長さの発話が無視されているか、あるいは反応しすぎているかを特定する。
+
+### 2. パラメータ・シミュレーション (Simulation)
+新しい感度設定（midpoint, slope, max_prob）を適用した場合に、過去のログに対してどれくらいの反応率になるかを事前にシミュレートする。
+- **Execution**: `python scripts/research/analyze_interaction.py sample.log --custom 16.0 0.15 0.45`
+- **Goal**: 平均反応率（Total Expected）が想定範囲内（例: 40-50%）に収まり、かつ短文（Weight 10以下）への反応が適切に抑制されているかを確認する。
+
+## 🛠 Step 3: Tuning Layers (修正レイヤーの適用)
+シミュレーションで得られた最適な数値を適用し、さらに個別のキャラクター表現を磨き上げる。
 
 ### 1. 感度レイヤー (Sensitivity Settings)
 発話の「重み」や「長さ」に対する反応確率を調整する。
@@ -46,6 +60,6 @@
 - **Role Alignment**: 設定された役割（執事、悪友、etc.）が、ユーザーの意図する距離感で出力されているか検証する。
 - **Knowledge Injection**: 汎用的な会話ではなく、特定の状況（ゲームの状況、特定のトピック）に基づいた「生きた知識」を優先的に使うよう誘導する。
 
-## ✅ Step 3: Iterative Refinement (反復改善)
+## ✅ Step 4: Iterative Refinement (反復改善)
 - チューニングは一度で終わらせず、実プレイのログを元に「修正 → 比較 → 再修正」を繰り返す。
 - キャラクターの根幹に関わる修正を行う際は、必ずユーザーの意図（どんな関係性でありたいか）を再確認する。
