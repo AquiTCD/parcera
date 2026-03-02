@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-03-03 - Real-time Interaction Control & Optimization
+
+### Added
+- **Real-time Interaction Controls**: Added direct sensitivity selection (Low/Medium/High) buttons to the AI avatar window for instant behavior adjustment.
+- **Lightweight IPC Mechanism**: Implemented `update-setting` IPC handler for partial, high-speed configuration updates without requiring a full settings reload.
+- **Layered Configuration**: Established a robust three-tier configuration hierarchy: `system_vitals.yaml` (Internal) -> `settings.default.yaml` (UI Defaults) -> `config.json` (User).
+- **Automated Migration**: Added silent config migration to clean up legacy internal constants from user configuration files.
+
+### Changed
+- **Interaction Performance**: Refactored Microphone Mute and Conversation Mode toggles to use the new lightweight update mechanism, significantly reducing UI latency.
+- **Sensitivity Presets**: Updated `ResponseWeightFilter` parameters to a more balanced "Medium" default [16.0, 0.15, 0.45] and decoupled presets from UI settings.
+
+### Fixed
+- **Code Integrity**: Removed redundant `useEffect` hooks and corrected state synchronization logic in `useAvatar`.
+- **Testing**: Added comprehensive test suites for configuration hierarchy and front-end sensitivity controls.
+
 ## [0.2.2] - 2026-03-01 - Python 3.13 & Library Optimization
 
 ### Changed
