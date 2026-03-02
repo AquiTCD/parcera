@@ -46,76 +46,7 @@ export function useAvatar() {
     }
   }, [isLocked]);
 
-  useEffect(() => {
-    const applySettings = (settings: ParceraSettings) => {
-      state.settings = settings;
 
-      const volumeDb = settings.vad?.volume_db_threshold ?? -20;
-      state.threshold_db = volumeDb;
-      state.threshold = Math.pow(10, volumeDb / 20) * 100;
-      setNoiseGateDb(volumeDb);
-
-      const bScale = settings.avatars?.breathe_scale || 1.005;
-      const bAmp = settings.avatars?.breathe_amplitude || 2;
-      const bDur = settings.avatars?.breathe_duration || 5000;
-      document.documentElement.style.setProperty('--breathe-scale', String(bScale));
-      document.documentElement.style.setProperty('--breathe-amplitude', `${bAmp}px`);
-      document.documentElement.style.setProperty('--breathe-duration', `${bDur}ms`);
-
-      const avatarConfig = settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
-      const rawPath = avatarConfig?.assets_dir || `assets/${state.avatarType}`;
-      const assetsDir = window.electronAPI.resolveLocalPath(rawPath);
-
-      if (avatarImageRef.current) {
-        avatarImageRef.current.src = `${assetsDir}/base.png`;
-      }
-
-      setIsFlipped(avatarConfig?.flip_horizontal ?? false);
-
-      const newMuted = settings.vad?.start_muted ?? false;
-      setIsMuted(newMuted);
-      if (micTrackRef.current) {
-        micTrackRef.current.enabled = !newMuted;
-      }
-
-      const winConf = settings.electron?.windows?.[state.avatarType];
-      if (winConf?.control_corner) {
-        setControlCorner(winConf.control_corner);
-      }
-
-      if (winConf?.locked !== undefined) {
-        setIsLocked(prev => {
-          if (prev === !!winConf.locked) return prev;
-          window.electronAPI.setResizable(!winConf.locked);
-          return !!winConf.locked;
-        });
-      }
-
-      const newMode = settings.user_profile?.mode || 'soliloquy';
-      setMode(prev => (prev === newMode ? prev : newMode));
-
-      const newMicId = settings.electron?.mic_device_id || 'default';
-      setMicId(prev => {
-        if (prev === newMicId) return prev;
-        console.log(`[Parcera] Mic ID changing: ${prev} -> ${newMicId}`);
-        return newMicId;
-      });
-    };
-
-    window.electronAPI.getSettings().then((s: ParceraSettings) => {
-      applySettings(s);
-      updateStatus('Settings Loaded');
-    }).catch((e: any) => {
-      console.error('Settings error:', e);
-      updateStatus('Using Defaults');
-    });
-
-    return window.electronAPI.onSettingsChanged((s: ParceraSettings) => {
-      applySettings(s);
-      updateStatus('Settings Reloaded');
-      console.log('[Parcera] Settings hot-reloaded');
-    });
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -202,33 +133,106 @@ export function useAvatar() {
     }
   };
 
+  const [sensitivity, setSensitivityState] = useState<'low' | 'medium' | 'high'>('medium');
+
+  useEffect(() => {
+    const applySettings = (settings: ParceraSettings) => {
+      state.settings = settings;
+
+      const volumeDb = settings.vad?.volume_db_threshold ?? -20;
+      state.threshold_db = volumeDb;
+      state.threshold = Math.pow(10, volumeDb / 20) * 100;
+      setNoiseGateDb(volumeDb);
+
+      const bScale = settings.avatars?.breathe_scale || 1.005;
+      const bAmp = settings.avatars?.breathe_amplitude || 2;
+      const bDur = settings.avatars?.breathe_duration || 5000;
+      document.documentElement.style.setProperty('--breathe-scale', String(bScale));
+      document.documentElement.style.setProperty('--breathe-amplitude', `${bAmp}px`);
+      document.documentElement.style.setProperty('--breathe-duration', `${bDur}ms`);
+
+      const avatarConfig = settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
+      const rawPath = avatarConfig?.assets_dir || `assets/${state.avatarType}`;
+      const assetsDir = window.electronAPI.resolveLocalPath(rawPath);
+
+      if (avatarImageRef.current) {
+        avatarImageRef.current.src = `${assetsDir}/base.png`;
+      }
+
+      setIsFlipped(avatarConfig?.flip_horizontal ?? false);
+
+      const newMuted = settings.vad?.start_muted ?? false;
+      setIsMuted(newMuted);
+      if (micTrackRef.current) {
+        micTrackRef.current.enabled = !newMuted;
+      }
+
+      const winConf = settings.electron?.windows?.[state.avatarType];
+      if (winConf?.control_corner) {
+        setControlCorner(winConf.control_corner);
+      }
+
+      if (winConf?.locked !== undefined) {
+        setIsLocked(prev => {
+          if (prev === !!winConf.locked) return prev;
+          window.electronAPI.setResizable(!winConf.locked);
+          return !!winConf.locked;
+        });
+      }
+
+      const newMode = settings.user_profile?.mode || 'soliloquy';
+      setMode(prev => (prev === newMode ? prev : newMode));
+
+      setSensitivityState((settings.response_sensitivity || 'medium') as 'low' | 'medium' | 'high');
+
+      const newMicId = settings.electron?.mic_device_id || 'default';
+      setMicId(prev => {
+        if (prev === newMicId) return prev;
+        console.log(`[Parcera] Mic ID changing: ${prev} -> ${newMicId}`);
+        return newMicId;
+      });
+    };
+
+    window.electronAPI.getSettings().then((s: ParceraSettings) => {
+      applySettings(s);
+      updateStatus('Settings Loaded');
+    }).catch((e: any) => {
+      console.error('Settings error:', e);
+      updateStatus('Using Defaults');
+    });
+
+    return window.electronAPI.onSettingsChanged((s: ParceraSettings) => {
+      applySettings(s);
+      updateStatus('Settings Reloaded');
+      console.log('[Parcera] Settings hot-reloaded');
+    });
+  }, []);
+
   const toggleMute = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
     if (micTrackRef.current) micTrackRef.current.enabled = !nextMuted;
     updateStatus(nextMuted ? 'Muted' : 'Mic Active');
-
-    const s = await window.electronAPI.getSettings();
-    if (!s.vad) s.vad = {};
-    s.vad.start_muted = nextMuted;
-    await window.electronAPI.saveSettings(s);
+    await window.electronAPI.updateSetting('vad.start_muted', nextMuted);
   };
 
   const toggleMode = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const s = await window.electronAPI.getSettings();
-    if (!s.user_profile) s.user_profile = {};
-
-    const currentMode = s.user_profile.mode || 'soliloquy';
-    const nextMode = currentMode === 'soliloquy' ? 'conversation' : 'soliloquy';
-
+    const nextMode = mode === 'soliloquy' ? 'conversation' : 'soliloquy';
+    setMode(nextMode);
     updateStatus(`Mode: ${nextMode}`);
-    s.user_profile.mode = nextMode;
-    await window.electronAPI.saveSettings(s);
+    await window.electronAPI.updateSetting('user_profile.mode', nextMode);
+  };
+
+  const setSensitivity = async (level: 'low' | 'medium' | 'high') => {
+    setSensitivityState(level);
+    updateStatus(`Sensitivity: ${level}`);
+    await window.electronAPI.updateSetting('response_sensitivity', level);
   };
 
   const toggleLock = async (e: React.MouseEvent) => {
+    // Keep toggleLock as is for now since it handles multiple fields (bounds + locked)
     e.stopPropagation();
     const nextLocked = !isLocked;
 
@@ -267,10 +271,12 @@ export function useAvatar() {
     isMuted,
     isFlipped,
     mode,
+    sensitivity,
     controlCorner,
     handleImageError,
     toggleMute,
     toggleMode,
     toggleLock,
+    setSensitivity,
   };
 }
