@@ -55,7 +55,37 @@ function getYamlSettingsPath(): string {
   return path.resolve(process.env['APP_ROOT']!, '../configs/settings.default.yaml');
 }
 
+/**
+ * Cleanup configuration keys that are now managed as internal system constants
+ * or have been deprecated/moved. This ensures users pull the latest values
+ * from system_vitals.yaml instead of being stuck with old default copies.
+ */
+function cleanDeprecatedSettings() {
+  const deprecatedKeys = [
+    'sensitivity_presets',
+    'tts_timing',
+    // Nested keys use dot notation in electron-store
+    'llm.providers.gemini.option_split_threshold',
+    'llm.providers.openai.option_split_threshold',
+    'twitch.redirect_uri',
+    'avatars.blink_interval_min',
+    'avatars.blink_interval_max',
+    'avatars.mouth_hold_time',
+  ];
+
+  let changed = false;
+  for (const key of deprecatedKeys) {
+    if (store.has(key)) {
+      console.log(`[Parcera] Migration: Removing deprecated/internal key '${key}' from config.json`);
+      store.delete(key as any);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function initializeStore() {
+  // 1. Check if store is completely empty (first run)
   if (Object.keys(store.store).length === 0) {
     console.log('[Parcera] Store is empty, seeding from configs/settings.default.yaml...');
     try {
@@ -68,6 +98,9 @@ function initializeStore() {
     } catch (e) {
       console.error('Failed to seed store from YAML:', e);
     }
+  } else {
+    // 2. Perform migration/cleanup for existing users
+    cleanDeprecatedSettings();
   }
 }
 
