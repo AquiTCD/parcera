@@ -91,9 +91,17 @@ class ParceraConfig:
         return False
 
     def _load_settings(self, new_settings: dict = None) -> bool:
-        """Load defaults, then overlay user settings. Returns True if settings were updated."""
+        """Load internal system constants, then UI defaults, then user overrides."""
+        vitals_path = os.path.join(self.base_path, "configs", "system_vitals.yaml")
+        vitals = load_config_file(vitals_path)
+
         defaults_path = os.path.join(self.base_path, "configs", "settings.default.yaml")
         defaults = load_config_file(defaults_path)
+
+        # 1. Start with system constants
+        # 2. Layer UI defaults on top
+        # 3. Layer user overrides on top of everything
+        base_settings = deep_merge(vitals, defaults)
 
         user_settings = {}
         if new_settings:
@@ -110,7 +118,7 @@ class ParceraConfig:
                 user_settings = load_config_file(self.settings_path)
                 self.last_mtime = current_mtime
 
-        self.settings = deep_merge(defaults, user_settings)
+        self.settings = deep_merge(base_settings, user_settings)
         return True
 
     def _build_prompts(self):

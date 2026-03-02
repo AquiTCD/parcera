@@ -55,7 +55,37 @@ function getYamlSettingsPath(): string {
   return path.resolve(process.env['APP_ROOT']!, '../configs/settings.default.yaml');
 }
 
+/**
+ * Cleanup configuration keys that are now managed as internal system constants
+ * or have been deprecated/moved. This ensures users pull the latest values
+ * from system_vitals.yaml instead of being stuck with old default copies.
+ */
+function cleanDeprecatedSettings() {
+  const deprecatedKeys = [
+    'sensitivity_presets',
+    'tts_timing',
+    // Nested keys use dot notation in electron-store
+    'llm.providers.gemini.option_split_threshold',
+    'llm.providers.openai.option_split_threshold',
+    'twitch.redirect_uri',
+    'avatars.blink_interval_min',
+    'avatars.blink_interval_max',
+    'avatars.mouth_hold_time',
+  ];
+
+  let changed = false;
+  for (const key of deprecatedKeys) {
+    if (store.has(key as any)) {
+      console.log(`[Parcera] Migration: Removing deprecated/internal key '${key}' from config.json`);
+      store.delete(key as any);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function initializeStore() {
+  // 1. Check if store is completely empty (first run)
   if (Object.keys(store.store).length === 0) {
     console.log('[Parcera] Store is empty, seeding from configs/settings.default.yaml...');
     try {
@@ -68,6 +98,9 @@ function initializeStore() {
     } catch (e) {
       console.error('Failed to seed store from YAML:', e);
     }
+  } else {
+    // 2. Perform migration/cleanup for existing users
+    cleanDeprecatedSettings();
   }
 }
 
@@ -445,6 +478,29 @@ ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => 
     return { success: true };
   } catch (e) {
     console.error('Failed to save settings:', e);
+    return { success: false, error: String(e) };
+  }
+});
+
+ipcMain.handle('update-setting', async (_event, key: string, value: any) => {
+  try {
+    // 1. Update the store (electron-store handles dot notation for nested keys)
+    store.set(key, value);
+
+    // 2. Notify Python server to reload config
+    const currentSettings = store.store;
+    const port = currentSettings.electron?.port || 8676;
+    const url = `http://127.0.0.1:${port}/config/reload`;
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentSettings)
+    }).catch(e => console.warn('[Parcera] Python reload notification failed:', e.message));
+
+    return { success: true };
+  } catch (e) {
+    console.error(`Failed to update setting ${key}:`, e);
     return { success: false, error: String(e) };
   }
 });

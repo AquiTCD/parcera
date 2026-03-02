@@ -28,6 +28,8 @@ export const Avatar: React.FC = () => {
     toggleMute,
     toggleMode,
     toggleLock,
+    sensitivity,
+    setSensitivity,
   } = useAvatar();
 
   return (
@@ -75,14 +77,31 @@ export const Avatar: React.FC = () => {
           </button>
 
           {state.avatarType === 'ai' && (
-            <button
-              className={`control-button ${mode === 'conversation' ? 'active' : ''}`}
-              onClick={toggleMode}
-              style={{ fontSize: '14px' }}
-              title={mode === 'conversation' ? "対話モード (おしゃべり中)" : "独り言モード (見守り中)"}
-            >
-              {mode === 'conversation' ? '💬' : '👁️'}
-            </button>
+            <>
+              <div className="sensitivity-selector">
+                {(['low', 'medium', 'high'] as const).map((level) => (
+                  <button
+                    key={level}
+                    className={`sensitivity-button ${sensitivity === level ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSensitivity(level);
+                    }}
+                    title={`反応感度: ${level}`}
+                  >
+                    {level === 'low' ? 'L' : level === 'medium' ? 'M' : 'H'}
+                  </button>
+                ))}
+              </div>
+              <button
+                className={`control-button ${mode === 'conversation' ? 'active' : ''}`}
+                onClick={toggleMode}
+                style={{ fontSize: '14px' }}
+                title={mode === 'conversation' ? "対話モード (おしゃべり中)" : "独り言モード (見守り中)"}
+              >
+                {mode === 'conversation' ? '💬' : '👁️'}
+              </button>
+            </>
           )}
 
           {state.avatarType === 'user' && (

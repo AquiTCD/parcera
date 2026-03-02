@@ -24,9 +24,9 @@ class ResponseWeightFilter:
     def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium", presets=None):
         # Default presets if none provided (as fallback)
         self.presets = presets or {
-            "high":   [12.0, 0.15, 0.80],
-            "medium": [18.0, 0.10, 0.60],
-            "low":    [20.0, 0.12, 0.50],
+            "high":   [15.0, 0.12, 0.75],
+            "medium": [16.0, 0.15, 0.45],
+            "low":    [25.0, 0.15, 0.30],
         }
 
         # Initial state from arguments
