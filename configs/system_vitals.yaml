@@ -1,0 +1,33 @@
+# ==========================================
+# System-Level Constants (Not for users to edit)
+# ==========================================
+
+# Weighted Length Sigmoid Presets: (midpoint, slope, max_prob)
+# These define the behavior of response sensitivity levels.
+sensitivity_presets:
+  high:   [15.0, 0.12, 0.75]
+  medium: [16.0, 0.15, 0.45]
+  low:    [25.0, 0.15, 0.30]
+
+# TTS Busy Duration Estimation parameters
+tts_timing:
+  chars_per_second: 6.0
+  buffer_latency: 1.0
+
+# Animation & Visual timings (Lower level constants)
+avatars:
+  blink_interval_min: 5000  # [ms]
+  blink_interval_max: 15000 # [ms]
+  mouth_hold_time: 120      # [ms]
+
+# LLM fine-tuning parameters
+llm:
+  providers:
+    gemini:
+      option_split_threshold: 15 # Number of sentences before splitting response
+    openai:
+      option_split_threshold: 15
+
+# Integration Constants
+twitch:
+  redirect_uri: "http://localhost:8677/auth/callback"
