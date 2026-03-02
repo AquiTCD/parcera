@@ -70,13 +70,13 @@ def test_filter_length_probability():
 def test_filter_sensitivity_presets():
     # High sensitivity should be more chatty (lower midpoint)
     f_high = ResponseWeightFilter(sensitivity="high")
-    assert f_high.midpoint == 12.0
+    assert f_high.midpoint == 15.0
 
     # Low sensitivity should be quiet (higher midpoint)
     f_low = ResponseWeightFilter(sensitivity="low")
-    assert f_low.midpoint == 20.0
+    assert f_low.midpoint == 25.0
 
     # Unknown sensitivity should fallback
     f_unknown = ResponseWeightFilter(sensitivity="super-chatty")
     assert f_unknown.sensitivity == "super-chatty"
-    assert f_unknown.midpoint == 18.0 # default medium
+    assert f_unknown.midpoint == 16.0 # new default medium
