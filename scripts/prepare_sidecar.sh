@@ -2,10 +2,10 @@
 set -e
 
 # Configuration
-PYTHON_VERSION="3.11.7"
-BUILD_TAG="20240107"
+PYTHON_VERSION="3.13.12"
+BUILD_TAG="20260203"
 PLATFORM="aarch64-apple-darwin"
-URL="https://github.com/indygreg/python-build-standalone/releases/download/${BUILD_TAG}/cpython-${PYTHON_VERSION}+${BUILD_TAG}-${PLATFORM}-install_only.tar.gz"
+URL="https://github.com/astral-sh/python-build-standalone/releases/download/${BUILD_TAG}/cpython-${PYTHON_VERSION}+${BUILD_TAG}-${PLATFORM}-install_only.tar.gz"
 
 RESOURCE_DIR="electron/resources"
 BIN_DIR="${RESOURCE_DIR}/bin"
@@ -34,9 +34,9 @@ fi
 echo "📦 Exporting site-packages from .venv..."
 # Prune torch-related stuff to save space
 # We use 'uv pip install' to a temporary directory to get a clean set of dependencies
-# OR we just copy the current .venv/lib/python3.11/site-packages
+# OR we just copy the current .venv/lib/python3.13/site-packages
 # For now, let's just copy and exclude torch
-rsync -av --progress .venv/lib/python3.11/site-packages/ "${SITE_PACKAGES_DIR}/" \
+rsync -av --progress .venv/lib/python3.13/site-packages/ "${SITE_PACKAGES_DIR}/" \
     --exclude "torch*" \
     --exclude "torchaudio*" \
     --exclude "nvidia*" \

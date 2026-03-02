@@ -2,7 +2,7 @@
   "name": "parcera",
   "productName": "Parcera",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "main": "dist-electron/index.js",
   "type": "module",
   "scripts": {
@@ -46,7 +46,7 @@
     "appId": "com.aquitcd.parcera",
     "productName": "Parcera",
     "directories": {
-      "output": "release"
+      "output": "../dist"
     },
     "files": [
       "dist",

@@ -1,9 +1,9 @@
 [project]
 name = "parcera"
-version = "0.2.1"
+version = "0.2.2"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
   "aiavatar>=0.8.7",
   "faster-whisper>=1.2.1",
@@ -16,7 +16,7 @@ dependencies = [
   "uvicorn>=0.40.0",
   "openai>=2.20.0",
   "google-cloud-speech>=2.36.1",
-  "azure-cognitiveservices-speech>=1.48.1",
+  "azure-cognitiveservices-speech>=1.48.2",
   "twitchapi>=4.5.0",
 ]
 
