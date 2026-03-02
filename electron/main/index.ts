@@ -75,7 +75,7 @@ function cleanDeprecatedSettings() {
 
   let changed = false;
   for (const key of deprecatedKeys) {
-    if (store.has(key)) {
+    if (store.has(key as any)) {
       console.log(`[Parcera] Migration: Removing deprecated/internal key '${key}' from config.json`);
       store.delete(key as any);
       changed = true;
@@ -478,6 +478,29 @@ ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => 
     return { success: true };
   } catch (e) {
     console.error('Failed to save settings:', e);
+    return { success: false, error: String(e) };
+  }
+});
+
+ipcMain.handle('update-setting', async (_event, key: string, value: any) => {
+  try {
+    // 1. Update the store (electron-store handles dot notation for nested keys)
+    store.set(key, value);
+
+    // 2. Notify Python server to reload config
+    const currentSettings = store.store;
+    const port = currentSettings.electron?.port || 8676;
+    const url = `http://127.0.0.1:${port}/config/reload`;
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentSettings)
+    }).catch(e => console.warn('[Parcera] Python reload notification failed:', e.message));
+
+    return { success: true };
+  } catch (e) {
+    console.error(`Failed to update setting ${key}:`, e);
     return { success: false, error: String(e) };
   }
 });

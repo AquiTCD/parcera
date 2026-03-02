@@ -14,7 +14,7 @@ export interface ParceraSettings {
   simple_log?: boolean;                  // If true, only chat logs are shown in terminal
   log_level?: string;                    // "DEBUG" | "INFO" | "WARNING" | "ERROR"
   merge_request_threshold?: number;      // Seconds to merge consecutive requests
-  response_sensitivity?: string;         // "high" | "medium" | "low"
+  response_sensitivity?: 'high' | 'medium' | 'low';
   force_keywords?: string[];
   llm?: LLMSettings;
   stt?: STTSettings;
@@ -220,6 +220,7 @@ export interface ElectronAPI {
   twitchGetAuthStatus: () => Promise<boolean>;
   twitchClearAuth: () => Promise<boolean>;
   onTwitchAuthStatus: (callback: (status: { success: boolean }) => void) => () => void;
+  updateSetting: (key: string, value: any) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

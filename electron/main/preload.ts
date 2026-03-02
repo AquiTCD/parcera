@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   saveSettings: (settings: ParceraSettings): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('save-settings', settings),
+  updateSetting: (key: string, value: any): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('update-setting', key, value),
   getDefaultSettings: (): Promise<ParceraSettings> => ipcRenderer.invoke('get-default-settings'),
   selectDirectory: (currentPath?: string): Promise<string | null> => ipcRenderer.invoke('select-directory', currentPath),
   saveWindowBounds: (type: 'user' | 'ai'): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('save-window-bounds', type),
