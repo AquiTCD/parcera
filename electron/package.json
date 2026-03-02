@@ -46,7 +46,7 @@
     "appId": "com.aquitcd.parcera",
     "productName": "Parcera",
     "directories": {
-      "output": "release"
+      "output": "../dist"
     },
     "files": [
       "dist",
