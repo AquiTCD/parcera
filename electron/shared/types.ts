@@ -75,6 +75,7 @@ export interface STTProviderConfig {
   whisper_vad_filter?: boolean;
   api_key?: string;
   region?: string;
+  language?: string;
 }
 
 export interface TTSSettingsConfig {
@@ -198,6 +199,15 @@ export interface SidecarLogMessage {
   timestamp: string;
 }
 
+export interface ModelDownloadProgress {
+  status: 'downloading' | 'complete' | 'error';
+  progress?: number;
+  downloaded_mb?: number;
+  total_mb?: number;
+  file?: string;
+  error?: string;
+}
+
 export interface ElectronAPI {
   getSettings: () => Promise<ParceraSettings>;
   reloadSettings: () => Promise<ParceraSettings>;
@@ -221,6 +231,11 @@ export interface ElectronAPI {
   twitchClearAuth: () => Promise<boolean>;
   onTwitchAuthStatus: (callback: (status: { success: boolean }) => void) => () => void;
   updateSetting: (key: string, value: any) => Promise<{ success: boolean; error?: string }>;
+
+  // Model Downloader
+  checkModelCached: (modelName: string, port: number) => Promise<boolean>;
+  downloadModel: (modelName: string, callback: (data: ModelDownloadProgress) => void, port: number) => void;
+  reloadModel: (port: number) => Promise<void>;
 }
 
 declare global {

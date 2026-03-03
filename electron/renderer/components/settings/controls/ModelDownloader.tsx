@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import type { ModelDownloadProgress } from '../../../../shared/types';
+
 
 export type ModelStatus = 'checking' | 'not_cached' | 'downloading' | 'ready' | 'error';
 
@@ -14,7 +16,7 @@ export function useModelDownloader(modelName: string, port: number) {
       const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
       if (!healthRes.ok) throw new Error('Server not ready');
 
-      const cached = await (window as any).electronAPI.checkModelCached(modelName, port);
+      const cached = await window.electronAPI.checkModelCached(modelName, port);
       setModelStatus(cached ? 'ready' : 'not_cached');
     } catch (err) {
       console.log('Model Check: Server not ready, retrying...', err);
@@ -32,17 +34,17 @@ export function useModelDownloader(modelName: string, port: number) {
     setProgressDetail('');
     setErrorMsg('');
 
-    (window as any).electronAPI.downloadModel(
+    window.electronAPI.downloadModel(
       modelName,
-      async (data: any) => {
+      async (data: ModelDownloadProgress) => {
         if (data.status === 'complete') {
-          await (window as any).electronAPI.reloadModel(port);
+          await window.electronAPI.reloadModel(port);
           setModelStatus('ready');
           setProgress(100);
         } else if (data.status === 'error') {
           setModelStatus('error');
           setErrorMsg(data.error || 'ダウンロードに失敗しました');
-        } else if (data.progress >= 0) {
+        } else if (data.progress !== undefined && data.progress >= 0) {
           setProgress(data.progress);
           if (data.downloaded_mb && data.total_mb) {
             setProgressDetail(`${data.file || 'model'}: ${data.downloaded_mb}MB / ${data.total_mb}MB`);
