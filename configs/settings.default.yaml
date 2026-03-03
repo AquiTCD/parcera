@@ -38,7 +38,7 @@ llm:
 # STT (Speech to Text) Settings
 # ==========================================
 stt:
-  provider: "faster_whisper" # Active Provider: "faster_whisper", "google", "azure"
+  provider: "moonshine" # Active Provider: "moonshine", "faster_whisper", "google", "azure"
   ignore_sentences: # Phrases to ignore (e.g., "うん", "はい"). Comma-separated in UI.
     - うん
     - はい

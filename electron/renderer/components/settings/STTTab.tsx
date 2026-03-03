@@ -7,6 +7,124 @@ import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
 
 type FasterWhisperProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
+type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
+
+const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
+  const [modelStatus, setModelStatus] = useState<'checking' | 'not_cached' | 'downloading' | 'ready' | 'error'>('checking');
+  const [progress, setProgress] = useState(0);
+  const [progressDetail, setProgressDetail] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const actionButtonStyle: React.CSSProperties = {
+    padding: '8px 20px',
+    background: '#0e639c',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  };
+
+  const modelName = 'base-ja';
+  const port = settings.electron?.port || 8676;
+
+  const checkCache = useCallback(async () => {
+    setModelStatus('checking');
+    try {
+      const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
+      if (!healthRes.ok) throw new Error('Server not ready');
+
+      const cached = await (window as any).electronAPI.checkModelCached(modelName, port);
+      setModelStatus(cached ? 'ready' : 'not_cached');
+    } catch (err) {
+      console.log('Moonshine Model Check: Server not ready, retrying...', err);
+      setTimeout(() => checkCache(), 2000);
+    }
+  }, [modelName, port]);
+
+  useEffect(() => {
+    checkCache();
+  }, [checkCache]);
+
+  const handleDownload = () => {
+    setModelStatus('downloading');
+    setProgress(0);
+    setProgressDetail('');
+    setErrorMsg('');
+
+    (window as any).electronAPI.downloadModel(
+      modelName,
+      async (data: any) => {
+        if (data.status === 'complete') {
+          await (window as any).electronAPI.reloadModel(port);
+          setModelStatus('ready');
+          setProgress(100);
+        } else if (data.status === 'error') {
+          setModelStatus('error');
+          setErrorMsg(data.error || 'ダウンロードに失敗しました');
+        } else if (data.progress >= 0) {
+          setProgress(data.progress);
+          if (data.downloaded_mb && data.total_mb) {
+            setProgressDetail(`${data.file || 'model'}: ${data.downloaded_mb}MB / ${data.total_mb}MB`);
+          }
+        }
+      },
+      port
+    );
+  };
+
+  return (
+    <div className="setting-card">
+      <h3 className="setting-card-title">Moonshine 設定</h3>
+
+      <div style={{ marginBottom: '15px', padding: '12px', background: '#1e1e1e', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: '#888' }}>モデルサイズ</span>
+        <span style={{ fontWeight: 600, color: '#4fc1ff' }}>Base-ja</span>
+      </div>
+
+      {modelStatus === 'checking' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px', color: '#888' }}>
+          ⏳ モデルの状態を確認中...
+        </div>
+      )}
+
+      {modelStatus === 'not_cached' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
+          <div style={{ color: '#e8a838', marginBottom: '10px' }}>
+            ⚠️ モデルがダウンロードされていません
+          </div>
+          <div style={{ color: '#888', fontSize: '12px', marginBottom: '10px' }}>
+            Moonshine を使用するにはモデルのダウンロードが必要です
+          </div>
+          <button onClick={handleDownload} style={actionButtonStyle}>
+            ダウンロード開始
+          </button>
+        </div>
+      )}
+
+      {modelStatus === 'downloading' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
+          <div style={{ color: '#4fc1ff', marginBottom: '8px' }}>
+            📥 ダウンロード中... {progress}%
+          </div>
+          <div style={{ width: '100%', height: '8px', background: '#333', borderRadius: '4px', overflow: 'hidden', marginBottom: '6px' }}>
+            <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #0e639c, #4fc1ff)', borderRadius: '4px' }} />
+          </div>
+          {progressDetail && <div style={{ color: '#888', fontSize: '12px' }}>{progressDetail}</div>}
+        </div>
+      )}
+
+      {modelStatus === 'error' && (
+        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
+          <div style={{ color: '#f44747', marginBottom: '10px' }}>❌ {errorMsg}</div>
+          <button onClick={handleDownload} style={actionButtonStyle}>リトライ</button>
+        </div>
+      )}
+
+      {/* Flags input hidden based on user request to simplify UI */}
+    </div>
+  );
+};
 
 const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
   const [modelStatus, setModelStatus] = useState<'checking' | 'not_cached' | 'downloading' | 'ready' | 'error'>('checking');
@@ -218,7 +336,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 };
 
 export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
-  const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
+  const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const [devices, setDevices] = useState<{ value: string, label: string }[]>([]);
 
   useEffect(() => {
@@ -364,10 +482,11 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
 
       <SelectSetting
         label="使用するSTTプロバイダ"
-        value={settings.stt?.provider ?? defaultSettings?.stt?.provider ?? 'faster_whisper'}
+        value={settings.stt?.provider ?? defaultSettings?.stt?.provider ?? 'moonshine'}
         onChange={(val) => updateNested('stt', 'provider', val)}
         options={[
-          { value: 'faster_whisper', label: 'Faster Whisper (ローカル推奨)' },
+          { value: 'moonshine', label: 'Moonshine (超低遅延・高速 / オススメ)' },
+          { value: 'faster_whisper', label: 'Faster Whisper (ローカル)' },
           { value: 'google', label: 'Google Cloud STT' },
           { value: 'azure', label: 'Azure Speech to Text' }
         ]}
@@ -375,6 +494,15 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
 
       {currentSTTProvider === 'faster_whisper' && (
         <FasterWhisperSection
+          settings={settings}
+          defaultSettings={defaultSettings}
+          updateProvider={updateProvider}
+          updateNested={updateNested}
+        />
+      )}
+
+      {currentSTTProvider === 'moonshine' && (
+        <MoonshineSection
           settings={settings}
           defaultSettings={defaultSettings}
           updateProvider={updateProvider}
