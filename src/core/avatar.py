@@ -61,7 +61,7 @@ class ParceraAvatarBase:
 
             def clear_busy():
                 if session_id in self._busy_sessions:
-                    logger.warning(f"Busy flag timeout reached for {session_id}. Forcing reset.")
+                    logger.info(f"Busy flag timeout reached for {session_id}. Resetting cool-down.")
                     del self._busy_sessions[session_id]
                     if session_id in self._busy_sources:
                         del self._busy_sources[session_id]
