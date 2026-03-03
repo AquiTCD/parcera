@@ -1,7 +1,7 @@
 import logging
+import os
 import sys
 from tqdm.auto import tqdm
-from faster_whisper.utils import download_model
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,6 @@ class LoggingTqdm(tqdm):
                 "file": desc,
             }
 
-
     @classmethod
     def get_progress(cls) -> dict | None:
         return cls._current_progress
@@ -51,30 +50,86 @@ class LoggingTqdm(tqdm):
 
 
 def check_model_cached(model_name: str) -> bool:
-    """Check if a Whisper model is already in the HuggingFace cache."""
-    try:
-        download_model(model_name, local_files_only=True)
-        return True
-    except Exception:
-        return False
+    """Check if a model is already cached (supports Whisper and Moonshine)."""
+    if "moonshine" in model_name.lower() or model_name in ["tiny-ja", "base-ja"]:
+        import moonshine_voice
+        from moonshine_voice.moonshine_api import ModelArch
+        from moonshine_voice.download import find_model_info, get_components_for_model_info, get_cache_dir
+        
+        # Map name to arch
+        clean_name = model_name.lower().replace("moonshine-", "").replace("-ja", "")
+        arch = ModelArch.TINY
+        if "base" in clean_name:
+            arch = ModelArch.BASE
+            
+        try:
+            model_info = find_model_info("ja", arch)
+            cache_dir = get_cache_dir()
+            model_download_url = model_info["download_url"]
+            model_folder_name = model_download_url.replace("https://", "")
+            root_model_path = os.path.join(cache_dir, model_folder_name)
+            components = get_components_for_model_info(model_info)
+            
+            # Check if all components exist
+            for component in components:
+                if not os.path.exists(os.path.join(root_model_path, component)):
+                    return False
+            return True
+        except Exception:
+            return False
+    else:
+        from faster_whisper.utils import download_model
+        try:
+            download_model(model_name, local_files_only=True)
+            return True
+        except Exception:
+            return False
 
 
 def download_model_with_progress(model_name: str) -> str:
     """
-    Download a Whisper model with progress tracking.
+    Download an STT model (Whisper or Moonshine) with progress tracking.
     Progress is stored in LoggingTqdm._current_progress for SSE polling.
-
-    Returns the path to the downloaded model directory.
     """
-    import faster_whisper.utils as fw_utils
-    original_tqdm = fw_utils.disabled_tqdm
-
     LoggingTqdm.reset_progress()
-    fw_utils.disabled_tqdm = LoggingTqdm
-    try:
-        logger.info(f"Starting download of STT model: {model_name}")
-        model_path = download_model(model_name)
-        logger.info(f"STT model '{model_name}' download complete.")
-        return model_path
-    finally:
-        fw_utils.disabled_tqdm = original_tqdm
+
+    if "moonshine" in model_name.lower() or model_name in ["tiny-ja", "base-ja"]:
+        import moonshine_voice
+        from moonshine_voice.moonshine_api import ModelArch
+        import tqdm as tqdm_lib
+        
+        # Globally monkeypatch tqdm to capture Moonshine progress
+        original_tqdm = tqdm_lib.tqdm
+        tqdm_lib.tqdm = LoggingTqdm
+        
+        # Map to ModelArch enum
+        clean_name = model_name.lower().replace("moonshine-", "").replace("-ja", "")
+        arch = ModelArch.TINY
+        if "base" in clean_name:
+            arch = ModelArch.BASE
+            
+        logger.info(f"Starting download of Moonshine model: {arch.name}")
+        
+        try:
+            # get_model_for_language triggers the download using tqdm and returns the path.
+            path, _ = moonshine_voice.get_model_for_language(wanted_language="ja", wanted_model_arch=arch)
+            logger.info(f"Moonshine model '{arch.name}' download complete at {path}.")
+            return path
+        finally:
+            # Restore original tqdm
+            tqdm_lib.tqdm = original_tqdm
+
+    else:
+        import faster_whisper.utils as fw_utils
+        from faster_whisper.utils import download_model
+        
+        # Faster-whisper uses disabled_tqdm for its download progress
+        original_tqdm = fw_utils.disabled_tqdm
+        fw_utils.disabled_tqdm = LoggingTqdm
+        try:
+            logger.info(f"Starting download of Whisper model: {model_name}")
+            model_path = download_model(model_name)
+            logger.info(f"Whisper model '{model_name}' download complete.")
+            return model_path
+        finally:
+            fw_utils.disabled_tqdm = original_tqdm

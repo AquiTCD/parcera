@@ -18,6 +18,7 @@ dependencies = [
   "google-cloud-speech>=2.36.1",
   "azure-cognitiveservices-speech>=1.48.2",
   "twitchapi>=4.5.0",
+  "moonshine-voice",
 ]
 
 [dependency-groups]
