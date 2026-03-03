@@ -2,6 +2,7 @@ import os
 import asyncio
 import numpy as np
 import logging
+import abc
 from faster_whisper import WhisperModel
 import moonshine_voice
 from moonshine_voice.moonshine_api import ModelArch
@@ -9,6 +10,64 @@ from aiavatar.sts.stt import SpeechRecognizer
 from aiavatar.sts.stt.base import SpeechRecognitionResult
 
 logger = logging.getLogger(__name__)
+
+class LocalSpeechRecognizer(SpeechRecognizer, abc.ABC):
+    """Base class for local STT providers handling locking, audio conversion, and Japanese text cleaning."""
+    def __init__(self, debug=False):
+        super().__init__(debug=debug)
+        self._transcribe_lock = asyncio.Lock()
+
+    async def recognize(self, session_id: str, data: bytes) -> SpeechRecognitionResult:
+        logger.info(f"STT ({self.__class__.__name__}): Starting recognition for session {session_id} (data length: {len(data)} bytes)")
+        text = ""
+        try:
+            text = await self.transcribe(data, session_id)
+        except Exception as e:
+            logger.error(f"STT ({self.__class__.__name__}): Transcription error: {e}")
+            return SpeechRecognitionResult(text="")
+
+        if text:
+            logger.info(f"STT ({self.__class__.__name__}): Recognized (Raw): {text}")
+            return SpeechRecognitionResult(text=text)
+        else:
+            return SpeechRecognitionResult(text="")
+
+    async def transcribe(self, data: bytes, session_id: str = None) -> str:
+        audio_int16 = np.frombuffer(data, dtype=np.int16)
+        audio_float32 = audio_int16.astype(np.float32) / 32768.0
+
+        duration = len(audio_float32) / 16000
+        logger.debug(f"STT ({self.__class__.__name__}): Transcribing {duration:.2f}s of audio")
+
+        async with self._transcribe_lock:
+            loop = asyncio.get_event_loop()
+            text = await loop.run_in_executor(None, self._do_transcribe, audio_float32)
+
+        # Post-processing: Clean up spaces commonly added by models like Moonshine when outputting Japanese
+        if text:
+            import re
+            # 1. Remove spaces between Japanese characters (Hiragana, Katakana, CJK Ideographs)
+            jp_regex = r'([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])\s+([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])'
+            while re.search(jp_regex, text):
+                text = re.sub(jp_regex, r'\1\2', text)
+            
+            # 2. Remove spaces between Japanese and Latin characters
+            text = re.sub(r'([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])\s+([a-zA-Z0-9])', r'\1\2', text)
+            text = re.sub(r'([a-zA-Z0-9])\s+([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])', r'\1\2', text)
+
+            # 3. Remove spaces between single Latin characters (e.g. "L L M" -> "LLM")
+            single_latin_regex = r'(^|\s)([a-zA-Z0-9])\s+([a-zA-Z0-9])(\s|$)'
+            while re.search(single_latin_regex, text):
+                text = re.sub(single_latin_regex, r'\1\2\3\4', text)
+            
+            text = text.strip()
+
+        return text
+
+    @abc.abstractmethod
+    def _do_transcribe(self, audio_float32) -> str:
+        """Process audio numpy array and return transcribed text string."""
+        pass
 
 
 class NoOpRecognizer(SpeechRecognizer):
@@ -26,7 +85,7 @@ class NoOpRecognizer(SpeechRecognizer):
         return ""
 
 
-class KotobaWhisperRecognizer(SpeechRecognizer):
+class KotobaWhisperRecognizer(LocalSpeechRecognizer):
     def __init__(
         self,
         model_name="longisland3/kotoba-whisper-v2.2-faster",
@@ -53,55 +112,20 @@ class KotobaWhisperRecognizer(SpeechRecognizer):
         )
         self.initial_prompt = initial_prompt or ""
         logger.info(f"Initialized STT with prompt: {self.initial_prompt}")
-        self._transcribe_lock = asyncio.Lock()
 
-    async def recognize(self, session_id: str, data: bytes) -> SpeechRecognitionResult:
-        text = ""
-        try:
-            text = await self.transcribe(data, session_id)
-        except Exception as e:
-            logger.error(f"STT: Transcription error: {e}")
-            return SpeechRecognitionResult(text="")
-
-        if text:
-            logger.info(f"STT: Recognized (Raw): {text}")
-            return SpeechRecognitionResult(text=text)
-        else:
-            return SpeechRecognitionResult(text="")
-
-    async def transcribe(self, data: bytes, session_id: str = None) -> str:
-        audio_int16 = np.frombuffer(data, dtype=np.int16)
-        audio_float32 = audio_int16.astype(np.float32) / 32768.0
-
-        # Diagnostics: Sample Rate Check
-        duration_internal = len(audio_float32) / 16000
-        logger.debug(f"STT: Received {len(data)} bytes. Internal duration assuming 16kHz: {duration_internal:.2f}s")
-
-        async with self._transcribe_lock:
-            # 🌙 Note: We removed the busy check here to prevent self-blocking
-            # when recognize sets the busy flag right before calling transcribe.
-            loop = asyncio.get_event_loop()
-            def _execute_transcribe():
-                segments_iter, info = self.model.transcribe(
-                    audio_float32,
-                    language="ja",
-                    initial_prompt=self.initial_prompt if self.initial_prompt else None,
-                    beam_size=5,
-                    vad_filter=self.whisper_vad_filter,
-                    temperature=0.0,
-                )
-                return [s.text for s in segments_iter]
-
-            collected_texts = await loop.run_in_executor(None, _execute_transcribe)
-
-        for t in collected_texts:
-            logger.debug(f"STT: Segment: {t}")
-
-        text = "".join(collected_texts).strip()
-        return text
+    def _do_transcribe(self, audio_float32):
+        segments_iter, info = self.model.transcribe(
+            audio_float32,
+            language="ja",
+            initial_prompt=self.initial_prompt if self.initial_prompt else None,
+            beam_size=5,
+            vad_filter=self.whisper_vad_filter,
+            temperature=0.0,
+        )
+        return "".join([s.text for s in segments_iter]).strip()
 
 
-class MoonshineRecognizer(SpeechRecognizer):
+class MoonshineRecognizer(LocalSpeechRecognizer):
     def __init__(
         self,
         model_name="base-ja",
@@ -132,59 +156,8 @@ class MoonshineRecognizer(SpeechRecognizer):
              raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
 
         self.transcriber = moonshine_voice.Transcriber(model_path, model_arch)
-        
         self.flags = flags
-        self._transcribe_lock = asyncio.Lock()
 
-    async def recognize(self, session_id: str, data: bytes) -> SpeechRecognitionResult:
-        logger.info(f"STT (Moonshine): Starting recognition for session {session_id} (data length: {len(data)} bytes)")
-
-        text = ""
-        try:
-            text = await self.transcribe(data, session_id)
-        except Exception as e:
-            logger.error(f"STT (Moonshine): Transcription error: {e}")
-            return SpeechRecognitionResult(text="")
-
-        if text:
-            logger.info(f"STT (Moonshine): Recognized (Raw): {text}")
-            return SpeechRecognitionResult(text=text)
-        else:
-            return SpeechRecognitionResult(text="")
-
-    async def transcribe(self, data: bytes, session_id: str = None) -> str:
-        audio_int16 = np.frombuffer(data, dtype=np.int16)
-        audio_float32 = audio_int16.astype(np.float32) / 32768.0
-
-        # Diagnostics
-        duration = len(audio_float32) / 16000
-        logger.debug(f"STT (Moonshine): Transcribing {duration:.2f}s of audio with flags={self.flags}")
-
-        async with self._transcribe_lock:
-            loop = asyncio.get_event_loop()
-            def _execute_transcribe():
-                transcript = self.transcriber.transcribe_without_streaming(audio_float32, flags=self.flags)
-                return "".join([l.text for l in transcript.lines])
-
-            text = await loop.run_in_executor(None, _execute_transcribe)
-
-        # Post-processing: Moonshine (and sometimes Whisper) adds spaces between Japanese characters.
-        if text:
-            import re
-            # 1. Remove spaces between Japanese characters (Hiragana, Katakana, CJK Ideographs)
-            jp_regex = r'([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])\s+([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])'
-            while re.search(jp_regex, text):
-                text = re.sub(jp_regex, r'\1\2', text)
-            
-            # 2. Remove spaces between Japanese and Latin characters
-            text = re.sub(r'([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])\s+([a-zA-Z0-9])', r'\1\2', text)
-            text = re.sub(r'([a-zA-Z0-9])\s+([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])', r'\1\2', text)
-
-            # 3. Remove spaces between single Latin characters (e.g. "L L M" -> "LLM")
-            single_latin_regex = r'(^|\s)([a-zA-Z0-9])\s+([a-zA-Z0-9])(\s|$)'
-            while re.search(single_latin_regex, text):
-                text = re.sub(single_latin_regex, r'\1\2\3\4', text)
-            
-            text = text.strip()
-
-        return text
+    def _do_transcribe(self, audio_float32):
+        transcript = self.transcriber.transcribe_without_streaming(audio_float32, flags=self.flags)
+        return "".join([l.text for l in transcript.lines])

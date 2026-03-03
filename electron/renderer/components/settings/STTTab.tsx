@@ -5,73 +5,14 @@ import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
+import { useModelDownloader, ModelDownloaderUI } from './controls/ModelDownloader';
 
 type FasterWhisperProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
 type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
 
 const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
-  const [modelStatus, setModelStatus] = useState<'checking' | 'not_cached' | 'downloading' | 'ready' | 'error'>('checking');
-  const [progress, setProgress] = useState(0);
-  const [progressDetail, setProgressDetail] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const actionButtonStyle: React.CSSProperties = {
-    padding: '8px 20px',
-    background: '#0e639c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  };
-
-  const modelName = 'base-ja';
   const port = settings.electron?.port || 8676;
-
-  const checkCache = useCallback(async () => {
-    setModelStatus('checking');
-    try {
-      const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
-      if (!healthRes.ok) throw new Error('Server not ready');
-
-      const cached = await (window as any).electronAPI.checkModelCached(modelName, port);
-      setModelStatus(cached ? 'ready' : 'not_cached');
-    } catch (err) {
-      console.log('Moonshine Model Check: Server not ready, retrying...', err);
-      setTimeout(() => checkCache(), 2000);
-    }
-  }, [modelName, port]);
-
-  useEffect(() => {
-    checkCache();
-  }, [checkCache]);
-
-  const handleDownload = () => {
-    setModelStatus('downloading');
-    setProgress(0);
-    setProgressDetail('');
-    setErrorMsg('');
-
-    (window as any).electronAPI.downloadModel(
-      modelName,
-      async (data: any) => {
-        if (data.status === 'complete') {
-          await (window as any).electronAPI.reloadModel(port);
-          setModelStatus('ready');
-          setProgress(100);
-        } else if (data.status === 'error') {
-          setModelStatus('error');
-          setErrorMsg(data.error || 'ダウンロードに失敗しました');
-        } else if (data.progress >= 0) {
-          setProgress(data.progress);
-          if (data.downloaded_mb && data.total_mb) {
-            setProgressDetail(`${data.file || 'model'}: ${data.downloaded_mb}MB / ${data.total_mb}MB`);
-          }
-        }
-      },
-      port
-    );
-  };
+  const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader('base-ja', port);
 
   return (
     <div className="setting-card">
@@ -82,44 +23,14 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
         <span style={{ fontWeight: 600, color: '#4fc1ff' }}>Base-ja</span>
       </div>
 
-      {modelStatus === 'checking' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px', color: '#888' }}>
-          ⏳ モデルの状態を確認中...
-        </div>
-      )}
-
-      {modelStatus === 'not_cached' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#e8a838', marginBottom: '10px' }}>
-            ⚠️ モデルがダウンロードされていません
-          </div>
-          <div style={{ color: '#888', fontSize: '12px', marginBottom: '10px' }}>
-            Moonshine を使用するにはモデルのダウンロードが必要です
-          </div>
-          <button onClick={handleDownload} style={actionButtonStyle}>
-            ダウンロード開始
-          </button>
-        </div>
-      )}
-
-      {modelStatus === 'downloading' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#4fc1ff', marginBottom: '8px' }}>
-            📥 ダウンロード中... {progress}%
-          </div>
-          <div style={{ width: '100%', height: '8px', background: '#333', borderRadius: '4px', overflow: 'hidden', marginBottom: '6px' }}>
-            <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #0e639c, #4fc1ff)', borderRadius: '4px' }} />
-          </div>
-          {progressDetail && <div style={{ color: '#888', fontSize: '12px' }}>{progressDetail}</div>}
-        </div>
-      )}
-
-      {modelStatus === 'error' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#f44747', marginBottom: '10px' }}>❌ {errorMsg}</div>
-          <button onClick={handleDownload} style={actionButtonStyle}>リトライ</button>
-        </div>
-      )}
+      <ModelDownloaderUI
+        status={modelStatus}
+        progress={progress}
+        progressDetail={progressDetail}
+        errorMsg={errorMsg}
+        onDownload={handleDownload}
+        notCachedDescription="Moonshine を使用するにはモデルのダウンロードが必要です"
+      />
 
       {/* Flags input hidden based on user request to simplify UI */}
     </div>
@@ -127,73 +38,12 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
 };
 
 const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
-  const [modelStatus, setModelStatus] = useState<'checking' | 'not_cached' | 'downloading' | 'ready' | 'error'>('checking');
-  const [progress, setProgress] = useState(0);
-  const [progressDetail, setProgressDetail] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const actionButtonStyle: React.CSSProperties = {
-    padding: '8px 20px',
-    background: '#0e639c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  };
-
   const modelName = (settings.stt?.providers?.faster_whisper as any)?.model
     || (defaultSettings?.stt?.providers?.faster_whisper as any)?.model
     || 'longisland3/kotoba-whisper-v2.2-faster';
   const port = settings.electron?.port || 8676;
 
-  const checkCache = useCallback(async () => {
-    setModelStatus('checking');
-    try {
-      // First, check if server is alive
-      const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
-      if (!healthRes.ok) throw new Error('Server not ready');
-
-      const cached = await (window as any).electronAPI.checkModelCached(modelName, port);
-      setModelStatus(cached ? 'ready' : 'not_cached');
-    } catch (err) {
-      // Server might not be ready yet or there's a connection issue
-      console.log('STT Model Check: Server not ready, retrying...', err);
-      setTimeout(() => checkCache(), 2000);
-    }
-  }, [modelName, port]);
-
-  useEffect(() => {
-    checkCache();
-  }, [checkCache]);
-
-  const handleDownload = () => {
-    setModelStatus('downloading');
-    setProgress(0);
-    setProgressDetail('');
-    setErrorMsg('');
-
-    (window as any).electronAPI.downloadModel(
-      modelName,
-      async (data: any) => {
-        if (data.status === 'complete') {
-          // Trigger server-side reload
-          await (window as any).electronAPI.reloadModel(port);
-          setModelStatus('ready');
-          setProgress(100);
-        } else if (data.status === 'error') {
-          setModelStatus('error');
-          setErrorMsg(data.error || 'ダウンロードに失敗しました');
-        } else if (data.progress >= 0) {
-          setProgress(data.progress);
-          if (data.downloaded_mb && data.total_mb) {
-            setProgressDetail(`${data.file || 'model'}: ${data.downloaded_mb}MB / ${data.total_mb}MB`);
-          }
-        }
-      },
-      port
-    );
-  };
+  const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader(modelName, port);
 
   return (
     <div className="setting-card">
@@ -205,75 +55,18 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
         value={(settings.stt?.providers?.faster_whisper as any)?.model}
         onChange={(val) => {
           updateProvider('stt', 'faster_whisper', 'model', val);
-          // Re-check cache when model name changes
-          setTimeout(() => checkCache(), 500);
         }}
       />
 
       {/* Model download status */}
-      {modelStatus === 'checking' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px', color: '#888' }}>
-          ⏳ モデルの状態を確認中...
-        </div>
-      )}
-
-      {modelStatus === 'not_cached' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#e8a838', marginBottom: '10px' }}>
-            ⚠️ モデルがダウンロードされていません
-          </div>
-          <div style={{ color: '#888', fontSize: '12px', marginBottom: '10px' }}>
-            Faster Whisper を使用するにはモデルのダウンロードが必要です（約1.5GB）
-          </div>
-          <button
-            onClick={handleDownload}
-            style={actionButtonStyle}
-          >
-            ダウンロード開始
-          </button>
-        </div>
-      )}
-
-      {modelStatus === 'downloading' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#4fc1ff', marginBottom: '8px' }}>
-            📥 ダウンロード中... {progress}%
-          </div>
-          <div style={{
-            width: '100%',
-            height: '8px',
-            background: '#333',
-            borderRadius: '4px',
-            overflow: 'hidden',
-            marginBottom: '6px',
-          }}>
-            <div style={{
-              width: `${progress}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, #0e639c, #4fc1ff)',
-              borderRadius: '4px',
-              transition: 'width 0.3s ease',
-            }} />
-          </div>
-          {progressDetail && (
-            <div style={{ color: '#888', fontSize: '12px' }}>{progressDetail}</div>
-          )}
-        </div>
-      )}
-
-      {modelStatus === 'error' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#f44747', marginBottom: '10px' }}>
-            ❌ {errorMsg}
-          </div>
-          <button
-            onClick={handleDownload}
-            style={actionButtonStyle}
-          >
-            リトライ
-          </button>
-        </div>
-      )}
+      <ModelDownloaderUI
+        status={modelStatus}
+        progress={progress}
+        progressDetail={progressDetail}
+        errorMsg={errorMsg}
+        onDownload={handleDownload}
+        notCachedDescription="Faster Whisper を使用するにはモデルのダウンロードが必要です（約1.5GB）"
+      />
 
       {/* Settings only shown when model is ready */}
       {modelStatus === 'ready' && (
