@@ -5,77 +5,45 @@ import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
+import { useModelDownloader, ModelDownloaderUI } from './controls/ModelDownloader';
 
 type FasterWhisperProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
+type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
+
+const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
+  const port = settings.electron?.port || 8676;
+  const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader('base-ja', port);
+
+  return (
+    <div className="setting-card">
+      <h3 className="setting-card-title">Moonshine 設定</h3>
+
+      <div style={{ marginBottom: '15px', padding: '12px', background: '#1e1e1e', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: '#888' }}>モデルサイズ</span>
+        <span style={{ fontWeight: 600, color: '#4fc1ff' }}>Base-ja</span>
+      </div>
+
+      <ModelDownloaderUI
+        status={modelStatus}
+        progress={progress}
+        progressDetail={progressDetail}
+        errorMsg={errorMsg}
+        onDownload={handleDownload}
+        notCachedDescription="Moonshine を使用するにはモデルのダウンロードが必要です"
+      />
+
+      {/* Flags input hidden based on user request to simplify UI */}
+    </div>
+  );
+};
 
 const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
-  const [modelStatus, setModelStatus] = useState<'checking' | 'not_cached' | 'downloading' | 'ready' | 'error'>('checking');
-  const [progress, setProgress] = useState(0);
-  const [progressDetail, setProgressDetail] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const actionButtonStyle: React.CSSProperties = {
-    padding: '8px 20px',
-    background: '#0e639c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  };
-
-  const modelName = (settings.stt?.providers?.faster_whisper as any)?.model
-    || (defaultSettings?.stt?.providers?.faster_whisper as any)?.model
+  const modelName = (settings.stt?.providers?.faster_whisper )?.model
+    || (defaultSettings?.stt?.providers?.faster_whisper )?.model
     || 'longisland3/kotoba-whisper-v2.2-faster';
   const port = settings.electron?.port || 8676;
 
-  const checkCache = useCallback(async () => {
-    setModelStatus('checking');
-    try {
-      // First, check if server is alive
-      const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
-      if (!healthRes.ok) throw new Error('Server not ready');
-
-      const cached = await (window as any).electronAPI.checkModelCached(modelName, port);
-      setModelStatus(cached ? 'ready' : 'not_cached');
-    } catch (err) {
-      // Server might not be ready yet or there's a connection issue
-      console.log('STT Model Check: Server not ready, retrying...', err);
-      setTimeout(() => checkCache(), 2000);
-    }
-  }, [modelName, port]);
-
-  useEffect(() => {
-    checkCache();
-  }, [checkCache]);
-
-  const handleDownload = () => {
-    setModelStatus('downloading');
-    setProgress(0);
-    setProgressDetail('');
-    setErrorMsg('');
-
-    (window as any).electronAPI.downloadModel(
-      modelName,
-      async (data: any) => {
-        if (data.status === 'complete') {
-          // Trigger server-side reload
-          await (window as any).electronAPI.reloadModel(port);
-          setModelStatus('ready');
-          setProgress(100);
-        } else if (data.status === 'error') {
-          setModelStatus('error');
-          setErrorMsg(data.error || 'ダウンロードに失敗しました');
-        } else if (data.progress >= 0) {
-          setProgress(data.progress);
-          if (data.downloaded_mb && data.total_mb) {
-            setProgressDetail(`${data.file || 'model'}: ${data.downloaded_mb}MB / ${data.total_mb}MB`);
-          }
-        }
-      },
-      port
-    );
-  };
+  const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader(modelName, port);
 
   return (
     <div className="setting-card">
@@ -83,79 +51,22 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 
       <InputSetting
         label="モデル (HuggingFace形式)"
-        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.model}
-        value={(settings.stt?.providers?.faster_whisper as any)?.model}
+        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.model}
+        value={(settings.stt?.providers?.faster_whisper )?.model}
         onChange={(val) => {
           updateProvider('stt', 'faster_whisper', 'model', val);
-          // Re-check cache when model name changes
-          setTimeout(() => checkCache(), 500);
         }}
       />
 
       {/* Model download status */}
-      {modelStatus === 'checking' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px', color: '#888' }}>
-          ⏳ モデルの状態を確認中...
-        </div>
-      )}
-
-      {modelStatus === 'not_cached' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#e8a838', marginBottom: '10px' }}>
-            ⚠️ モデルがダウンロードされていません
-          </div>
-          <div style={{ color: '#888', fontSize: '12px', marginBottom: '10px' }}>
-            Faster Whisper を使用するにはモデルのダウンロードが必要です（約1.5GB）
-          </div>
-          <button
-            onClick={handleDownload}
-            style={actionButtonStyle}
-          >
-            ダウンロード開始
-          </button>
-        </div>
-      )}
-
-      {modelStatus === 'downloading' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#4fc1ff', marginBottom: '8px' }}>
-            📥 ダウンロード中... {progress}%
-          </div>
-          <div style={{
-            width: '100%',
-            height: '8px',
-            background: '#333',
-            borderRadius: '4px',
-            overflow: 'hidden',
-            marginBottom: '6px',
-          }}>
-            <div style={{
-              width: `${progress}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, #0e639c, #4fc1ff)',
-              borderRadius: '4px',
-              transition: 'width 0.3s ease',
-            }} />
-          </div>
-          {progressDetail && (
-            <div style={{ color: '#888', fontSize: '12px' }}>{progressDetail}</div>
-          )}
-        </div>
-      )}
-
-      {modelStatus === 'error' && (
-        <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-          <div style={{ color: '#f44747', marginBottom: '10px' }}>
-            ❌ {errorMsg}
-          </div>
-          <button
-            onClick={handleDownload}
-            style={actionButtonStyle}
-          >
-            リトライ
-          </button>
-        </div>
-      )}
+      <ModelDownloaderUI
+        status={modelStatus}
+        progress={progress}
+        progressDetail={progressDetail}
+        errorMsg={errorMsg}
+        onDownload={handleDownload}
+        notCachedDescription="Faster Whisper を使用するにはモデルのダウンロードが必要です（約1.5GB）"
+      />
 
       {/* Settings only shown when model is ready */}
       {modelStatus === 'ready' && (
@@ -164,7 +75,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
             <div style={{ flex: 1 }}>
               <SelectSetting
                 label="演算デバイス"
-                value={(settings.stt?.providers?.faster_whisper as any)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.device ?? 'auto'}
+                value={(settings.stt?.providers?.faster_whisper )?.device ?? (defaultSettings?.stt?.providers?.faster_whisper )?.device ?? 'auto'}
                 onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
                 options={[
                   { value: 'auto', label: 'Auto' },
@@ -176,7 +87,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
             <div style={{ flex: 1 }}>
               <SelectSetting
                 label="量子化"
-                value={(settings.stt?.providers?.faster_whisper as any)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper as any)?.compute_type ?? 'default'}
+                value={(settings.stt?.providers?.faster_whisper )?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper )?.compute_type ?? 'default'}
                 onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
                 options={[
                   { value: 'default', label: 'デフォルト' },
@@ -189,8 +100,8 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
           <CheckboxSetting
             label="Whisper内蔵VADを使用"
             description="長文向けの設定（短文が無視されるリスクがあります）"
-            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
-            checked={(settings.stt?.providers?.faster_whisper as any)?.whisper_vad_filter}
+            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.whisper_vad_filter}
+            checked={(settings.stt?.providers?.faster_whisper )?.whisper_vad_filter}
             onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
           />
 
@@ -218,7 +129,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 };
 
 export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, updateRoot, updateProvider, renderTabHeader }) => {
-  const currentSTTProvider = settings.stt?.provider || 'faster_whisper';
+  const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const [devices, setDevices] = useState<{ value: string, label: string }[]>([]);
 
   useEffect(() => {
@@ -364,10 +275,11 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
 
       <SelectSetting
         label="使用するSTTプロバイダ"
-        value={settings.stt?.provider ?? defaultSettings?.stt?.provider ?? 'faster_whisper'}
+        value={settings.stt?.provider ?? defaultSettings?.stt?.provider ?? 'moonshine'}
         onChange={(val) => updateNested('stt', 'provider', val)}
         options={[
-          { value: 'faster_whisper', label: 'Faster Whisper (ローカル推奨)' },
+          { value: 'moonshine', label: 'Moonshine (超低遅延・高速 / オススメ)' },
+          { value: 'faster_whisper', label: 'Faster Whisper (ローカル)' },
           { value: 'google', label: 'Google Cloud STT' },
           { value: 'azure', label: 'Azure Speech to Text' }
         ]}
@@ -382,19 +294,28 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
         />
       )}
 
+      {currentSTTProvider === 'moonshine' && (
+        <MoonshineSection
+          settings={settings}
+          defaultSettings={defaultSettings}
+          updateProvider={updateProvider}
+          updateNested={updateNested}
+        />
+      )}
+
       {currentSTTProvider === 'google' && (
         <div className="setting-card">
           <h3 className="setting-card-title">Google STT 設定</h3>
           <PasswordSetting
             label="APIキー"
             placeholder="Google Cloud API Key"
-            value={(settings.stt?.providers?.google as any)?.api_key ?? ''}
+            value={(settings.stt?.providers?.google )?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'google', 'api_key', val)}
           />
           <InputSetting
             label="言語"
-            defaultValue={(defaultSettings?.stt?.providers?.google as any)?.language}
-            value={(settings.stt?.providers?.google as any)?.language}
+            defaultValue={(defaultSettings?.stt?.providers?.google )?.language}
+            value={(settings.stt?.providers?.google )?.language}
             onChange={(val) => updateProvider('stt', 'google', 'language', val)}
           />
         </div>
@@ -406,12 +327,12 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           <PasswordSetting
             label="APIキー"
             placeholder="Azure API Key"
-            value={(settings.stt?.providers?.azure as any)?.api_key ?? ''}
+            value={(settings.stt?.providers?.azure )?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'azure', 'api_key', val)}
           />
           <SelectSetting
             label="リージョン (Region)"
-            value={(settings.stt?.providers?.azure as any)?.region ?? (defaultSettings?.stt?.providers?.azure as any)?.region ?? 'japaneast'}
+            value={(settings.stt?.providers?.azure )?.region ?? (defaultSettings?.stt?.providers?.azure )?.region ?? 'japaneast'}
             onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
             options={[
               { value: 'japaneast', label: 'Japan East (東日本)' },
@@ -423,20 +344,20 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
               { value: 'custom', label: '-- 手入力 (カスタム) --' }
             ]}
           />
-          {((settings.stt?.providers?.azure as any)?.region &&
-            !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure as any)?.region)) && (
+          {((settings.stt?.providers?.azure )?.region &&
+            !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure )?.region)) && (
               <InputSetting
                 label="カスタムリージョン名"
                 placeholder="例: centralus"
-                defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.region}
-                value={(settings.stt?.providers?.azure as any)?.region}
+                defaultValue={(defaultSettings?.stt?.providers?.azure )?.region}
+                value={(settings.stt?.providers?.azure )?.region}
                 onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
               />
             )}
           <InputSetting
             label="言語"
-            defaultValue={(defaultSettings?.stt?.providers?.azure as any)?.language}
-            value={(settings.stt?.providers?.azure as any)?.language}
+            defaultValue={(defaultSettings?.stt?.providers?.azure )?.language}
+            value={(settings.stt?.providers?.azure )?.language}
             onChange={(val) => updateProvider('stt', 'azure', 'language', val)}
           />
         </div>

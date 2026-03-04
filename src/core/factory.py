@@ -7,7 +7,7 @@ from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
 from core.config import ParceraConfig
-from core.stt import KotobaWhisperRecognizer, NoOpRecognizer
+from core.stt import KotobaWhisperRecognizer, NoOpRecognizer, MoonshineRecognizer
 from core.tts import FineTunedVoicevoxTTS
 from core.gemini import FixedGeminiService
 from core.wrappers import ParceraLLMWrapper, ParceraSTTWrapper
@@ -103,21 +103,31 @@ class ParceraComponentFactory:
                 compute_type = "int8"
 
             try:
-                return KotobaWhisperRecognizer(
+                recognizer_instance = KotobaWhisperRecognizer(
                     model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
                     device=device,
                     compute_type=compute_type,
                     initial_prompt=self.config.full_stt_prompt,
-                    response_filter=response_filter,
                     whisper_vad_filter=whisper_vad_filter,
                     on_recognized_callback=on_recognized_callback,
-                    is_busy_handler=is_busy_handler,
-                    set_busy_handler=set_busy_handler,
                     debug=self.config.verbose
                 )
             except Exception as e:
                 logger.warning(f"STT: Failed to load model (not downloaded yet?). STT disabled until model is downloaded via Settings. Error: {e}")
-                return NoOpRecognizer(debug=self.config.verbose)
+                recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
+
+        elif provider == "moonshine":
+            ms_cfg = providers.get("moonshine", {})
+            try:
+                recognizer_instance = MoonshineRecognizer(
+                    model_name=ms_cfg.get("model", "base-ja"),
+                    flags=int(ms_cfg.get("flags", 0)),
+                    on_recognized_callback=on_recognized_callback,
+                    debug=self.config.verbose
+                )
+            except Exception as e:
+                logger.error(f"STT: Failed to load Moonshine model: {e}")
+                recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
 
         elif provider == "google":
             google_cfg = providers.get("google", {})
@@ -150,16 +160,17 @@ class ParceraComponentFactory:
                 language=azure_cfg.get("language", "ja-JP")
             )
 
-            return ParceraSTTWrapper(
-                wrapped_recognizer=recognizer_instance,
-                is_busy_handler=is_busy_handler,
-                set_busy_handler=set_busy_handler,
-                response_filter=response_filter,
-                on_recognized_callback=on_recognized_callback
-            )
-
         else:
              raise ValueError(f"Unsupported STT provider: {provider}")
+
+        # Wrap the selected recognizer to provide consistent busy/filter logic
+        return ParceraSTTWrapper(
+            recognizer_instance,
+            is_busy_handler=is_busy_handler,
+            set_busy_handler=set_busy_handler,
+            response_filter=response_filter,
+            on_recognized_callback=on_recognized_callback
+        )
 
     def build_tts(self):
         tts_cfg = self.config.get("tts", {})

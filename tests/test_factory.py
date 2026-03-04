@@ -95,6 +95,26 @@ def test_build_llm_openai():
                 MockGPT.assert_called_once()
                 MockWrapper.assert_called_once()
 
+def test_build_stt_moonshine():
+    config = MagicMock()
+    settings = {
+        "stt": {
+            "provider": "moonshine",
+            "providers": {
+                "moonshine": {"model": "base-ja", "flags": 3}
+            }
+        },
+        "avatars": {"force_keywords": [], "ignore_sentences": []}
+    }
+    config.get.side_effect = lambda k, d=None: settings.get(k, d)
+
+    factory = ParceraComponentFactory(config)
+    with patch("src.core.factory.MoonshineRecognizer") as MockMoon:
+        factory.build_stt()
+        _, kwargs = MockMoon.call_args
+        assert kwargs["model_name"] == "base-ja"
+        assert kwargs["flags"] == 3
+
 def test_build_stt_google():
     config = MagicMock()
     config.get.side_effect = lambda k, d=None: {"provider": "google", "providers": {"google": {"api_key": "k"}}} if k == "stt" else d
