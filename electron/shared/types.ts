@@ -230,7 +230,7 @@ export interface ElectronAPI {
   twitchGetAuthStatus: () => Promise<boolean>;
   twitchClearAuth: () => Promise<boolean>;
   onTwitchAuthStatus: (callback: (status: { success: boolean }) => void) => () => void;
-  updateSetting: (key: string, value: any) => Promise<{ success: boolean; error?: string }>;
+  updateSetting: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
 
   // Model Downloader
   checkModelCached: (modelName: string, port: number) => Promise<boolean>;

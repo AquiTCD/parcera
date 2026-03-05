@@ -8,7 +8,7 @@ interface WindowSettingsSectionProps {
   type: 'user' | 'ai';
   settings: ParceraSettings;
   defaultSettings?: ParceraSettings;
-  updateNested: (category: keyof ParceraSettings, key: string, value: any) => void;
+  updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
 }
 
 export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ type, settings, defaultSettings, updateNested }) => {
@@ -16,7 +16,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
   const defaultWinParams = defaultSettings?.electron?.windows?.[type] || {};
   const labelPrefix = type === 'user' ? 'USER' : 'AI';
 
-  const updateWinParam = (key: string, value: any) => {
+  const updateWinParam = (key: string, value: unknown) => {
     updateNested('electron', 'windows', {
       ...settings.electron?.windows,
       [type]: { ...winParams, [key]: value }
@@ -48,7 +48,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
       <div style={{ marginTop: '12px', marginBottom: '12px' }}>
         <button
           onClick={async () => {
-            const bounds = await (window as any).electronAPI.getAvatarWindowBounds(type);
+            const bounds = await window.electronAPI.getAvatarWindowBounds(type);
             if (bounds) {
               updateNested('electron', 'windows', {
                 ...settings.electron?.windows,
@@ -78,7 +78,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
             type="number"
             defaultValue={defaultWinParams.x}
             value={winParams.x}
-            onChange={(val: number) => updateWinParam('x', val)}
+            onChange={(val) => updateWinParam('x', val)}
             labelStyle={{ fontSize: '12px' }}
           />
         </div>
@@ -88,7 +88,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
             type="number"
             defaultValue={defaultWinParams.y}
             value={winParams.y}
-            onChange={(val: number) => updateWinParam('y', val)}
+            onChange={(val) => updateWinParam('y', val)}
             labelStyle={{ fontSize: '12px' }}
           />
         </div>
@@ -101,7 +101,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
             type="number"
             defaultValue={defaultWinParams.width}
             value={winParams.width}
-            onChange={(val: number) => updateWinParam('width', val)}
+            onChange={(val) => updateWinParam('width', val)}
             labelStyle={{ fontSize: '12px' }}
           />
         </div>
@@ -111,7 +111,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({ ty
             type="number"
             defaultValue={defaultWinParams.height}
             value={winParams.height}
-            onChange={(val: number) => updateWinParam('height', val)}
+            onChange={(val) => updateWinParam('height', val)}
             labelStyle={{ fontSize: '12px' }}
           />
         </div>

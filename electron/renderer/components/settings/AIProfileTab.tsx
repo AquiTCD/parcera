@@ -23,7 +23,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
           description="AIキャラクターの名前です。"
           defaultValue={defaultSettings?.ai_profile?.name}
           value={settings.ai_profile?.name}
-          onChange={(val: string) => updateNested('ai_profile', 'name', val)}
+          onChange={(val) => updateNested('ai_profile', 'name', val)}
         />
 
         <div className="setting-form-row">
@@ -32,7 +32,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
               label="種族"
               defaultValue={defaultSettings?.ai_profile?.species}
               value={settings.ai_profile?.species}
-              onChange={(val: string) => updateNested('ai_profile', 'species', val)}
+              onChange={(val) => updateNested('ai_profile', 'species', val)}
             />
           </div>
           <div style={{ flex: 1 }}>
@@ -40,7 +40,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
               label="性別"
               defaultValue={defaultSettings?.ai_profile?.gender}
               value={settings.ai_profile?.gender}
-              onChange={(val: string) => updateNested('ai_profile', 'gender', val)}
+              onChange={(val) => updateNested('ai_profile', 'gender', val)}
             />
           </div>
         </div>
@@ -50,7 +50,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
           description="どのような性格ですか？"
           defaultValue={defaultSettings?.ai_profile?.personality}
           value={settings.ai_profile?.personality}
-          onChange={(val: string) => updateNested('ai_profile', 'personality', val)}
+          onChange={(val) => updateNested('ai_profile', 'personality', val)}
         />
 
         <InputSetting
@@ -58,7 +58,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
           description="話し方のスタイルを指定します。"
           defaultValue={defaultSettings?.ai_profile?.tone}
           value={settings.ai_profile?.tone}
-          onChange={(val: string) => updateNested('ai_profile', 'tone', val)}
+          onChange={(val) => updateNested('ai_profile', 'tone', val)}
         />
 
         <div className="setting-form-row">
@@ -67,7 +67,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
               label="一人称"
               defaultValue={defaultSettings?.ai_profile?.first_person}
               value={settings.ai_profile?.first_person}
-              onChange={(val: string) => updateNested('ai_profile', 'first_person', val)}
+              onChange={(val) => updateNested('ai_profile', 'first_person', val)}
             />
           </div>
           <div style={{ flex: 1 }}>
@@ -75,7 +75,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
               label="趣味"
               defaultValue={defaultSettings?.ai_profile?.hobbies}
               value={settings.ai_profile?.hobbies}
-              onChange={(val: string) => updateNested('ai_profile', 'hobbies', val)}
+              onChange={(val) => updateNested('ai_profile', 'hobbies', val)}
             />
           </div>
         </div>
@@ -91,7 +91,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
               label="あなたの名前"
               defaultValue={defaultSettings?.user_profile?.name}
               value={settings.user_profile?.name}
-              onChange={(val: string) => updateNested('user_profile', 'name', val)}
+              onChange={(val) => updateNested('user_profile', 'name', val)}
             />
           </div>
           <div style={{ flex: 1 }}>
@@ -99,7 +99,7 @@ export const AIProfileTab: React.FC<TabProps> = ({
               label="AIからの呼び方"
               defaultValue={defaultSettings?.user_profile?.calling}
               value={settings.user_profile?.calling}
-              onChange={(val: string) => updateNested('user_profile', 'calling', val)}
+              onChange={(val) => updateNested('user_profile', 'calling', val)}
             />
           </div>
         </div>
@@ -110,14 +110,14 @@ export const AIProfileTab: React.FC<TabProps> = ({
               label="性別"
               defaultValue={defaultSettings?.user_profile?.gender}
               value={settings.user_profile?.gender}
-              onChange={(val: string) => updateNested('user_profile', 'gender', val)}
+              onChange={(val) => updateNested('user_profile', 'gender', val)}
             />
           </div>
           <div style={{ flex: 1 }}>
             <SelectSetting
               label="対話モード"
               value={settings.user_profile?.mode || 'soliloquy'}
-              onChange={(val: string) => updateNested('user_profile', 'mode', val)}
+              onChange={(val) => updateNested('user_profile', 'mode', val)}
               options={[
                 { value: 'soliloquy', label: '独り言 (観戦者モード)' },
                 { value: 'conversation', label: '会話 (チャットモード)' }

@@ -20,7 +20,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
                 label="USERアバター パス"
                 defaultValue={defaultSettings?.avatars?.user?.assets_dir}
                 value={settings.avatars?.user?.assets_dir}
-                onChange={(val: string) => updateNested('avatars', 'user', { ...settings.avatars?.user, assets_dir: val })}
+                onChange={(val) => updateNested('avatars', 'user', { ...settings.avatars?.user, assets_dir: val })}
               />
               <button
                 onClick={() => handleSelectDir?.('user')}
@@ -64,7 +64,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
                 label="AIアバター パス"
                 defaultValue={defaultSettings?.avatars?.ai?.assets_dir}
                 value={settings.avatars?.ai?.assets_dir}
-                onChange={(val: string) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, assets_dir: val })}
+                onChange={(val) => updateNested('avatars', 'ai', { ...settings.avatars?.ai, assets_dir: val })}
               />
               <button
                 onClick={() => handleSelectDir?.('ai')}
@@ -138,7 +138,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
                 type="number"
                 defaultValue={defaultSettings?.avatars?.breathe_scale}
                 value={settings.avatars?.breathe_scale}
-                onChange={(val: number) => updateNested('avatars', 'breathe_scale', val)}
+                onChange={(val) => updateNested('avatars', 'breathe_scale', val)}
               />
             </div>
             <div style={{ flex: 1 }}>
@@ -147,7 +147,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
                 type="number"
                 defaultValue={defaultSettings?.avatars?.breathe_amplitude}
                 value={settings.avatars?.breathe_amplitude}
-                onChange={(val: number) => updateNested('avatars', 'breathe_amplitude', val)}
+                onChange={(val) => updateNested('avatars', 'breathe_amplitude', val)}
               />
             </div>
             <div style={{ flex: 1 }}>
@@ -156,7 +156,7 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
                 type="number"
                 defaultValue={defaultSettings?.avatars?.breathe_duration}
                 value={settings.avatars?.breathe_duration}
-                onChange={(val: number) => updateNested('avatars', 'breathe_duration', val)}
+                onChange={(val) => updateNested('avatars', 'breathe_duration', val)}
               />
             </div>
           </div>

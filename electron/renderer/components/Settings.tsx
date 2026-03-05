@@ -81,10 +81,13 @@ export const Settings: React.FC = () => {
   const handleSelectDir = useCallback(
     async (key: 'user' | 'ai') => {
       if (!settings) return;
-      const current = (settings.avatars?.[key] as any)?.assets_dir;
+      // The type of `key` is already 'user' | 'ai', so the `typeof key === 'string' && (key === 'user' || key === 'ai')` check is redundant.
+      // The casting `as import('../../../shared/types').AvatarConfig` is also removed as per instruction to remove casting logic.
+      // Assuming `settings.avatars` is typed correctly to allow direct access via `key`.
+      const current = settings.avatars?.[key]?.assets_dir;
       const result = await window.electronAPI.selectDirectory(current);
       if (result) {
-        updateNested('avatars', key, { ...(settings.avatars?.[key] as any), assets_dir: result });
+        updateNested('avatars', key, { ...(settings.avatars?.[key] || {}), assets_dir: result });
       }
     },
     [settings, updateNested]

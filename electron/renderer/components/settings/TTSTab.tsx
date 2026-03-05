@@ -1,9 +1,9 @@
 import React from 'react';
-import useSWR from 'swr';
 import { TabProps } from './types';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
+import { useLocalSpeakers, useGoogleVoices } from '../../hooks/useTTSSpeakers';
 
 export const TTSTab: React.FC<TabProps> = ({
   settings,
@@ -15,43 +15,15 @@ export const TTSTab: React.FC<TabProps> = ({
   renderTabHeader
 }) => {
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
-  const defaultProviderSettings = (defaultSettings?.tts?.providers as any)?.[currentTTSProvider];
+  const defaultProviderSettings = defaultSettings?.tts?.providers?.[currentTTSProvider];
   const ttsSettingsUrl = settings.tts?.providers?.[currentTTSProvider as ('aivisspeech' | 'voicevox')]?.api_url;
   const rawUrl = ttsSettingsUrl || defaultProviderSettings?.api_url || (currentTTSProvider === 'aivisspeech' ? 'http://127.0.0.1:10101' : 'http://127.0.0.1:50021');
   const url = rawUrl.replace(/\/$/, '');
 
-  const { data: speakersInfo, error: speakersError, isValidating: isFetchingTTS, mutate: retrySpeakers } = useSWR(
-    (currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') ? ['speakers', url] : null,
-    async ([_, fetchUrl]) => {
-      const res = await fetch(`${fetchUrl}/speakers`);
-      if (!res.ok) throw new Error('エンジンに接続できません');
-      const data = await res.json();
-      return data.flatMap((speaker: any) =>
-        speaker.styles.map((style: any) => ({
-          id: style.id,
-          name: speaker.name,
-          styleName: style.name
-        }))
-      );
-    },
-    { revalidateOnFocus: false, errorRetryCount: 1 }
-  );
+  const { speakersInfo, speakersError, isFetchingTTS, retrySpeakers } = useLocalSpeakers(currentTTSProvider, url);
 
-  const googleApiKey = (settings.tts?.providers?.google as any)?.api_key;
-  const { data: googleVoices, error: googleError, isValidating: isFetchingGoogleVoice, mutate: retryGoogle } = useSWR(
-    currentTTSProvider === 'google' && googleApiKey ? ['googleVoices', googleApiKey] : null,
-    async ([_, key]) => {
-      const res = await fetch(`https://texttospeech.googleapis.com/v1/voices?key=${key}`);
-      if (!res.ok) throw new Error('API要求に失敗しました。キーを確認してください');
-      const data = await res.json();
-      if (!data.voices) throw new Error('音声一覧が取得できませんでした');
-      return data.voices.filter((v: any) => v.name.includes('ja-JP')).map((v: any) => ({
-        id: v.name,
-        gender: v.ssmlGender.replace('SSML_VOICE_GENDER_', '')
-      }));
-    },
-    { revalidateOnFocus: false, errorRetryCount: 1 }
-  );
+  const googleApiKey = settings.tts?.providers?.google?.api_key;
+  const { googleVoices, googleError, isFetchingGoogleVoice, retryGoogle } = useGoogleVoices(currentTTSProvider, googleApiKey);
 
   React.useEffect(() => {
     if (speakersError) {
@@ -157,7 +129,7 @@ export const TTSTab: React.FC<TabProps> = ({
           <PasswordSetting
             label="1. APIキー (必須)"
             placeholder="Google Cloud API Key"
-            value={(settings.tts?.providers?.google as any)?.api_key ?? ''}
+            value={settings.tts?.providers?.google?.api_key ?? ''}
             onChange={(val) => updateProvider('tts', 'google', 'api_key', val)}
             buttonAction={
               <button
