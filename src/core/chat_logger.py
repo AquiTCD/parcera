@@ -19,10 +19,10 @@ class ChatLogger:
         if ignored:
             self.logger.info(f"{C_SKIP}[USER (ignored)]: {text}{C_RESET}")
         else:
-            self.logger.info(f"{C_USER}[USER]:   {text}{C_RESET}")
+            self.logger.info(f"{C_USER}[USER]: {text}{C_RESET}")
 
     def log_ai(self, text: str):
-        self.logger.info(f"{C_AI}[AI]:     {text}{C_RESET}")
+        self.logger.info(f"{C_AI}[AI]: {text}{C_RESET}")
 
     def log_twitch(self, user_name: str, text: str):
         self.logger.info(f"{C_TWITCH}[Twitch]: <{user_name}> {text}{C_RESET}")
