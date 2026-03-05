@@ -110,4 +110,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('twitch-auth-status', listener);
     return () => ipcRenderer.removeListener('twitch-auth-status', listener);
   },
+  openTraining: (): void => ipcRenderer.send('open-training'),
 });

@@ -32,14 +32,29 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
         notCachedDescription="Moonshine を使用するにはモデルのダウンロードが必要です"
       />
 
+      <div style={{ marginTop: '20px', borderTop: '1px solid #333', paddingTop: '20px' }}>
+        <h4 style={{ fontSize: '14px', marginBottom: '10px' }}>パーソナライズ（追加学習）</h4>
+        <p style={{ fontSize: '12px', color: '#888', marginBottom: '15px' }}>
+          アキさんの声や、特定の用語（格ゲー用語など）をパルセラに覚え込ませます。
+          約30フレーズを読み上げることで、認識精度が劇的に向上します。
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => (window as any).electronAPI.openTraining()}
+          style={{ width: '100%', background: 'linear-gradient(90deg, #4fc1ff, #a155ff)', border: 'none' }}
+        >
+          🎤 パルセラ特訓モードを開始
+        </button>
+      </div>
+
       {/* Flags input hidden based on user request to simplify UI */}
     </div>
   );
 };
 
 const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
-  const modelName = (settings.stt?.providers?.faster_whisper )?.model
-    || (defaultSettings?.stt?.providers?.faster_whisper )?.model
+  const modelName = (settings.stt?.providers?.faster_whisper)?.model
+    || (defaultSettings?.stt?.providers?.faster_whisper)?.model
     || 'longisland3/kotoba-whisper-v2.2-faster';
   const port = settings.electron?.port || 8676;
 
@@ -51,8 +66,8 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 
       <InputSetting
         label="モデル (HuggingFace形式)"
-        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.model}
-        value={(settings.stt?.providers?.faster_whisper )?.model}
+        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper)?.model}
+        value={(settings.stt?.providers?.faster_whisper)?.model}
         onChange={(val) => {
           updateProvider('stt', 'faster_whisper', 'model', val);
         }}
@@ -75,7 +90,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
             <div style={{ flex: 1 }}>
               <SelectSetting
                 label="演算デバイス"
-                value={(settings.stt?.providers?.faster_whisper )?.device ?? (defaultSettings?.stt?.providers?.faster_whisper )?.device ?? 'auto'}
+                value={(settings.stt?.providers?.faster_whisper)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper)?.device ?? 'auto'}
                 onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
                 options={[
                   { value: 'auto', label: 'Auto' },
@@ -87,7 +102,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
             <div style={{ flex: 1 }}>
               <SelectSetting
                 label="量子化"
-                value={(settings.stt?.providers?.faster_whisper )?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper )?.compute_type ?? 'default'}
+                value={(settings.stt?.providers?.faster_whisper)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper)?.compute_type ?? 'default'}
                 onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
                 options={[
                   { value: 'default', label: 'デフォルト' },
@@ -100,8 +115,8 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
           <CheckboxSetting
             label="Whisper内蔵VADを使用"
             description="長文向けの設定（短文が無視されるリスクがあります）"
-            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.whisper_vad_filter}
-            checked={(settings.stt?.providers?.faster_whisper )?.whisper_vad_filter}
+            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper)?.whisper_vad_filter}
+            checked={(settings.stt?.providers?.faster_whisper)?.whisper_vad_filter}
             onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
           />
 
@@ -309,13 +324,13 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           <PasswordSetting
             label="APIキー"
             placeholder="Google Cloud API Key"
-            value={(settings.stt?.providers?.google )?.api_key ?? ''}
+            value={(settings.stt?.providers?.google)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'google', 'api_key', val)}
           />
           <InputSetting
             label="言語"
-            defaultValue={(defaultSettings?.stt?.providers?.google )?.language}
-            value={(settings.stt?.providers?.google )?.language}
+            defaultValue={(defaultSettings?.stt?.providers?.google)?.language}
+            value={(settings.stt?.providers?.google)?.language}
             onChange={(val) => updateProvider('stt', 'google', 'language', val)}
           />
         </div>
@@ -327,12 +342,12 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           <PasswordSetting
             label="APIキー"
             placeholder="Azure API Key"
-            value={(settings.stt?.providers?.azure )?.api_key ?? ''}
+            value={(settings.stt?.providers?.azure)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'azure', 'api_key', val)}
           />
           <SelectSetting
             label="リージョン (Region)"
-            value={(settings.stt?.providers?.azure )?.region ?? (defaultSettings?.stt?.providers?.azure )?.region ?? 'japaneast'}
+            value={(settings.stt?.providers?.azure)?.region ?? (defaultSettings?.stt?.providers?.azure)?.region ?? 'japaneast'}
             onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
             options={[
               { value: 'japaneast', label: 'Japan East (東日本)' },
@@ -344,20 +359,20 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
               { value: 'custom', label: '-- 手入力 (カスタム) --' }
             ]}
           />
-          {((settings.stt?.providers?.azure )?.region &&
-            !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure )?.region)) && (
+          {((settings.stt?.providers?.azure)?.region &&
+            !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure)?.region)) && (
               <InputSetting
                 label="カスタムリージョン名"
                 placeholder="例: centralus"
-                defaultValue={(defaultSettings?.stt?.providers?.azure )?.region}
-                value={(settings.stt?.providers?.azure )?.region}
+                defaultValue={(defaultSettings?.stt?.providers?.azure)?.region}
+                value={(settings.stt?.providers?.azure)?.region}
                 onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
               />
             )}
           <InputSetting
             label="言語"
-            defaultValue={(defaultSettings?.stt?.providers?.azure )?.language}
-            value={(settings.stt?.providers?.azure )?.language}
+            defaultValue={(defaultSettings?.stt?.providers?.azure)?.language}
+            value={(settings.stt?.providers?.azure)?.language}
             onChange={(val) => updateProvider('stt', 'azure', 'language', val)}
           />
         </div>

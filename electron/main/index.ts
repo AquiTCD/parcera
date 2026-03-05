@@ -422,6 +422,43 @@ app.on('before-quit', () => {
   }
 });
 
+// --- Training Window ---
+let trainingWindow: BrowserWindow | null = null;
+
+function createTrainingWindow() {
+  if (trainingWindow) {
+    trainingWindow.focus();
+    return;
+  }
+
+  const win = new BrowserWindow({
+    width: 800,
+    height: 600,
+    title: 'Parcera - Training Mode',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+  });
+
+  const url = VITE_DEV_SERVER_URL
+    ? `${VITE_DEV_SERVER_URL}?type=training`
+    : `file://${path.join(RENDERER_DIST, 'index.html')}?type=training`;
+
+  win.loadURL(url);
+
+  win.on('closed', () => {
+    trainingWindow = null;
+  });
+
+  trainingWindow = win;
+}
+
+ipcMain.on('open-training', () => {
+  createTrainingWindow();
+});
+
 let settingsWindow: BrowserWindow | null = null;
 
 function createSettingsWindow() {
