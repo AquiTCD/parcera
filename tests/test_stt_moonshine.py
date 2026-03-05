@@ -62,3 +62,32 @@ async def test_moonshine_transcribe_with_flags():
         # Verify flags passed
         _, kwargs = recognizer.transcriber.transcribe_without_streaming.call_args
         assert kwargs["flags"] == 7
+
+@pytest.mark.asyncio
+async def test_moonshine_reload():
+    with patch("os.path.exists", return_value=True):
+        mock_moonshine.get_model_for_language.return_value = ("/tmp/fake_model", MagicMock())
+        
+        # Initial: adapter enabled
+        recognizer = MoonshineRecognizer(model_name="base-ja", active_profile="test_prof", adapter_enabled=True)
+        assert recognizer.active_profile == "test_prof"
+        assert recognizer.adapter_enabled is True
+        
+        # Mock TrainingService to return a path
+        with patch("src.core.stt.TrainingService") as mock_ts_cls:
+            mock_ts = mock_ts_cls.return_value
+            mock_ts.get_active_adapter.return_value = "/path/to/adapter"
+            
+            recognizer.reload()
+            
+            # Verify Transcriber re-created with adapter_path
+            args, kwargs = mock_moonshine.Transcriber.call_args
+            assert kwargs["options"]["adapter_path"] == "/path/to/adapter"
+            
+            # Disable adapter and reload
+            recognizer.adapter_enabled = False
+            recognizer.reload()
+            
+            # Verify Transcriber re-created WITHOUT adapter_path
+            args, kwargs = mock_moonshine.Transcriber.call_args
+            assert "adapter_path" not in kwargs["options"]

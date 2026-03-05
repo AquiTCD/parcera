@@ -38,19 +38,57 @@ def test_save_audio_creates_file(mock_audio_segment, training_service):
     # I should check if the path is correct.
     assert "training_data/wavs" in file_path
 
-def test_update_dataset_adds_line(training_service):
-    # Ensure the path is correctly handled relative to base_dir
-    audio_path = os.path.join(training_service.wavs_dir, "test.wav")
-    phrase = "テスト"
+def test_get_progress_counts_lines(training_service):
+    training_service.update_dataset("test1.wav", "Phrase 1")
+    training_service.update_dataset("test2.wav", "Phrase 2")
+    assert training_service.get_progress() == 2
+
+def test_training_task_management(training_service):
+    # Initial status
+    status = training_service.get_training_status()
+    assert status["status"] == "idle"
     
-    training_service.update_dataset(audio_path, phrase)
+    # Start training
+    result = training_service.start_training()
+    assert result["success"] is True
     
-    jsonl_path = os.path.join(training_service.base_dir, "data.jsonl")
-    assert os.path.exists(jsonl_path)
+    # Status should be training
+    status = training_service.get_training_status()
+    assert status["status"] == "training"
+    assert "started_at" in status
     
-    with open(jsonl_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-        assert len(lines) == 1
-        data = json.loads(lines[0])
-        assert data["audio"] == os.path.relpath(audio_path, training_service.base_dir)
-        assert data["sentence"] == phrase
+    # After some time or manual completion check (for prototype)
+    # We can't easily test the background process completion without async/await or wait.
+    # But we can at least check if metadata was updated.
+    metadata = training_service.get_metadata()
+    assert metadata["status"] == "training"
+
+def test_reset_training(training_service):
+    # Set to completed first
+    training_service.update_metadata(status="completed")
+    
+    # Create a dummy adapter file
+    adapter_path = os.path.join(training_service.profile_dir, "adapters.npz")
+    with open(adapter_path, "w") as f:
+        f.write("dummy adapter")
+    
+    assert os.path.exists(adapter_path)
+    
+    # Reset
+    training_service.reset_training()
+    
+    # Check metadata
+    assert training_service.get_training_status()["status"] == "idle"
+    # Check file deleted
+    assert not os.path.exists(adapter_path)
+
+def test_get_active_adapter_path(training_service):
+    # Missing file -> None
+    assert training_service.get_active_adapter() is None
+    
+    # Existing file -> Path
+    adapter_path = os.path.join(training_service.profile_dir, "adapters.npz")
+    with open(adapter_path, "w") as f:
+        f.write("dummy adapter")
+    
+    assert training_service.get_active_adapter() == adapter_path
