@@ -65,14 +65,25 @@ class ParceraSTTWrapper:
     Wraps any SpeechRecognizer to filter inputs when AI is busy or based on content.
     Note: Can't inherit SpeechRecognizer easily because we need to wrap the instance.
     """
-    def __init__(self, wrapped_recognizer, is_busy_handler=None, set_busy_handler=None, response_filter=None, on_recognized_callback=None):
+    def __init__(self, wrapped_recognizer, is_busy_handler=None, set_busy_handler=None, response_filter=None, on_recognized_callback=None, avatar=None):
         self.wrapped = wrapped_recognizer
         self.is_busy_handler = is_busy_handler
         self.set_busy_handler = set_busy_handler
         self.response_filter = response_filter
         self.on_recognized_callback = on_recognized_callback
+        self.avatar = avatar
+
+    def __getattr__(self, name):
+        # Delegate access to undefined attributes (like reload) to the wrapped instance
+        return getattr(self.wrapped, name)
 
     async def recognize(self, session_id: str, data: bytes):
+        # 0. Silent Training Mode Check
+        if self.avatar and getattr(self.avatar, "silent_training", False):
+            logger.debug("STT Wrapper: Silent Training Mode is ON. Skipping AI interaction.")
+            from aiavatar.sts.stt.base import SpeechRecognitionResult
+            return SpeechRecognitionResult(text="")
+
         # 1. Busy Check
         if self.is_busy_handler and self.is_busy_handler(session_id):
             logger.info(f"STT Wrapper: AI is busy. Ignoring input for session {session_id} (First-Wins).")

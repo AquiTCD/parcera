@@ -69,7 +69,7 @@ class ParceraComponentFactory:
 
         return service_instance
 
-    def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None):
+    def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None, **kwargs):
         stt_cfg = self.config.get("stt", {})
         provider = stt_cfg.get("provider", "faster_whisper")
         providers = stt_cfg.get("providers", {})
@@ -94,9 +94,6 @@ class ParceraComponentFactory:
             device = fw_cfg.get("device", "cpu")
             compute_type = fw_cfg.get("compute_type", "int8")
 
-            # CTranslate2 (faster-whisper backend) does not support 'mps'.
-            # Force to 'cpu' if someone has it set from an older config.
-            # Also reset compute_type since float16 (often paired with mps) is not supported on CPU.
             if device == "mps":
                 logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
                 device = "cpu"
@@ -122,6 +119,8 @@ class ParceraComponentFactory:
                 recognizer_instance = MoonshineRecognizer(
                     model_name=ms_cfg.get("model", "base-ja"),
                     flags=int(ms_cfg.get("flags", 0)),
+                    active_profile=ms_cfg.get("active_profile", "default"),
+                    adapter_enabled=bool(ms_cfg.get("adapter_enabled", True)),
                     on_recognized_callback=on_recognized_callback,
                     debug=self.config.verbose
                 )
@@ -144,7 +143,8 @@ class ParceraComponentFactory:
                 is_busy_handler=is_busy_handler,
                 set_busy_handler=set_busy_handler,
                 response_filter=response_filter,
-                on_recognized_callback=on_recognized_callback
+                on_recognized_callback=on_recognized_callback,
+                avatar=kwargs.get("avatar")
             )
 
         elif provider == "azure":
@@ -169,7 +169,8 @@ class ParceraComponentFactory:
             is_busy_handler=is_busy_handler,
             set_busy_handler=set_busy_handler,
             response_filter=response_filter,
-            on_recognized_callback=on_recognized_callback
+            on_recognized_callback=on_recognized_callback,
+            avatar=kwargs.get("avatar")
         )
 
     def build_tts(self):

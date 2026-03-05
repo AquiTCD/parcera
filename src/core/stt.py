@@ -9,6 +9,7 @@ from typing import Optional
 from moonshine_voice.moonshine_api import ModelArch
 from aiavatar.sts.stt import SpeechRecognizer
 from aiavatar.sts.stt.base import SpeechRecognitionResult
+from services.training_service import TrainingService
 
 logger = logging.getLogger(__name__)
 
@@ -131,13 +132,16 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         self,
         model_name="base-ja",
         flags=0,
-        response_filter=None,
         on_recognized_callback=None,
+        active_profile="default",
+        adapter_enabled=True,
         debug=False
     ):
         super().__init__(debug=debug)
         self.on_recognized_callback = on_recognized_callback
         self.model_name = model_name
+        self.active_profile = active_profile
+        self.adapter_enabled = adapter_enabled
         
         # Map string model name to enum if available
         arch = ModelArch.TINY
@@ -146,19 +150,58 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         
         logger.info(f"Loading Moonshine model: {arch.name}...")
 
-        # In Parcera, we strictly separate download and load.
-        # But for Moonshine, get_model_for_language is fast if files exist.
         model_path, model_arch = moonshine_voice.get_model_for_language("ja", wanted_model_arch=arch)
         
-        # Verify it actually exists (avoiding automatic download if not intended,
-        # though get_model_for_language might trigger it if not careful.
-        # Let's check it manually like in check_model_cached)
         if not os.path.exists(model_path):
              raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
 
-        self.transcriber = moonshine_voice.Transcriber(model_path, model_arch)
+        # Check for LoRA adapters if enabled
+        options = {}
+        if adapter_enabled:
+            try:
+                training_service = TrainingService(profile_id=active_profile)
+                adapter_path = training_service.get_active_adapter()
+                if adapter_path:
+                    logger.info(f"Moonshine: LoRA adapter ENABLED using profile '{active_profile}' at {adapter_path}")
+                    options["adapter_path"] = adapter_path
+                else:
+                    logger.info(f"Moonshine: No adapter found for profile '{active_profile}'. Using standard model.")
+            except Exception as e:
+                logger.warning(f"Moonshine: Failed to check for adapters: {e}")
+        else:
+            logger.info("Moonshine: LoRA adapter DISABLED by settings.")
+
+        self.transcriber = moonshine_voice.Transcriber(model_path, model_arch, options=options)
         self.flags = flags
 
     def _do_transcribe(self, audio_float32):
         transcript = self.transcriber.transcribe_without_streaming(audio_float32, flags=self.flags)
         return "".join([l.text for l in transcript.lines])
+
+    def reload(self):
+        """Hot-reload the transcriber to apply/remove LoRA adapters without restarting the engine."""
+        arch = ModelArch.TINY
+        if "base" in self.model_name.lower():
+            arch = ModelArch.BASE
+        
+        model_path, model_arch = moonshine_voice.get_model_for_language("ja", wanted_model_arch=arch)
+        
+        # We need the original parameters. Since they are simple values, let's assume we can use self.model_name
+        # But we need adapter_enabled and active_profile. 
+        # For simplicity, we'll re-run the logic with the current state if we had it, but for now
+        # let's just make sure this method exists and tries to reload based on disk state.
+        
+        # Improved: let's store these in __init__
+        options = {}
+        if getattr(self, "adapter_enabled", True):
+            try:
+                training_service = TrainingService(profile_id=getattr(self, "active_profile", "default"))
+                adapter_path = training_service.get_active_adapter()
+                if adapter_path:
+                    logger.info(f"Moonshine Reload: LoRA adapter ENABLED at {adapter_path}")
+                    options["adapter_path"] = adapter_path
+            except Exception as e:
+                logger.warning(f"Moonshine Reload: Failed to check for adapters: {e}")
+
+        self.transcriber = moonshine_voice.Transcriber(model_path, model_arch, options=options)
+        logger.info("Moonshine: Transcriber reloaded successfully.")

@@ -76,6 +76,8 @@ export interface STTProviderConfig {
   api_key?: string;
   region?: string;
   language?: string;
+  adapter_enabled?: boolean;
+  active_profile?: string;
 }
 
 export interface TTSSettingsConfig {
@@ -235,7 +237,11 @@ export interface ElectronAPI {
   // Model Downloader
   checkModelCached: (modelName: string, port: number) => Promise<boolean>;
   downloadModel: (modelName: string, callback: (data: ModelDownloadProgress) => void, port: number) => void;
-  reloadModel: (port: number) => Promise<void>;
+  reloadModel: (port: number) => Promise<{ success: boolean; error?: string }>;
+
+  // Training
+  openTraining: () => void;
+  setTrainingMode: (enabled: boolean, port: number) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

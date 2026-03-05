@@ -51,6 +51,11 @@ stt:
       - 差し返し
 
   providers:
+    moonshine:
+      model: "base-ja"
+      active_profile: "default"
+      adapter_enabled: true
+
     faster_whisper:
       model: "longisland3/kotoba-whisper-v2.2-faster" # HuggingFace model path
       device: "cpu"       # Computation device: "cuda" (NVIDIA GPU) or "cpu"
