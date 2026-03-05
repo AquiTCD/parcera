@@ -1,6 +1,7 @@
 import asyncio
 import httpx
 import logging
+from typing import Optional, Dict, Any
 from aiavatar.sts.tts.voicevox import VoicevoxSpeechSynthesizer
 
 logger = logging.getLogger(__name__)
@@ -9,7 +10,7 @@ class FineTunedVoicevoxTTS(VoicevoxSpeechSynthesizer):
     def __init__(self, base_url: str, speaker_id: int, settings: dict):
         super().__init__(base_url=base_url, speaker=speaker_id)
         self.settings = settings
-        self._client = None
+        self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -20,7 +21,7 @@ class FineTunedVoicevoxTTS(VoicevoxSpeechSynthesizer):
         if self._client and not self._client.is_closed:
             await self._client.aclose()
 
-    async def synthesize(self, text: str, style_info: dict = None, language: str = None) -> bytes:
+    async def synthesize(self, text: str, style_info: Optional[Dict[str, Any]] = None, language: Optional[str] = None) -> bytes:
         if not text:
             return b""
 

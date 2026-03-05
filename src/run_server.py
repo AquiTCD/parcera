@@ -3,6 +3,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from typing import Optional
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,6 +48,8 @@ class ParceraServer(ParceraAvatarBase):
         super().__init__()
         self.config.setup_logging()
         self.tts_engine_manager = None
+        self._warmup_task: Optional[asyncio.Task] = None
+        self._twitch_task: Optional[asyncio.Task] = None
 
         # Interaction Controller (Orchestrates the pipeline)
         self.controller = InteractionController(self, self.config)

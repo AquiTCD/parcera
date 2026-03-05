@@ -12,10 +12,10 @@ class TwitchClient:
         self.client_id = client_id
         self.client_secret = client_secret
         self.callback_on_refresh = callback_on_refresh
-        self.twitch: Twitch = None
-        self.chat: Chat = None
-        self.access_token = None
-        self.refresh_token = None
+        self.twitch: Optional[Twitch] = None
+        self.chat: Optional[Chat] = None
+        self.access_token: Optional[str] = None
+        self.refresh_token: Optional[str] = None
         self.scopes = [
             AuthScope.CHAT_READ,
             AuthScope.CHAT_EDIT,
@@ -29,10 +29,10 @@ class TwitchClient:
         # State and Filtering
         self.is_chat_started = False
         self.wake_word_pattern: Optional[re.Pattern] = None
-        self.ignored_users = set()
+        self.ignored_users: set[str] = set()
         self.ng_words_patterns: List[re.Pattern] = []
 
-    def update_settings(self, wake_word: str = None, ignored_users: List[str] = None, ng_words: List[str] = None):
+    def update_settings(self, wake_word: Optional[str] = None, ignored_users: Optional[List[str]] = None, ng_words: Optional[List[str]] = None):
         """Update filtering settings dynamically."""
         if wake_word:
             try:
@@ -91,7 +91,7 @@ class TwitchClient:
 
         try:
             if self.chat:
-                await self.chat.stop()
+                self.chat.stop()
 
             self.chat = await Chat(self.twitch)
 

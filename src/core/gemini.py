@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from google.genai import types
 from aiavatar.sts.llm.gemini import GeminiService
 from aiavatar.sts.llm import LLMResponse
@@ -14,7 +14,7 @@ class FixedGeminiService(GeminiService):
         self.profile_mode = profile_mode
         self._system_prompt_logged = False
 
-    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: List[dict], system_prompt_params: Dict[str, Any] = None, tools: List[Dict[str, Any]] = None):
+    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: List[Any], system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Dict[str, Any]]] = None):
         if messages:
             last_msg = messages[-1]
             if hasattr(last_msg, "parts"):
@@ -62,14 +62,14 @@ class FixedGeminiService(GeminiService):
                 logger.error(f"LLM Error (context: {context_id}): {err_msg}", exc_info=True)
             raise
 
-    async def update_context(self, context_id: str, user_id: str, messages: List[dict], response_text: str):
+    async def update_context(self, context_id: str, user_id: str, messages: List[Any], response_text: str):
         # Add model response to history
         current_messages = list(messages)
         current_messages.append(types.Content(role="model", parts=[types.Part.from_text(text=response_text)]))
 
         dict_messages = []
         for m in current_messages:
-            dumped = m.model_dump(exclude_none=True)
+            dumped = m.model_dump(exclude_none=True) if hasattr(m, "model_dump") else m
 
             # Binary data handling
             for part in dumped.get("parts", []):

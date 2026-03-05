@@ -1,6 +1,7 @@
 import logging
 import os
 import asyncio
+from typing import Optional
 from core.config import ParceraConfig
 from core.factory import ParceraComponentFactory
 
@@ -38,7 +39,7 @@ class ParceraAvatarBase:
     def _is_ai_busy_check(self, session_id: str) -> bool:
         return session_id in self._busy_sessions
 
-    def is_busy(self, source: str = None, exclude_session: str = None) -> bool:
+    def is_busy(self, source: Optional[str] = None, exclude_session: Optional[str] = None) -> bool:
         """Check if AI is busy, optionally filtered by source or excluding a session."""
         if source is None:
             if exclude_session is not None:
@@ -46,7 +47,7 @@ class ParceraAvatarBase:
             return len(self._busy_sessions) > 0
         return any(s == source for sid, s in self._busy_sources.items() if sid != exclude_session)
 
-    def set_busy(self, session_id: str, busy: bool, timeout: float = 15.0, source: str = None):
+    def set_busy(self, session_id: str, busy: bool, timeout: float = 15.0, source: Optional[str] = None):
         # Cancel existing timer if any
         if session_id in self._busy_sessions:
             self._busy_sessions[session_id].cancel()

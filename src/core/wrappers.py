@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional, List, Dict, Any
 from aiavatar.sts.llm import LLMService
 
 logger = logging.getLogger(__name__)
@@ -27,13 +27,13 @@ class ParceraLLMWrapper(LLMService):
     def dynamic_tool_name(self) -> str:
         return self.wrapped.dynamic_tool_name
 
-    async def compose_messages(self, context_id: str, user_id: str, text: str, files: list = None, system_prompt_params: dict = None):
+    async def compose_messages(self, context_id: str, user_id: str, text: str, files: Optional[List[Any]] = None, system_prompt_params: Optional[Dict[str, Any]] = None):
         return await self.wrapped.compose_messages(context_id, user_id, text, files, system_prompt_params)
 
     async def update_context(self, context_id: str, user_id: str, messages: list, response_text: str):
         return await self.wrapped.update_context(context_id, user_id, messages, response_text)
 
-    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: list, system_prompt_params: dict = None, tools: list = None):
+    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: list, system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Any]] = None):
         # 1. System Prompt Logging (First time only)
         if not self._system_prompt_logged:
             # We try to inspect the wrapped service to see if we can log the system prompt
