@@ -61,7 +61,30 @@ def create_training_router(get_server_callback):
     @router.get("/profiles/{profile_id}/progress")
     async def get_training_progress(profile_id: str):
         service = TrainingService(profile_id=profile_id)
-        return {"progress": service.get_progress()}
+        progress = service.get_progress()
+        logger.info(f"API: Progress request for {profile_id} -> {progress}")
+        return {"progress": progress}
+
+    @router.get("/profiles/{profile_id}/status")
+    async def get_training_status(profile_id: str):
+        service = TrainingService(profile_id=profile_id)
+        return service.get_training_status()
+
+    @router.post("/profiles/{profile_id}/train")
+    async def start_training(profile_id: str, epochs: int = 10):
+        service = TrainingService(profile_id=profile_id)
+        return service.start_training(epochs=epochs)
+
+    @router.post("/profiles/{profile_id}/apply")
+    async def apply_training(profile_id: str):
+        # This triggers a reload of the STT component on the server
+        # which will pick up the new adapters.npz file
+        server = get_server_callback()
+        try:
+            server.reload_stt()
+            return {"success": True, "message": "STT reloaded with new training data"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     @router.get("/profiles/{profile_id}")
     async def get_profile(profile_id: str):
@@ -91,5 +114,17 @@ def create_training_router(get_server_callback):
         service = TrainingService(profile_id=profile_id)
         success = service.delete_profile()
         return {"success": success}
+
+    @router.post("/profiles/{profile_id}/reset")
+    async def reset_training_status(profile_id: str):
+        service = TrainingService(profile_id=profile_id)
+        service.reset_training()
+        
+        # Also trigger a reload so the running STT unloads the deleted adapter
+        server = get_server_callback()
+        if server and hasattr(server, "stt"):
+            server.stt.reload()
+            
+        return {"success": True}
 
     return router

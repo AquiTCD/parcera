@@ -62,6 +62,25 @@ class TrainingService:
         self.save_metadata(metadata)
         return metadata
 
+    def reset_training(self):
+        """
+        Resets the training status and DELETES the adapter weight file.
+        This effectively returns the STT engine to its default state for this profile.
+        """
+        adapter_path = os.path.join(self.profile_dir, "adapters.npz")
+        if os.path.exists(adapter_path):
+            os.remove(adapter_path)
+            
+        self.update_metadata(
+            status="idle",
+            is_trained=False,
+            training_error=None,
+            training_progress=0,
+            active_adapter=None,
+            last_trained_at=None
+        )
+        return True
+
     def delete_profile(self):
         import shutil
         if os.path.exists(self.profile_dir):
@@ -150,7 +169,91 @@ class TrainingService:
         except Exception:
             return 0
 
+    def get_training_status(self) -> dict:
+        """
+        Returns the current training status for this profile.
+        """
+        metadata = self.get_metadata()
+        status = metadata.get("status", "idle") # idle, training, completed, failed
+        active_adapter = self.get_active_adapter()
+        
+        # If metadata says completed but file is missing, something is wrong
+        # Return idle so the user can re-train (the data is still there)
+        if status == "completed" and not active_adapter:
+            status = "idle"
+
+        return {
+            "status": status,
+            "profile_id": os.path.basename(self.profile_dir),
+            "is_trained": metadata.get("is_trained", False),
+            "last_trained_at": metadata.get("last_trained_at"),
+            "error": metadata.get("training_error"),
+            "started_at": metadata.get("training_started_at"),
+            "active_adapter": active_adapter
+        }
+
+    def get_active_adapter(self) -> str:
+        """
+        Returns the absolute path to the active adapter file if it exists.
+        """
+        adapter_path = os.path.join(self.profile_dir, "adapters.npz")
+        if os.path.exists(adapter_path):
+            return adapter_path
+        return None
+
+    def start_training(self, epochs: int = 10):
+#...
+        """
+        Starts the LoRA training process in the background.
+        """
+        import datetime
+        import subprocess
+        import sys
+        
+        # Check if already training
+        status = self.get_training_status()
+        if status["status"] == "training":
+            return {"success": False, "error": "Already training"}
+
+        # Determine path to training script relative to this file
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        # src/services/training_service.py -> src/../scripts/mlx/train_lora.py
+        project_root = os.path.abspath(os.path.join(current_file_dir, "..", ".."))
+        script_path = os.path.join(project_root, "scripts", "mlx", "train_lora.py")
+        
+        if not os.path.exists(script_path):
+             return {"success": False, "error": f"Training script not found at {script_path}"}
+
+        # Prepare log file
+        log_path = os.path.join(self.profile_dir, "training.log")
+        
+        # Update metadata to 'training'
+        now = datetime.datetime.now().isoformat()
+        self.update_metadata(
+            status="training",
+            training_started_at=now,
+            training_error=None,
+            training_log=log_path
+        )
+        
+        # Spawn background process
+        # We use uv run to ensure the environment is correct
+        try:
+            with open(log_path, "w") as log_file:
+                subprocess.Popen(
+                    ["uv", "run", "python", script_path, "--profile_dir", self.profile_dir, "--epochs", str(epochs)],
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True # Ensure it survives server restart if needed
+                )
+            return {"success": True, "message": "Training started", "log_path": log_path}
+        except Exception as e:
+            logger.error(f"Failed to launch training process: {e}")
+            self.update_metadata(status="failed", training_error=str(e))
+            return {"success": False, "error": str(e)}
+
     def validate_audio(self, file_path: str) -> dict:
+#...
         """
         Basic audio validation.
         Check duration and if it's not silent.
