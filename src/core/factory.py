@@ -116,11 +116,24 @@ class ParceraComponentFactory:
         elif provider == "moonshine":
             ms_cfg = providers.get("moonshine", {})
             try:
+                adapter_enabled = bool(ms_cfg.get("adapter_enabled", True))
+                active_profile = ms_cfg.get("active_profile", "default")
+                adapter_path = None
+                
+                if adapter_enabled:
+                    try:
+                        from services.training_service import TrainingService
+                        ts = TrainingService(profile_id=active_profile)
+                        adapter_path = ts.get_active_adapter()
+                    except Exception as e:
+                        logger.warning(f"Factory: Failed to get adapter path: {e}")
+
                 recognizer_instance = MoonshineRecognizer(
                     model_name=ms_cfg.get("model", "base-ja"),
                     flags=int(ms_cfg.get("flags", 0)),
-                    active_profile=ms_cfg.get("active_profile", "default"),
-                    adapter_enabled=bool(ms_cfg.get("adapter_enabled", True)),
+                    active_profile=active_profile,
+                    adapter_enabled=adapter_enabled,
+                    adapter_path=adapter_path,
                     on_recognized_callback=on_recognized_callback,
                     debug=self.config.verbose
                 )

@@ -9,7 +9,6 @@ from typing import Optional
 from moonshine_voice.moonshine_api import ModelArch
 from aiavatar.sts.stt import SpeechRecognizer
 from aiavatar.sts.stt.base import SpeechRecognitionResult
-from services.training_service import TrainingService
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +134,7 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         on_recognized_callback=None,
         active_profile="default",
         adapter_enabled=True,
+        adapter_path=None,
         debug=False
     ):
         super().__init__(debug=debug)
@@ -142,6 +142,7 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         self.model_name = model_name
         self.active_profile = active_profile
         self.adapter_enabled = adapter_enabled
+        self.adapter_path = adapter_path
         
         # Map string model name to enum if available
         arch = ModelArch.TINY
@@ -155,19 +156,12 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         if not os.path.exists(model_path):
              raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
 
-        # Check for LoRA adapters if enabled
         options = {}
-        if adapter_enabled:
-            try:
-                training_service = TrainingService(profile_id=active_profile)
-                adapter_path = training_service.get_active_adapter()
-                if adapter_path:
-                    logger.info(f"Moonshine: LoRA adapter ENABLED using profile '{active_profile}' at {adapter_path}")
-                    options["adapter_path"] = adapter_path
-                else:
-                    logger.info(f"Moonshine: No adapter found for profile '{active_profile}'. Using standard model.")
-            except Exception as e:
-                logger.warning(f"Moonshine: Failed to check for adapters: {e}")
+        if self.adapter_enabled and self.adapter_path:
+            logger.info(f"Moonshine: LoRA adapter ENABLED using profile '{self.active_profile}' at {self.adapter_path}")
+            options["adapter_path"] = self.adapter_path
+        elif self.adapter_enabled and not self.adapter_path:
+            logger.info(f"Moonshine: No adapter found for profile '{self.active_profile}'. Using standard model.")
         else:
             logger.info("Moonshine: LoRA adapter DISABLED by settings.")
 
@@ -178,7 +172,7 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         transcript = self.transcriber.transcribe_without_streaming(audio_float32, flags=self.flags)
         return "".join([l.text for l in transcript.lines])
 
-    def reload(self):
+    def reload(self, adapter_path: Optional[str] = None):
         """Hot-reload the transcriber to apply/remove LoRA adapters without restarting the engine."""
         arch = ModelArch.TINY
         if "base" in self.model_name.lower():
@@ -186,22 +180,17 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         
         model_path, model_arch = moonshine_voice.get_model_for_language("ja", wanted_model_arch=arch)
         
-        # We need the original parameters. Since they are simple values, let's assume we can use self.model_name
-        # But we need adapter_enabled and active_profile. 
-        # For simplicity, we'll re-run the logic with the current state if we had it, but for now
-        # let's just make sure this method exists and tries to reload based on disk state.
+        # Update the stored path if explicitly provided (could be None to clear it)
+        # If not provided in args, we just use the existing self.adapter_path
+        pass_path = adapter_path if adapter_path is not None else self.adapter_path
+        self.adapter_path = pass_path
         
-        # Improved: let's store these in __init__
         options = {}
-        if getattr(self, "adapter_enabled", True):
-            try:
-                training_service = TrainingService(profile_id=getattr(self, "active_profile", "default"))
-                adapter_path = training_service.get_active_adapter()
-                if adapter_path:
-                    logger.info(f"Moonshine Reload: LoRA adapter ENABLED at {adapter_path}")
-                    options["adapter_path"] = adapter_path
-            except Exception as e:
-                logger.warning(f"Moonshine Reload: Failed to check for adapters: {e}")
+        if self.adapter_enabled and self.adapter_path:
+            logger.info(f"Moonshine Reload: LoRA adapter ENABLED at {self.adapter_path}")
+            options["adapter_path"] = self.adapter_path
+        else:
+            logger.info("Moonshine Reload: LoRA adapter DISABLED or not found.")
 
         self.transcriber = moonshine_voice.Transcriber(model_path, model_arch, options=options)
         logger.info("Moonshine: Transcriber reloaded successfully.")
