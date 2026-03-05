@@ -6,6 +6,7 @@ import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
 import { useModelDownloader, ModelDownloaderUI } from './controls/ModelDownloader';
+import { TrainingView } from '../TrainingView';
 
 type FasterWhisperProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
 type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
@@ -13,6 +14,19 @@ type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updatePro
 const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
   const port = settings.electron?.port || 8676;
   const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader('base-ja', port);
+  const [showTraining, setShowTraining] = useState(false);
+
+  if (showTraining) {
+    return (
+      <div className="setting-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 className="setting-card-title" style={{ margin: 0 }}>パルセラ特訓モード</h3>
+          <button className="btn btn-secondary" onClick={() => setShowTraining(false)}>キャンセル</button>
+        </div>
+        <TrainingView />
+      </div>
+    );
+  }
 
   return (
     <div className="setting-card">
@@ -36,18 +50,16 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
         <h4 style={{ fontSize: '14px', marginBottom: '10px' }}>パーソナライズ（追加学習）</h4>
         <p style={{ fontSize: '12px', color: '#888', marginBottom: '15px' }}>
           アキさんの声や、特定の用語（格ゲー用語など）をパルセラに覚え込ませます。
-          約30フレーズを読み上げることで、認識精度が劇的に向上します。
+          約100フレーズを読み上げることで、認識精度が劇的に向上します。
         </p>
         <button
           className="btn btn-primary"
-          onClick={() => (window as any).electronAPI.openTraining()}
+          onClick={() => setShowTraining(true)}
           style={{ width: '100%', background: 'linear-gradient(90deg, #4fc1ff, #a155ff)', border: 'none' }}
         >
           🎤 パルセラ特訓モードを開始
         </button>
       </div>
-
-      {/* Flags input hidden based on user request to simplify UI */}
     </div>
   );
 };
