@@ -20,6 +20,8 @@ dependencies = [
   "twitchapi>=4.5.0",
   "moonshine-voice",
   "pydantic>=2.12.5",
+  "librosa>=0.11.0",
+  "pydub>=0.25.1",
 ]
 
 [dependency-groups]
