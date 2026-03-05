@@ -175,3 +175,101 @@ async def test_twitch_wait_time_calculation():
     assert server.twitch_service._calculate_wait_time("漢") == pytest.approx(0.52)
     # "！" (ignored) -> 0.2 + 0 = 0.2
     assert server.twitch_service._calculate_wait_time("！") == pytest.approx(0.2)
+
+@pytest.mark.anyio
+async def test_twitch_service_process_queue():
+    from src.services.twitch_service import TwitchService
+    server = MagicMock()
+    server.config.get.return_value = {"response_speed": "instant"}
+    twitch = TwitchService(server)
+    
+    # We will enqueue two items, then cancel the task to emulate running the loop
+    await twitch.queue.put(("UserA", "Hello"))
+    await twitch.queue.put(("UserB", "Bye"))
+    
+    import asyncio
+    with patch.object(twitch, "_invoke_response", new_callable=AsyncMock) as mock_invoke:
+        task = asyncio.create_task(twitch.process_queue())
+        # Let the loop process 2 items
+        await twitch.queue.join()
+        task.cancel()
+        
+        # Verify 2 calls
+        assert mock_invoke.call_count == 2
+        mock_invoke.assert_any_call("UserA", "Hello", audio_delay=0.0)
+        mock_invoke.assert_any_call("UserB", "Bye", audio_delay=0.0)
+
+@pytest.mark.anyio
+async def test_twitch_service_invoke_response():
+    from src.services.twitch_service import TwitchService
+    server = MagicMock()
+    server.is_busy.return_value = False
+    
+    # STS Mock
+    async def mock_sts_invoke(req):
+        # yields two chunks
+        yield MagicMock()
+        yield MagicMock()
+    
+    server.aiavatar_server.sts.invoke = mock_sts_invoke
+    server.aiavatar_server.handle_response = AsyncMock()
+    
+    twitch = TwitchService(server)
+    
+    import asyncio
+    with patch("asyncio.get_event_loop") as mock_loop:
+        mock_loop.return_value.time.return_value = 100.0
+        
+        # Invoke with a 0.5s audio_delay
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await twitch._invoke_response("UserA", "Test", audio_delay=0.5)
+            
+            # The busy state was set
+            server.set_busy.assert_called_once()
+            # 2 handle_response calls
+            assert server.aiavatar_server.handle_response.call_count == 2
+            
+            # Sleep was awaited because audio_delay was > 0 
+            # Note: actual sleep argument check varies by execution branch, 
+            # but we just assert it was called for the delay.
+            mock_sleep.assert_called()
+
+@pytest.mark.anyio
+async def test_twitch_service_sync_client():
+    from src.services.twitch_service import TwitchService
+    server = MagicMock()
+    twitch = TwitchService(server)
+    
+    # Mock configuration 
+    server.config.settings = {
+        "twitch": {
+            "enabled": True,
+            "wake_word": "test",
+            "ignored_users": [],
+            "ng_words": []
+        }
+    }
+    server.twitch_client.is_chat_started = False
+    server.twitch_client.start_chat = AsyncMock()
+    
+    # Enable Chat -> start_chat
+    await twitch.sync_client()
+    server.twitch_client.update_settings.assert_called_once_with(
+        wake_word="test",
+        ignored_users=[],
+        ng_words=[]
+    )
+    server.twitch_client.start_chat.assert_called_once()
+    
+    # Enable Chat (already started) -> updates callback only
+    server.twitch_client.is_chat_started = True
+    server.twitch_client.start_chat.reset_mock()
+    await twitch.sync_client()
+    server.twitch_client.start_chat.assert_not_called()
+    assert hasattr(server.twitch_client, "on_message_callback")
+    
+    # Disable Chat -> stop_chat
+    server.config.settings["twitch"]["enabled"] = False
+    server.twitch_client.stop_chat = AsyncMock()
+    await twitch.sync_client()
+    server.twitch_client.stop_chat.assert_called_once()

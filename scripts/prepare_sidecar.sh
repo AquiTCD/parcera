@@ -40,22 +40,22 @@ else
 fi
 
 # 3. Export site-packages
-echo "📦 Exporting site-packages from .venv..."
-# Important: Ensure we use the path for 3.13
-if [ ! -d ".venv/lib/python3.13/site-packages" ]; then
-    echo "❌ Error: .venv/lib/python3.13/site-packages not found."
-    echo "Please run 'uv sync' first."
-    exit 1
-fi
+echo "📦 Exporting production site-packages..."
 
 # Clean up old packages to avoid version mixing
 rm -rf "${SITE_PACKAGES_DIR}"/*
 
-rsync -av --progress .venv/lib/python3.13/site-packages/ "${SITE_PACKAGES_DIR}/" \
-    --exclude "torch*" \
-    --exclude "torchaudio*" \
-    --exclude "nvidia*" \
-    --exclude "__pycache__"
+# Install only production dependencies into the target directory
+uv export --no-dev --format requirements-txt > build_reqs.txt
+uv pip install -r build_reqs.txt --target "${SITE_PACKAGES_DIR}"
+rm build_reqs.txt
+
+# Clean up heavy/unneeded dependencies
+echo "🧹 Cleaning up heavy dependencies..."
+rm -rf "${SITE_PACKAGES_DIR}/torch"*
+rm -rf "${SITE_PACKAGES_DIR}/torchaudio"*
+rm -rf "${SITE_PACKAGES_DIR}/nvidia"*
+find "${SITE_PACKAGES_DIR}" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # 4. Create Stub Torch to satisfy imports
 echo "stub" > "${SITE_PACKAGES_DIR}/torch_stub_marker"

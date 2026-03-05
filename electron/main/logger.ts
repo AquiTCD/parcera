@@ -17,18 +17,13 @@ class LogManager {
     console.log = (...args: any[]) => {
       this.originalLog(...args);
       const text = args.map(String).join(' ');
-      // Avoid double-logging sidecar messages already handled by the sidecar callback
-      if (!text.startsWith('[Python]')) {
-        this.addLog('stdout', `[Main] ${text}`);
-      }
+      this.addLog('stdout', `[Main] ${text}`);
     };
 
     console.error = (...args: any[]) => {
       this.originalError(...args);
       const text = args.map(String).join(' ');
-      if (!text.startsWith('[Python Error]')) {
-        this.addLog('stderr', `[Main Error] ${text}`);
-      }
+      this.addLog('stderr', `[Main Error] ${text}`);
     };
   }
 

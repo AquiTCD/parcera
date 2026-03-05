@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { TabProps } from './types';
 import { CheckboxSetting } from './controls/CheckboxSetting';
+import { useTwitchAuth } from '../../hooks/useTwitchAuth';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
@@ -13,51 +14,7 @@ export const TwitchTab: React.FC<TabProps> = ({
   renderTabHeader,
   setStatus,
 }) => {
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-
-  const checkAuthStatus = useCallback(async () => {
-    try {
-      const status = await window.electronAPI.twitchGetAuthStatus();
-      setIsAuthorized(status);
-    } catch (e) {
-      console.error('Failed to check Twitch auth status:', e);
-    } finally {
-      setIsChecking(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkAuthStatus();
-
-    // Listen for auth success
-    const removeListener = window.electronAPI.onTwitchAuthStatus((status: { success: boolean }) => {
-      if (status.success) {
-        setIsAuthorized(true);
-        setStatus({ message: 'Twitch認証に成功しました！', type: 'success' });
-        setTimeout(() => setStatus({ message: '', type: '' }), 3000);
-      }
-    });
-
-    return removeListener;
-  }, [checkAuthStatus, setStatus]);
-
-  const handleStartAuth = async () => {
-    try {
-      await window.electronAPI.twitchStartAuth();
-      setStatus({ message: 'ブラウザでTwitch認可画面を開きました。', type: 'success' });
-    } catch (e: any) {
-      setStatus({ message: '認証エラー: ' + e.message, type: 'error' });
-    }
-  };
-
-  const handleClearAuth = async () => {
-    if (window.confirm('Twitchの認証情報を削除しますか？')) {
-      await window.electronAPI.twitchClearAuth();
-      setIsAuthorized(false);
-      setStatus({ message: '認証情報を削除しました。', type: 'success' });
-    }
-  };
+  const { isAuthorized, handleStartAuth, handleClearAuth } = useTwitchAuth(setStatus);
 
   const twitchSettings = settings.twitch || {};
 
@@ -150,7 +107,7 @@ export const TwitchTab: React.FC<TabProps> = ({
           description="カンマ区切りで入力（例: Nightbot, Moobot）"
           value={(twitchSettings.ignored_users || []).join(', ')}
           defaultValue={defaultSettings?.twitch?.ignored_users?.join(', ')}
-          onChange={(val) => updateNested('twitch', 'ignored_users', val.split(',').map((s: string) => s.trim()).filter((s: string) => s))}
+          onChange={(val) => updateNested('twitch', 'ignored_users', String(val).split(',').map((s: string) => s.trim()).filter((s: string) => s))}
         />
 
         <InputSetting
@@ -158,7 +115,7 @@ export const TwitchTab: React.FC<TabProps> = ({
           description="これらの単語が含まれるチャットを無視します。カンマ区切りで入力。"
           value={(twitchSettings.ng_words || []).join(', ')}
           defaultValue={defaultSettings?.twitch?.ng_words?.join(', ')}
-          onChange={(val) => updateNested('twitch', 'ng_words', val.split(',').map((s: string) => s.trim()).filter((s: string) => s))}
+          onChange={(val) => updateNested('twitch', 'ng_words', String(val).split(',').map((s: string) => s.trim()).filter((s: string) => s))}
         />
       </div>
     </section>

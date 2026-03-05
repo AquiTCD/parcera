@@ -7,7 +7,7 @@ interface InputSettingProps {
   type?: 'text' | 'number';
   value: string | number | undefined | null;
   defaultValue?: string | number;
-  onChange: (val: any) => void;
+  onChange: (val: string | number) => void;
   placeholder?: string;
   step?: string;
   labelStyle?: React.CSSProperties;

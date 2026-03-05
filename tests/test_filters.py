@@ -80,3 +80,21 @@ def test_filter_sensitivity_presets():
     f_unknown = ResponseWeightFilter(sensitivity="super-chatty")
     assert f_unknown.sensitivity == "super-chatty"
     assert f_unknown.midpoint == 16.0 # new default medium
+
+def test_filter_init_presets():
+    # should initialize with default presets
+    f = ResponseWeightFilter()
+    assert "medium" in f.presets
+
+def test_filter_update_config_subset():
+    f = ResponseWeightFilter(sensitivity="medium", force_keywords=["test"])
+    
+    # Update only one field
+    f.update_config(sensitivity="high")
+    assert f.sensitivity == "high"
+    assert f.force_keywords == ["test"] # Remains unchanged
+    assert f.midpoint == 15.0 # Updated for high
+
+    f.update_config(force_keywords=["hello"])
+    assert f.sensitivity == "high" # Remains unchanged
+    assert f.force_keywords == ["hello"]

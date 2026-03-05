@@ -1,6 +1,6 @@
 import React from 'react';
-import useSWR from 'swr';
 import { TabProps } from './types';
+import { useLLMModels } from '../../hooks/useLLMModels';
 import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
@@ -15,27 +15,9 @@ export const LLMTab: React.FC<TabProps> = ({
   renderTabHeader
 }) => {
   const currentLLMProvider = settings.llm?.provider || 'gemini';
-  const apiKey = (settings.llm?.providers as any)?.[currentLLMProvider]?.api_key;
+  const apiKey = settings.llm?.providers?.[currentLLMProvider]?.api_key;
 
-  const { data: models, error, isValidating: isFetchingModels, mutate: retryModels } = useSWR(
-    apiKey && (currentLLMProvider === 'gemini' || currentLLMProvider === 'openai') ? ['models', currentLLMProvider, apiKey] : null,
-    async ([_, provider, key]) => {
-      if (provider === 'gemini') {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-        if (!res.ok) throw new Error('API要求に失敗しました。キーを確認してください');
-        const data = await res.json();
-        return data.models.map((m: any) => m.name.replace('models/', ''));
-      } else {
-        const res = await fetch('https://api.openai.com/v1/models', {
-          headers: { Authorization: `Bearer ${key}` }
-        });
-        if (!res.ok) throw new Error('API要求に失敗しました。キーを確認してください');
-        const data = await res.json();
-        return data.data.map((m: any) => m.id);
-      }
-    },
-    { revalidateOnFocus: false, errorRetryCount: 1 }
-  );
+  const { models, error, isFetchingModels, retryModels } = useLLMModels(currentLLMProvider, apiKey);
 
   React.useEffect(() => {
     if (error) {
@@ -70,7 +52,7 @@ export const LLMTab: React.FC<TabProps> = ({
         <PasswordSetting
           label="1. APIキー (必須)"
           placeholder="API Key"
-          value={(settings.llm?.providers as any)?.[currentLLMProvider]?.api_key ?? ''}
+          value={settings.llm?.providers?.[currentLLMProvider]?.api_key ?? ''}
           onChange={(val) => updateProvider('llm', currentLLMProvider, 'api_key', val)}
           buttonAction={
             <button
@@ -85,7 +67,7 @@ export const LLMTab: React.FC<TabProps> = ({
 
         <SelectSetting
           label="2. 使用するモデル"
-          value={(settings.llm?.providers as any)?.[currentLLMProvider]?.model ?? ''}
+          value={settings.llm?.providers?.[currentLLMProvider]?.model ?? ''}
           onChange={(val) => updateProvider('llm', currentLLMProvider, 'model', val)}
           disabled={isFetchingModels || !models || models.length === 0}
           options={isFetchingModels ? [{ value: '', label: 'モデル一覧を取得中...' }] : (models && models.length > 0 ? [
@@ -101,8 +83,8 @@ export const LLMTab: React.FC<TabProps> = ({
               description="0.0で安定、高いほど独創的になります。"
               type="number"
               step="0.1"
-              defaultValue={(defaultSettings?.llm?.providers as any)?.[currentLLMProvider]?.temperature}
-              value={(settings.llm?.providers as any)?.[currentLLMProvider]?.temperature}
+              defaultValue={defaultSettings?.llm?.providers?.[currentLLMProvider]?.temperature}
+              value={settings.llm?.providers?.[currentLLMProvider]?.temperature}
               onChange={(val) => updateProvider('llm', currentLLMProvider, 'temperature', val)}
             />
           </div>
@@ -112,8 +94,8 @@ export const LLMTab: React.FC<TabProps> = ({
               description="TTSへの受け渡しをスムーズにするための分割。10〜20文字程度を推奨。"
               type="number"
               step="1"
-              defaultValue={(defaultSettings?.llm?.providers as any)?.[currentLLMProvider]?.option_split_threshold}
-              value={(settings.llm?.providers as any)?.[currentLLMProvider]?.option_split_threshold}
+              defaultValue={defaultSettings?.llm?.providers?.[currentLLMProvider]?.option_split_threshold}
+              value={settings.llm?.providers?.[currentLLMProvider]?.option_split_threshold}
               onChange={(val) => updateProvider('llm', currentLLMProvider, 'option_split_threshold', val)}
             />
           </div>
@@ -122,8 +104,8 @@ export const LLMTab: React.FC<TabProps> = ({
         <CheckboxSetting
           label="前回の会話内容を記憶し続ける"
           description="有効にすると、セッションを越えて記憶を保持します（長期間の運用でコストや精度に影響する場合があります）。"
-          defaultValue={(defaultSettings?.llm?.providers as any)?.[currentLLMProvider]?.persist_history}
-          checked={(settings.llm?.providers as any)?.[currentLLMProvider]?.persist_history}
+          defaultValue={defaultSettings?.llm?.providers?.[currentLLMProvider]?.persist_history}
+          checked={settings.llm?.providers?.[currentLLMProvider]?.persist_history}
           onChange={(checked) => updateProvider('llm', currentLLMProvider, 'persist_history', checked)}
         />
       </div>

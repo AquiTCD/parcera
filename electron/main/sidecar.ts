@@ -43,7 +43,8 @@ export class PythonSidecar {
 
     this.process.stdout?.on('data', (data) => {
       const text = data.toString().trim();
-      console.log(`[Python] ${text}`);
+      // Use process.stdout.write to skip console.log interceptor entirely
+      process.stdout.write(`${text}\n`);
       this.onLog?.('stdout', text);
     });
 
@@ -53,10 +54,10 @@ export class PythonSidecar {
       const isInfo = /INFO:|\[USER\]:|\[AI\]:|✨|Application startup complete|Uvicorn running/.test(text);
 
       if (isInfo) {
-        console.log(`[Python] ${text}`);
+        process.stdout.write(`${text}\n`);
         this.onLog?.('stdout', text);
       } else {
-        console.error(`[Python Error] ${text}`);
+        process.stderr.write(`${text}\n`);
         this.onLog?.('stderr', text);
       }
     });

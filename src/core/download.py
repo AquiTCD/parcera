@@ -100,7 +100,7 @@ def download_model_with_progress(model_name: str) -> str:
         
         # Globally monkeypatch tqdm to capture Moonshine progress
         original_tqdm = tqdm_lib.tqdm
-        tqdm_lib.tqdm = LoggingTqdm
+        tqdm_lib.tqdm = LoggingTqdm  # type: ignore
         
         # Map to ModelArch enum
         clean_name = model_name.lower().replace("moonshine-", "").replace("-ja", "")
@@ -116,8 +116,7 @@ def download_model_with_progress(model_name: str) -> str:
             logger.info(f"Moonshine model '{arch.name}' download complete at {path}.")
             return path
         finally:
-            # Restore original tqdm
-            tqdm_lib.tqdm = original_tqdm
+            tqdm_lib.tqdm = original_tqdm  # type: ignore
 
     else:
         import faster_whisper.utils as fw_utils
@@ -125,11 +124,11 @@ def download_model_with_progress(model_name: str) -> str:
         
         # Faster-whisper uses disabled_tqdm for its download progress
         original_tqdm = fw_utils.disabled_tqdm
-        fw_utils.disabled_tqdm = LoggingTqdm
+        fw_utils.disabled_tqdm = LoggingTqdm  # type: ignore
         try:
             logger.info(f"Starting download of Whisper model: {model_name}")
             model_path = download_model(model_name)
             logger.info(f"Whisper model '{model_name}' download complete.")
             return model_path
         finally:
-            fw_utils.disabled_tqdm = original_tqdm
+            fw_utils.disabled_tqdm = original_tqdm  # type: ignore

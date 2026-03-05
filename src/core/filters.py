@@ -2,8 +2,15 @@ import random
 import re
 import logging
 import math
+from typing import List, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_SENSITIVITY_PRESETS: Dict[str, List[float]] = {
+    "high":   [15.0, 0.12, 0.75],
+    "medium": [16.0, 0.15, 0.45],
+    "low":    [25.0, 0.15, 0.30],
+}
 
 class ResponseWeightFilter:
     @staticmethod
@@ -21,24 +28,34 @@ class ResponseWeightFilter:
         kanji_count = len(re.findall(r'[一-龠]', clean_text))
         return float(raw_len + kanji_count)
 
-    def __init__(self, force_keywords=None, ignore_sentences=None, sensitivity="medium", presets=None):
+    def __init__(
+        self, 
+        force_keywords: Optional[List[str]] = None, 
+        ignore_sentences: Optional[List[str]] = None, 
+        sensitivity: str = "medium", 
+        presets: Optional[Dict[str, List[float]]] = None
+    ) -> None:
         # Default presets if none provided (as fallback)
-        self.presets = presets or {
-            "high":   [15.0, 0.12, 0.75],
-            "medium": [16.0, 0.15, 0.45],
-            "low":    [25.0, 0.15, 0.30],
-        }
+        self.presets = presets or DEFAULT_SENSITIVITY_PRESETS
 
         # Initial state from arguments
-        self.force_keywords = force_keywords if force_keywords is not None else []
-        self.ignore_sentences = ignore_sentences if ignore_sentences is not None else []
-        self.sensitivity = sensitivity.lower() if sensitivity else "medium"
-        self.midpoint = self.slope = self.max_prob = 0.0
+        self.force_keywords: List[str] = force_keywords if force_keywords is not None else []
+        self.ignore_sentences: List[str] = ignore_sentences if ignore_sentences is not None else []
+        self.sensitivity: str = sensitivity.lower() if sensitivity else "medium"
+        self.midpoint: float = 0.0
+        self.slope: float = 0.0
+        self.max_prob: float = 0.0
 
         # Sync internal probability parameters
         self.update_config()
 
-    def update_config(self, force_keywords=None, ignore_sentences=None, sensitivity=None, presets=None):
+    def update_config(
+        self, 
+        force_keywords: Optional[List[str]] = None, 
+        ignore_sentences: Optional[List[str]] = None, 
+        sensitivity: Optional[str] = None, 
+        presets: Optional[Dict[str, List[float]]] = None
+    ) -> None:
         if force_keywords is not None:
             self.force_keywords = force_keywords
         if ignore_sentences is not None:
@@ -51,7 +68,7 @@ class ResponseWeightFilter:
         # Guard against invalid sensitivity strings
         # Config provides list [mid, slope, max], we map it to tuple
         raw_preset = self.presets.get(self.sensitivity, self.presets["medium"])
-        self.midpoint, self.slope, self.max_prob = tuple(raw_preset)
+        self.midpoint, self.slope, self.max_prob = float(raw_preset[0]), float(raw_preset[1]), float(raw_preset[2])
 
         logger.info(f"ResponseFilter Updated: Sensitivity='{self.sensitivity}' (mid={self.midpoint}, slope={self.slope}, max={self.max_prob})")
 

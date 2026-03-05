@@ -5,6 +5,7 @@ import logging
 import abc
 from faster_whisper import WhisperModel
 import moonshine_voice
+from typing import Optional
 from moonshine_voice.moonshine_api import ModelArch
 from aiavatar.sts.stt import SpeechRecognizer
 from aiavatar.sts.stt.base import SpeechRecognitionResult
@@ -32,7 +33,7 @@ class LocalSpeechRecognizer(SpeechRecognizer, abc.ABC):
         else:
             return SpeechRecognitionResult(text="")
 
-    async def transcribe(self, data: bytes, session_id: str = None) -> str:
+    async def transcribe(self, data: bytes, session_id: Optional[str] = None) -> str:
         audio_int16 = np.frombuffer(data, dtype=np.int16)
         audio_float32 = audio_int16.astype(np.float32) / 32768.0
 
@@ -81,7 +82,7 @@ class NoOpRecognizer(SpeechRecognizer):
     async def recognize(self, session_id: str, data: bytes) -> SpeechRecognitionResult:
         return SpeechRecognitionResult(text="")
 
-    async def transcribe(self, data: bytes, session_id: str = None) -> str:
+    async def transcribe(self, data: bytes, session_id: Optional[str] = None) -> str:
         return ""
 
 

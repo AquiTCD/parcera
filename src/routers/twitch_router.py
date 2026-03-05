@@ -40,14 +40,18 @@ def create_twitch_router(get_server):
         server.config.refresh()
         server.apply_runtime_config()
 
-        user = await server.twitch_client.get_me()
-        return {
-            "success": True,
-            "user": {
-                "display_name": user.display_name if user else "Unknown",
-                "login": user.login if user else "unknown"
+        try:
+            user = await server.twitch_client.get_me()
+            return {
+                "success": True,
+                "user": {
+                    "display_name": user.display_name if user else "Unknown",
+                    "login": user.login if user else "unknown"
+                }
             }
-        }
+        except Exception as e:
+            logger.error(f"Failed to fetch user info during Twitch init: {e}")
+            raise HTTPException(status_code=500, detail="Failed to connect to Twitch API.")
 
     @router.get("/status")
     async def get_status():

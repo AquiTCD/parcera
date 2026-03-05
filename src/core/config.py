@@ -2,6 +2,9 @@ import os
 import json
 import yaml
 import logging
+import sys
+from typing import Optional, Dict, Any
+from core.schema import AppSettings
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +22,15 @@ def load_config_file(path: str) -> dict:
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             if path.endswith(".json"):
-                return json.load(f)
-            return yaml.safe_load(f)
+                return json.load(f) or {}
+            return yaml.safe_load(f) or {}
     return {}
 
 
 def deep_merge(base: dict, update: dict) -> dict:
     """Recursively merge two dictionaries."""
+    base = base or {}
+    update = update or {}
     result = base.copy()
     for key, value in update.items():
         if isinstance(value, dict) and key in result and isinstance(result[key], dict):
@@ -62,22 +67,25 @@ def _get_default_situation(mode: str, user_name: str) -> str:
 
 
 class ParceraConfig:
-    def __init__(self, settings_path: str = None):
+    def __init__(self, settings_path: Optional[str] = None):
         # Base path detection (works for both dev and packaged)
         self.base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
         if settings_path is None:
-            settings_path = os.environ.get("PARCERA_CONFIG_PATH")
-            if not settings_path:
+            config_env = os.environ.get("PARCERA_CONFIG_PATH")
+            if not config_env:
                 # Fallback to local config dir
                 settings_path = os.path.join(self.base_path, "configs", "settings.default.yaml")
+            else:
+                settings_path = config_env
 
         self.settings_path = settings_path
-        self.last_mtime = 0
-        self.settings = {}
+        self.last_mtime: float = 0.0
+        self.settings: Dict[str, Any] = {}
+        self.data: AppSettings = AppSettings()
         self.refresh()
 
-    def refresh(self, new_settings: dict = None) -> bool:
+    def refresh(self, new_settings: Optional[Dict[str, Any]] = None) -> bool:
         """Reload settings and prompts. Use disk if new_settings is None. Returns True if changed."""
         try:
             changed = self._load_settings(new_settings)
@@ -90,7 +98,7 @@ class ParceraConfig:
             logger.error(f"Error refreshing config: {e}")
         return False
 
-    def _load_settings(self, new_settings: dict = None) -> bool:
+    def _load_settings(self, new_settings: Optional[Dict[str, Any]] = None) -> bool:
         """Load internal system constants, then UI defaults, then user overrides."""
         vitals_path = os.path.join(self.base_path, "configs", "system_vitals.yaml")
         vitals = load_config_file(vitals_path)
@@ -118,7 +126,15 @@ class ParceraConfig:
                 user_settings = load_config_file(self.settings_path)
                 self.last_mtime = current_mtime
 
-        self.settings = deep_merge(base_settings, user_settings)
+        merged_settings = deep_merge(base_settings, user_settings)
+        try:
+            # Validate and apply defaults via Pydantic
+            self.data = AppSettings.model_validate(merged_settings)
+            self.settings = self.data.model_dump()
+        except Exception as e:
+            logger.warning(f"Config validation failed (falling back to strict dict): {e}")
+            self.settings = merged_settings
+            
         return True
 
     def _build_prompts(self):
@@ -207,6 +223,7 @@ class ParceraConfig:
         logging.basicConfig(
             level=logging.DEBUG if effective_level == "DEBUG" else logging.INFO,
             format=log_format,
+            stream=sys.stdout,
             force=True
         )
 
@@ -237,7 +254,7 @@ class ParceraConfig:
     def app_data_dir(self) -> str:
         """Return a writable directory for models, logs, and caches."""
         if os.name == "nt":
-            base = os.environ.get("APPDATA")
+            base = os.environ.get("APPDATA", os.path.expanduser("~"))
         else:
             base = os.path.expanduser("~/Library/Application Support")
 
