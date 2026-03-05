@@ -148,3 +148,6 @@ cython_debug/
 -e
 # Auto-generated config bridge (Electron → Python)
 .env.config_path
+
+# Training Data
+training_data/
