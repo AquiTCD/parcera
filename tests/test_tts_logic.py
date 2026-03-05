@@ -69,3 +69,60 @@ async def test_tts_synthesize_ultimate_failure(tts):
             assert result == b""
             # Attempts: 1(fail), sleep, 2(fail), sleep, 3(fail) -> Done
             assert mock_client.post.call_count == 3
+
+@pytest.mark.anyio
+async def test_tts_synthesize_empty_text(tts):
+    # Empty text should return b"" directly
+    result = await tts.synthesize("")
+    assert result == b""
+
+@pytest.mark.anyio
+async def test_tts_synthesize_skips_none_settings():
+    tts = FineTunedVoicevoxTTS(
+        base_url="http://localhost",
+        speaker_id=1,
+        settings={"speedScale": 1.5, "pitchScale": None}
+    )
+    
+    mock_post_response = MagicMock()
+    mock_post_response.status_code = 200
+    mock_post_response.json.return_value = {"speedScale": 1.0, "pitchScale": 0.0}
+    mock_post_response.content = b"audio"
+    
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+    mock_client.post.return_value = mock_post_response
+    mock_client.is_closed = False
+    
+    with patch.object(tts, "_get_client", return_value=mock_client):
+        result = await tts.synthesize("Hello")
+        assert result == b"audio"
+        
+        # Verify pitchScale was ignored since it was None
+        _, kwargs = mock_client.post.call_args_list[1]
+        sent_json = kwargs["json"]
+        assert sent_json["speedScale"] == 1.5
+        assert "pitchScale" not in sent_json or sent_json["pitchScale"] == 0.0 # because it gets default assigned from audio_query, NOT overwritten to None
+
+@pytest.mark.anyio
+async def test_tts_close(tts):
+    # Testing close with None client
+    await tts.close() 
+
+    # Testing close with active client
+    mock_client = AsyncMock()
+    mock_client.is_closed = False
+    tts._client = mock_client
+    await tts.close()
+    mock_client.aclose.assert_called_once()
+    
+@pytest.mark.anyio
+async def test_tts_unexpected_error(tts):
+    # A generic Exception should be caught and break retry immediately
+    mock_client = AsyncMock()
+    mock_client.post.side_effect = ValueError("Unknown Error")
+    mock_client.is_closed = False
+    
+    with patch.object(tts, "_get_client", return_value=mock_client):
+        result = await tts.synthesize("こんにちは")
+        assert result == b""
+        assert mock_client.post.call_count == 1
