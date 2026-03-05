@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-03-05 - Codebase Stabilization & Refactoring
+
+### Changed
+- **Backend Configuration**: Integrated `pydantic` into the core configuration engine (`src/core/config.py`) for strict schema validation and safe UI-default fallback capability.
+- **Frontend Architecture**: Split monolithic Electron settings tabs (`AIProfileTab.tsx`, `VisualTab.tsx`) into concise presenter components (e.g., `AvatarColumn.tsx`, `BreatheAnimationSettings.tsx`) for performance and maintainability.
+- **Test Infrastructure**: Designed full-stack integration mocks (`test_integration.py`) verifying the Twitch to LLM to TTS audio pipeline.
+
+### Fixed
+- **Electron Console**: Cleaned up the sidecar logging mechanism, accurately resolving python log prefixes and halting duplicate `[Python Error]` tags.
+- **Backend Stability**: Fastened logic around transient networking errors in the Twitch Client (`ClientConnectorDNSError`) to prevent unhandled HTTP tracebacks.
+
 ## [0.2.3] - 2026-03-03 - Real-time Interaction Control & Optimization
 
 ### Added
