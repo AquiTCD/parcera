@@ -2,6 +2,7 @@ import os
 import json
 import yaml
 import logging
+import sys
 from typing import Optional, Dict, Any
 from core.schema import AppSettings
 
@@ -222,6 +223,7 @@ class ParceraConfig:
         logging.basicConfig(
             level=logging.DEBUG if effective_level == "DEBUG" else logging.INFO,
             format=log_format,
+            stream=sys.stdout,
             force=True
         )
 
