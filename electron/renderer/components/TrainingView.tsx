@@ -6,14 +6,18 @@ interface Phrase {
   text: string;
 }
 
-export const TrainingView: React.FC = () => {
+interface TrainingViewProps {
+  profileId?: string;
+}
+
+export const TrainingView: React.FC<TrainingViewProps> = ({ profileId: propProfileId }) => {
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'idle' | 'recording' | 'uploading' | 'validating' | 'success' | 'error'>('idle');
   const [statusMsg, setStatusMsg] = useState('');
-  const [profileId] = useState('default');
+  const [profileId] = useState(propProfileId || 'default');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -37,10 +41,7 @@ export const TrainingView: React.FC = () => {
         const settings = await window.electronAPI.getSettings();
         port = settings.electron?.port || 8676;
 
-        // Continuous Mute: Silence AI while window is open
-        await window.electronAPI.setTrainingMode(true, port);
-
-        const res = await fetch(`http://127.0.0.1:${port}/training/profiles/${profileId}/progress`);
+        const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/progress`);
         const data = await res.json();
         if (data.progress !== undefined) {
           const startIdx = Math.min(data.progress, flatPhrases.length);
@@ -54,7 +55,7 @@ export const TrainingView: React.FC = () => {
     init();
 
     return () => {
-      // Unmute AI when leaving training
+      // Ensure AI is unmuted when leaving
       window.electronAPI.setTrainingMode(false, port);
     };
   }, [profileId]);
@@ -101,6 +102,12 @@ export const TrainingView: React.FC = () => {
       mediaRecorder.onstop = handleStop;
       mediaRecorder.start();
       setIsRecording(true);
+
+      // Mute AI when recording starts
+      const settings = await window.electronAPI.getSettings();
+      const port = settings.electron?.port || 8676;
+      await window.electronAPI.setTrainingMode(true, port);
+
       setStatus('recording');
       setStatusMsg('録音中...');
     } catch (err) {
@@ -117,6 +124,11 @@ export const TrainingView: React.FC = () => {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       setIsRecording(false);
+
+      // Unmute AI when recording stops
+      const settings = await window.electronAPI.getSettings();
+      const port = settings.electron?.port || 8676;
+      await window.electronAPI.setTrainingMode(false, port);
     }
   };
 
@@ -150,7 +162,7 @@ export const TrainingView: React.FC = () => {
       const settings = await window.electronAPI.getSettings();
       const port = settings.electron?.port || 8676;
 
-      const response = await fetch(`http://127.0.0.1:${port}/training/record`, {
+      const response = await fetch(`http://localhost:${port}/training/record`, {
         method: 'POST',
         body: formData
       });

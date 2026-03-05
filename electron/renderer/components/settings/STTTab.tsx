@@ -13,8 +13,114 @@ type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updatePro
 
 const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
   const port = settings.electron?.port || 8676;
+  const profileId = settings.stt?.providers?.moonshine?.active_profile || 'default';
   const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader('base-ja', port);
   const [showTraining, setShowTraining] = useState(false);
+  const [trainingStatus, setTrainingStatus] = useState<{ status: string; started_at?: string }>({ status: 'idle' });
+  const [dataProgress, setDataProgress] = useState(0);
+  const [isApplying, setIsApplying] = useState(false);
+  const [isApplied, setIsApplied] = useState(false);
+
+  // 1. Initial manual fetch on mount or when returning from Training Mode
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const baseUrl = `http://localhost:${port}/training/profiles/${profileId}`;
+        const [resStatus, resProg] = await Promise.all([
+          fetch(`${baseUrl}/status`),
+          fetch(`${baseUrl}/progress`)
+        ]);
+        if (resStatus.ok && resProg.ok) {
+          const statusData = await resStatus.json();
+          const progData = await resProg.json();
+          setTrainingStatus(statusData || { status: 'idle' });
+          setDataProgress(progData.progress || 0);
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial training data:', err);
+      }
+    };
+    fetchInitialData();
+  }, [port, profileId, showTraining]); // Re-run when closing training view too
+
+  // 2. Specialized polling ONLY during active training
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    if (trainingStatus.status === 'training') {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/status`);
+          if (res.ok) {
+            const statusData = await res.json();
+            setTrainingStatus(statusData);
+            // Auto-stop if reached terminal state
+            if (statusData.status === 'completed' || statusData.status === 'failed') {
+              if (pollInterval) clearInterval(pollInterval);
+            }
+          }
+        } catch (err) {
+          console.error('Polling failed:', err);
+        }
+      }, 3000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [port, profileId, trainingStatus.status]);
+
+  const handleStartLoRA = async () => {
+    try {
+      setTrainingStatus({ status: 'training' });
+      const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/train`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Status will be updated on next fetch or polling
+      }
+    } catch (err) {
+      console.error('Failed to start training:', err);
+      setTrainingStatus({ status: 'idle' });
+    }
+  };
+
+  const handleApplyTraining = async () => {
+    setIsApplying(true);
+    try {
+      const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/apply`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsApplied(true);
+        setTimeout(() => setIsApplied(false), 3000);
+      } else {
+        alert('適用に失敗しちゃった：' + data.error);
+      }
+    } catch (err) {
+      console.error('Failed to apply training:', err);
+      alert('適用に失敗しちゃった。サーバーとの通信に問題があるかも。');
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const handleResetTraining = async () => {
+    if (!confirm('学習ステータスをリセットしますか？（録音データは削除されません）')) return;
+    try {
+      const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/reset`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTrainingStatus({ status: 'idle' });
+      }
+    } catch (err) {
+      console.error('Failed to reset training:', err);
+    }
+  };
 
   if (showTraining) {
     return (
@@ -23,7 +129,7 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
           <h3 className="setting-card-title" style={{ margin: 0 }}>パルセラ特訓モード</h3>
           <button className="btn btn-secondary" onClick={() => setShowTraining(false)}>キャンセル</button>
         </div>
-        <TrainingView />
+        <TrainingView profileId={profileId} />
       </div>
     );
   }
@@ -52,14 +158,99 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
           アキさんの声や、特定の用語（格ゲー用語など）をパルセラに覚え込ませます。
           約100フレーズを読み上げることで、認識精度が劇的に向上します。
         </p>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowTraining(true)}
-          style={{ width: '100%', background: 'linear-gradient(90deg, #4fc1ff, #a155ff)', border: 'none' }}
-        >
-          🎤 パルセラ特訓モードを開始
-        </button>
+
+        <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px' }}>
+          <CheckboxSetting
+            label="特訓成果を使用する"
+            description="学習済みのアダプターを使用して、認識精度を向上させます"
+            checked={settings.stt?.providers?.moonshine?.adapter_enabled ?? true}
+            onChange={(val) => updateProvider('stt', 'moonshine', 'adapter_enabled', val)}
+          />
+          <div style={{ marginTop: '10px' }}>
+            <InputSetting
+              label="使用するプロファイル"
+              description="学習データの保存先となるプロファイル名"
+              value={settings.stt?.providers?.moonshine?.active_profile || 'default'}
+              onChange={(val) => updateProvider('stt', 'moonshine', 'active_profile', val)}
+            />
+          </div>
+        </div>
+
+        {trainingStatus.status === 'training' ? (
+          <div style={{ textAlign: 'center', padding: '15px', background: '#222', borderRadius: '12px', border: '1px solid #4fc1ff' }}>
+            <div className="spinner-glow" style={{ marginBottom: '10px', fontSize: '24px' }}>⚙️</div>
+            <div style={{ fontSize: '13px', color: '#4fc1ff', fontWeight: 'bold' }}>追加学習を実行中...</div>
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
+              アプリを閉じても学習は継続されます。完了するとステータスが更新されます。
+            </div>
+          </div>
+        ) : trainingStatus.status === 'completed' ? (
+          <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(79, 255, 141, 0.1)', borderRadius: '12px', border: '1px solid #4fff8d' }}>
+            <div style={{ fontSize: '32px', marginBottom: '10px' }}>🌈</div>
+            <div style={{ fontSize: '15px', color: '#4fff8d', fontWeight: 'bold' }}>追加学習が完了しました！</div>
+            <p style={{ fontSize: '12px', color: '#aaa', margin: '10px 0 20px' }}>
+              新しく学習したデータを反映して、パルセラの耳を強化しよう。
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleApplyTraining}
+                disabled={isApplying}
+                style={{ width: '100%', marginBottom: '10px' }}
+              >
+                {isApplying ? '⚙️ 適用中...' : isApplied ? '✅ 適用完了！' : '🛠 学習成果を反映（適用）する'}
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowTraining(true)}
+                style={{ width: '100%', marginTop: '5px', fontSize: '12px', background: 'transparent', color: '#888' }}
+              >
+                🔄 データを追加して再特訓 ({dataProgress}/113)
+              </button>
+              <button
+                className="btn"
+                onClick={handleResetTraining}
+                style={{ width: '100%', marginTop: '10px', fontSize: '11px', color: '#555', border: '1px solid #333' }}
+              >
+                学習ステータスをリセット
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {dataProgress >= 113 ? (
+              <button
+                className="btn btn-primary"
+                onClick={handleStartLoRA}
+                style={{ width: '100%', background: 'linear-gradient(90deg, #ff4fc1, #ff55b1)', border: 'none' }}
+              >
+                🚀 学習（ファインチューニング）を開始
+              </button>
+            ) : (
+              <button
+                className="btn btn-primary"
+                onClick={() => setShowTraining(true)}
+                style={{ width: '100%', background: 'linear-gradient(90deg, #4fc1ff, #a155ff)', border: 'none' }}
+              >
+                🎤 パルセラ特訓モードを開始 ({dataProgress}/113)
+              </button>
+            )}
+          </>
+        )}
       </div>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes spin-glow {
+          0% { transform: rotate(0deg); text-shadow: 0 0 5px #4fc1ff; }
+          50% { text-shadow: 0 0 20px #4fc1ff; }
+          100% { transform: rotate(360deg); text-shadow: 0 0 5px #4fc1ff; }
+        }
+        .spinner-glow {
+          display: inline-block;
+          animation: spin-glow 2s linear infinite;
+        }
+      `}} />
     </div>
   );
 };
