@@ -3,6 +3,7 @@ import json
 import yaml
 import logging
 from typing import Optional, Dict, Any
+from core.schema import AppSettings
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,7 @@ class ParceraConfig:
         self.settings_path = settings_path
         self.last_mtime: float = 0.0
         self.settings: Dict[str, Any] = {}
+        self.data: AppSettings = AppSettings()
         self.refresh()
 
     def refresh(self, new_settings: Optional[Dict[str, Any]] = None) -> bool:
@@ -123,7 +125,15 @@ class ParceraConfig:
                 user_settings = load_config_file(self.settings_path)
                 self.last_mtime = current_mtime
 
-        self.settings = deep_merge(base_settings, user_settings)
+        merged_settings = deep_merge(base_settings, user_settings)
+        try:
+            # Validate and apply defaults via Pydantic
+            self.data = AppSettings.model_validate(merged_settings)
+            self.settings = self.data.model_dump()
+        except Exception as e:
+            logger.warning(f"Config validation failed (falling back to strict dict): {e}")
+            self.settings = merged_settings
+            
         return True
 
     def _build_prompts(self):

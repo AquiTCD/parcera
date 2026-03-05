@@ -22,3 +22,17 @@ def test_config_get_with_default():
             assert config.get("llm").get("provider") == "gemini"
             # Fallback
             assert config.get("nonexistent", "fallback") == "fallback"
+
+def test_config_validation_fallback(caplog):
+    # Feed intentionally invalid type (int for provider string)
+    dummy_yaml = "llm:\n  provider: 12345"
+    with patch("builtins.open", mock_open(read_data=dummy_yaml)):
+        with patch("os.path.exists", return_value=True):
+            with patch("os.path.getmtime", return_value=123.456):
+                config = ParceraConfig(settings_path="test_settings.yaml")
+                
+                # Should fallback to strict dict as specified in plan
+                assert config.get("llm").get("provider") == 12345
+                
+                # Verify that warning was emitted
+                assert "Config validation failed" in caplog.text
