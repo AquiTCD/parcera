@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import re
 from typing import List, Optional, Callable
 from twitchAPI.twitch import Twitch
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class TwitchClient:
     def __init__(self, client_id: str, client_secret: str, callback_on_refresh=None):
+        self._lock = asyncio.Lock()
         self.client_id = client_id
         self.client_secret = client_secret
         self.callback_on_refresh = callback_on_refresh
@@ -35,6 +37,7 @@ class TwitchClient:
         # State and Filtering
         self.is_chat_started = False
         self.is_eventsub_started = False
+        self.session_id: Optional[str] = None  # Explicitly store for UI
         self.wake_word_pattern: Optional[re.Pattern] = None
         self.ignored_users: set[str] = set()
         self.ng_words_patterns: List[re.Pattern] = []
@@ -116,38 +119,114 @@ class TwitchClient:
 
     async def start_eventsub(self, on_event: Callable):
         """Connect to Twitch EventSub via WebSocket."""
-        if not self.twitch:
-            logger.error("Twitch client not initialized. Cannot start EventSub.")
-            return False
-
-        self.on_event_callback = on_event
-
-        try:
-            if self.eventsub:
-                await self.eventsub.stop()
-
-            self.eventsub = EventSubWebsocket(self.twitch)
-            self.eventsub.start()
-
-            user = await self.get_me()
-            if not user:
-                logger.error("Failed to get user info for EventSub subscription.")
+        async with self._lock:
+            if not self.twitch:
+                logger.error("Twitch client not initialized. Cannot start EventSub.")
                 return False
 
-            # Subscribe to events with correct positional/named arguments
-            # listen_channel_raid expects (callback, to_id, from_id)
-            await self.eventsub.listen_channel_raid(self._on_raid, to_broadcaster_user_id=user.id)
-            # listen_channel_follow_v2 expects (broadcaster_id, moderator_id, callback)
-            await self.eventsub.listen_channel_follow_v2(user.id, user.id, self._on_follow)
-            # listen_channel_subscribe expects (broadcaster_id, callback)
-            await self.eventsub.listen_channel_subscribe(user.id, self._on_subscribe)
+            self.on_event_callback = on_event
 
-            self.is_eventsub_started = True
-            logger.info(f"Twitch EventSub listener started for user: {user.display_name}")
-            return True
+            try:
+                if self.is_eventsub_started:
+                    logger.debug("Twitch EventSub is already started. Skipping.")
+                    return True
+
+                if self.eventsub:
+                    await self.eventsub.stop()
+
+                # Enable twitchAPI logs at INFO level for production
+                logging.getLogger('twitchAPI').setLevel(logging.INFO)
+                
+                self.eventsub = EventSubWebsocket(self.twitch)
+                
+                # Diagnostic callbacks
+                self.eventsub.on_ready = self._on_eventsub_ready
+                self.eventsub.on_error = self._on_eventsub_error
+                
+                logger.debug("Twitch: Fetching user details for EventSub...")
+                user_obj = await self.get_me()
+                logger.debug(f"Twitch: get_me returned: {user_obj}")
+                
+                if user_obj is None:
+                    logger.error("Failed to get user info for EventSub subscription (returned None).")
+                    return False
+
+                # 2. START THE WEBSOCKET
+                logger.debug("Twitch: Starting EventSub Websocket...")
+                self.eventsub.start()
+
+                # 3. BACKGROUND WORKER: Establish subscriptions once session is ready
+                # We use a retry loop to catch the session ID as soon as it's available, 
+                # ensuring we hit the strict 10-second window required by Twitch EventSub.
+                async def _subscription_worker():
+                    logger.debug("Twitch: Subscription worker started.")
+                    for i in range(20): # 10 seconds total (0.5s * 20)
+                        try:
+                            user = await self.get_me()
+                            if not user:
+                                await asyncio.sleep(0.5)
+                                continue
+
+                            # Attempt a probe subscription. This will succeed once the websocket session is initialized.
+                            # In twitchAPI 4.5.0, this handles the underlying session/ID check.
+                            await self.eventsub.listen_channel_follow_v2(user.id, user.id, self._on_follow)
+                            
+                            # Success! Capture the Session ID for the UI
+                            sid = getattr(self.eventsub, "session_id", None)
+                            if not sid and hasattr(self.eventsub, 'active_session') and self.eventsub.active_session:
+                                sid = getattr(self.eventsub.active_session, 'id', None) or getattr(self.eventsub.active_session, 'session_id', None)
+                            
+                            self.session_id = sid
+                            logger.info(f"Twitch EventSub session established (ID: {self.session_id})")
+
+                            # Fast-track remaining subscriptions
+                            await self.eventsub.listen_channel_raid(self._on_raid, to_broadcaster_user_id=user.id)
+                            await self.eventsub.listen_channel_subscribe(user.id, self._on_subscribe)
+                            
+                            logger.info("Twitch: All EventSub subscriptions registered successfully.")
+                            self.is_eventsub_started = True 
+                            return
+                        except Exception as e:
+                            # Expected error while socket is still warming up
+                            if "NoneType" in str(e) or "attribute 'id'" in str(e):
+                                logger.debug(f"Twitch: Connection warming up (attempt {i+1}/20)...")
+                            else:
+                                logger.warning(f"Twitch: Unexpected subscription error (attempt {i+1}): {e}")
+                        
+                        await asyncio.sleep(0.5)
+                    
+                    logger.error("Twitch: Failed to establish EventSub subscriptions within 10s timeout.")
+
+                asyncio.create_task(_subscription_worker())
+                return True
+            except Exception as e:
+                logger.error(f"Failed to start Twitch EventSub: {e}", exc_info=True)
+                return False
+
+    async def _on_eventsub_ready(self, *args, **kwargs):
+        """Called when EventSub websocket is connected and session_id is available."""
+        # Some versions pass the session object as first arg
+        session_id = getattr(self.eventsub, "session_id", "Unknown")
+        if session_id == "Unknown" and args:
+            # Try to grab ID from the first argument if it's there
+            session_id = getattr(args[0], "session_id", "Unknown")
+
+        logger.info(f"Twitch EventSub Connection Ready! Session ID: {session_id}")
+        
+        try:
+            user = await self.get_me()
+            if user:
+                logger.debug(f"Twitch: Registering subscriptions in on_ready for {user.display_name}...")
+                await self.eventsub.listen_channel_raid(self._on_raid, to_broadcaster_user_id=user.id)
+                await self.eventsub.listen_channel_follow_v2(user.id, user.id, self._on_follow)
+                await self.eventsub.listen_channel_subscribe(user.id, self._on_subscribe)
+                logger.info("Twitch: Subscriptions registered successfully via on_ready.")
         except Exception as e:
-            logger.error(f"Failed to start Twitch EventSub: {e}")
-            return False
+            logger.error(f"Failed to register subscriptions in on_ready: {e}", exc_info=True)
+
+    async def _on_eventsub_error(self, event_id: str, message: str):
+        """Called when EventSub encountered an error."""
+        logger.error(f"Twitch EventSub Error: [{event_id}] {message}")
 
     async def _on_raid(self, data: ChannelRaidEvent):
         logger.info(f"Twitch Event: Raid from {data.event.from_broadcaster_user_name} ({data.event.viewers} viewers)")
@@ -205,11 +284,20 @@ class TwitchClient:
         if self.callback_on_refresh:
             await self.callback_on_refresh(access_token, refresh_token)
 
-    async def get_me(self):
+    async def get_me(self, retries=3):
         if not self.twitch:
             return None
-        async for user in self.twitch.get_users():
-            return user
+        
+        for i in range(retries):
+            try:
+                async for user in self.twitch.get_users():
+                    return user
+            except Exception as e:
+                logger.debug(f"Twitch get_me attempt {i+1} failed: {e}")
+            
+            if i < retries - 1:
+                await asyncio.sleep(1)
+        
         return None
 
     async def stop_chat(self):

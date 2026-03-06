@@ -6,6 +6,7 @@ import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
+import { useState, useEffect } from 'react';
 
 export const TwitchTab: React.FC<TabProps> = ({
   settings,
@@ -15,6 +16,40 @@ export const TwitchTab: React.FC<TabProps> = ({
   setStatus,
 }) => {
   const { isAuthorized, handleStartAuth, handleClearAuth } = useTwitchAuth(setStatus);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthorized && !sessionId) {
+      const fetchStatus = async () => {
+        try {
+          const status = await (window.electronAPI as any).getTwitchStatus();
+          if (status.session_id) {
+            setSessionId(status.session_id);
+          }
+        } catch (e) {
+          console.error('Failed to fetch Twitch status:', e);
+        }
+      };
+
+      fetchStatus();
+      const interval = setInterval(() => {
+        if (sessionId) {
+          clearInterval(interval);
+        } else {
+          fetchStatus();
+        }
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthorized, !!sessionId]);
+
+  const handleTestEvent = async (type: string) => {
+    try {
+      await fetch(`http://localhost:${settings.electron?.port || 8676}/twitch/test-event?event_type=${type}`, { method: 'POST' });
+    } catch (e) {
+      console.error('Failed to trigger test event:', e);
+    }
+  };
 
   const twitchSettings = settings.twitch || {};
 
@@ -102,11 +137,63 @@ export const TwitchTab: React.FC<TabProps> = ({
           />
         </div>
 
-        <div style={{ borderTop: '1px dotted rgba(255,255,255,0.1)', paddingTop: '15px' }}>
-          <p style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
-            ※動作テストは Twitch CLI (<code>twitch event trigger subscribe</code>) などを使用して、実際の接続を確認することを推奨します。
-          </p>
+        {/* EventSub Status */}
+        <div className="space-y-4 pt-4 border-t border-white/5">
+          <h3 className="text-sm font-medium text-white/80">
+            EventSub 接続状況
+          </h3>
+          <div className="bg-black/20 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              {!sessionId ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                  <p className="text-xs text-white/60">
+                    EventSubを初期化中...
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <p className="text-xs text-emerald-400 font-medium">
+                    接続済み（リアルタイム連携が有効です）
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Response Logic Test */}
+        {sessionId && (
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <h3 className="text-sm font-medium text-white/80">
+              応答ロジックのテスト
+            </h3>
+            <p className="text-xs text-white/50">
+              Twitchからの各イベントに対するパルセラの反応をテストできます。
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleTestEvent('raid')}
+                className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-md text-xs transition-colors border border-white/10"
+              >
+                Raid テスト
+              </button>
+              <button
+                onClick={() => handleTestEvent('follow')}
+                className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-md text-xs transition-colors border border-white/10"
+              >
+                Follow テスト
+              </button>
+              <button
+                onClick={() => handleTestEvent('subscribe')}
+                className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-md text-xs transition-colors border border-white/10"
+              >
+                Sub テスト
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="setting-card">

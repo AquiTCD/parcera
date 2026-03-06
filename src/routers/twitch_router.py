@@ -59,14 +59,24 @@ def create_twitch_router(get_server):
         is_initialized = hasattr(server, "twitch_client") and server.twitch_client is not None and server.twitch_client.twitch is not None
 
         user_info = None
+        session_id = None
         if is_initialized:
             user = await server.twitch_client.get_me()
             if user:
                 user_info = {"display_name": user.display_name, "login": user.login}
 
+            # Get session ID from client's explicit store or library internal
+            session_id = server.twitch_client.session_id
+            if not session_id and hasattr(server.twitch_client, "eventsub") and server.twitch_client.eventsub:
+                es = server.twitch_client.eventsub
+                session_id = getattr(es, "session_id", None)
+                if not session_id and hasattr(es, 'active_session') and es.active_session:
+                    session_id = getattr(es.active_session, 'id', None)
+
         return {
             "initialized": is_initialized,
-            "user": user_info
+            "user": user_info,
+            "session_id": session_id
         }
 
     @router.post("/stop")
