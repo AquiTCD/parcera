@@ -123,22 +123,13 @@ class TwitchService:
 
         from core.constants import TWITCH_SESSION_ID
 
-        # Mock a WebSocket object that AIAvatar expects for its chat() method
-        class DummyWS:
-            async def send_json(self, data): pass
-            async def send_text(self, text): pass
-
         try:
-            # We call chat() which is the entry point for AIAvatarWebSocketServer
-            # It handles the LLM -> TTS pipeline and calls on_response callbacks
-            await self.server.aiavatar_server.chat(
-                DummyWS(), 
-                {
-                    "type": "chat",
-                    "session_id": TWITCH_SESSION_ID,
-                    "text": full_text + instructions
-                }
-            )
+            # Re-initialize or get current components from server
+            from aiavatar.sts.models import STSRequest
+            
+            async for r in self.server.aiavatar_server.sts.invoke(STSRequest(text=full_text + instructions, session_id=TWITCH_SESSION_ID)):
+                # Just iterate to consume the generator and let AIAvatar callbacks trigger
+                pass
         except Exception as e:
             logger.error(f"Error invoking AI from Twitch: {e}")
             self.server.set_busy(TWITCH_SESSION_ID, False)
