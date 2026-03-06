@@ -78,6 +78,7 @@ export interface STTProviderConfig {
   language?: string;
   adapter_enabled?: boolean;
   active_profile?: string;
+  weighted_profiles?: { id: string, alpha: number }[];
 }
 
 export interface TTSSettingsConfig {

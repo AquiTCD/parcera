@@ -16,7 +16,7 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
   const profileId = settings.stt?.providers?.moonshine?.active_profile || 'default';
   const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader('base-ja', port);
   const [showTraining, setShowTraining] = useState(false);
-  const [trainingStatus, setTrainingStatus] = useState<{ status: string; started_at?: string }>({ status: 'idle' });
+  const [trainingStatus, setTrainingStatus] = useState<{ status: string; started_at?: string; training_progress?: number }>({ status: 'idle' });
   const [dataProgress, setDataProgress] = useState(0);
   const [isApplying, setIsApplying] = useState(false);
   const [isApplied, setIsApplied] = useState(false);
@@ -72,17 +72,43 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
 
   const handleStartLoRA = async () => {
     try {
-      setTrainingStatus({ status: 'training' });
       const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/train`, {
         method: 'POST'
       });
       const data = await res.json();
       if (data.success) {
-        // Status will be updated on next fetch or polling
+        setTrainingStatus({ status: 'training', training_progress: 0 });
+      } else {
+        alert('学習を開始できなかったよ：' + data.error);
+        setTrainingStatus({ status: 'idle' });
       }
     } catch (err) {
       console.error('Failed to start training:', err);
       setTrainingStatus({ status: 'idle' });
+    }
+  };
+
+  const handleApplyMulti = async (weighted: { id: string, alpha: number }[]) => {
+    setIsApplying(true);
+    try {
+      const res = await fetch(`http://localhost:${port}/training/profiles/apply_multi`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(weighted)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsApplied(true);
+        // Persist to config so it survives restart
+        updateProvider('stt', 'moonshine', 'weighted_profiles', weighted);
+        setTimeout(() => setIsApplied(false), 3000);
+      } else {
+        alert('適用に失敗しちゃった：' + data.error);
+      }
+    } catch (err) {
+      console.error('Failed to apply multi training:', err);
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -168,10 +194,21 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
           />
           <div style={{ marginTop: '10px' }}>
             <InputSetting
-              label="使用するプロファイル"
-              description="学習データの保存先となるプロファイル名"
+              label="メイン学習プロファイル"
+              description="特訓モードで録音データの保存先となるプロファイル"
               value={settings.stt?.providers?.moonshine?.active_profile || 'default'}
               onChange={(val) => updateProvider('stt', 'moonshine', 'active_profile', val)}
+            />
+          </div>
+
+          <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(0, 0, 0, 0.2)', borderRadius: '8px', border: '1px solid #333' }}>
+            <h5 style={{ fontSize: '13px', margin: '0 0 10px 0', color: '#4fc1ff' }}>🧬 マルチアダプター設定 (αブレンディング)</h5>
+            <WeightedProfileManager
+              port={port}
+              weightedProfiles={settings.stt?.providers?.moonshine?.weighted_profiles || []}
+              onApply={handleApplyMulti}
+              isApplying={isApplying}
+              isApplied={isApplied}
             />
           </div>
         </div>
@@ -179,8 +216,18 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
         {trainingStatus.status === 'training' ? (
           <div style={{ textAlign: 'center', padding: '15px', background: '#222', borderRadius: '12px', border: '1px solid #4fc1ff' }}>
             <div className="spinner-glow" style={{ marginBottom: '10px', fontSize: '24px' }}>⚙️</div>
-            <div style={{ fontSize: '13px', color: '#4fc1ff', fontWeight: 'bold' }}>追加学習を実行中...</div>
-            <div style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
+            <div style={{ fontSize: '13px', color: '#4fc1ff', fontWeight: 'bold' }}>追加学習を実行中... {trainingStatus.training_progress ?? 0}%</div>
+
+            <div style={{ width: '100%', height: '6px', background: '#333', borderRadius: '3px', marginTop: '12px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${trainingStatus.training_progress ?? 0}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #4fc1ff, #a155ff)',
+                transition: 'width 0.5s ease'
+              }} />
+            </div>
+
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '10px' }}>
               アプリを閉じても学習は継続されます。完了するとステータスが更新されます。
             </div>
           </div>
@@ -581,5 +628,99 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
         </div>
       )}
     </section>
+  );
+};
+interface WeightedProfileManagerProps {
+  port: number;
+  weightedProfiles: { id: string, alpha: number }[];
+  onApply: (weighted: { id: string, alpha: number }[]) => void;
+  isApplying: boolean;
+  isApplied: boolean;
+}
+
+const WeightedProfileManager: React.FC<WeightedProfileManagerProps> = ({ port, weightedProfiles, onApply, isApplying, isApplied }) => {
+  const [profiles, setProfiles] = useState<string[]>([]);
+  const [localWeighted, setLocalWeighted] = useState<{ id: string, alpha: number }[]>(weightedProfiles);
+
+  useEffect(() => {
+    fetch(`http://localhost:${port}/training/profiles`)
+      .then(res => res.json())
+      .then(data => setProfiles(data.profiles || []))
+      .catch(console.error);
+  }, [port]);
+
+  useEffect(() => {
+    setLocalWeighted(weightedProfiles);
+  }, [weightedProfiles]);
+
+  const toggleProfile = (id: string) => {
+    if (localWeighted.some(p => p.id === id)) {
+      setLocalWeighted(localWeighted.filter(p => p.id !== id));
+    } else {
+      setLocalWeighted([...localWeighted, { id, alpha: 1.0 }]);
+    }
+  };
+
+  const updateAlpha = (id: string, alpha: number) => {
+    setLocalWeighted(localWeighted.map(p => p.id === id ? { ...p, alpha } : p));
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '15px' }}>
+        {profiles.map(id => {
+          const isActive = localWeighted.some(p => p.id === id);
+          return (
+            <button
+              key={id}
+              onClick={() => toggleProfile(id)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '15px',
+                fontSize: '11px',
+                border: '1px solid',
+                borderColor: isActive ? '#4fc1ff' : '#444',
+                background: isActive ? 'rgba(79, 193, 255, 0.2)' : 'transparent',
+                color: isActive ? '#4fc1ff' : '#888',
+                cursor: 'pointer'
+              }}
+            >
+              {isActive ? '✅ ' : '+ '}{id}
+            </button>
+          );
+        })}
+      </div>
+
+      {localWeighted.length > 0 && (
+        <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {localWeighted.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '11px', width: '80px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.id}</span>
+              <input
+                type="range"
+                min="0" max="1.5" step="0.1"
+                value={p.alpha}
+                onChange={(e) => updateAlpha(p.id, parseFloat(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ fontSize: '10px', width: '30px', color: '#4fc1ff' }}>{(p.alpha).toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        className="btn btn-primary"
+        disabled={isApplying || localWeighted.length === 0}
+        onClick={() => onApply(localWeighted)}
+        style={{ width: '100%', fontSize: '12px', padding: '6px' }}
+      >
+        {isApplying ? '⚙️ マージ中...' : isApplied ? '✅ 合成完了！' : '🔁 選択したプロファイルを合成して適用'}
+      </button>
+
+      <p style={{ fontSize: '10px', color: '#666', marginTop: '8px', fontStyle: 'italic' }}>
+        ※ 複数の学習成果を重ねがけ（アンサンブル）して認識精度を調整できます。
+      </p>
+    </div>
   );
 };
