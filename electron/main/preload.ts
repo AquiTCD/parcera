@@ -112,4 +112,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('twitch-auth-status', listener);
     return () => ipcRenderer.removeListener('twitch-auth-status', listener);
   },
+  getTwitchStatus: (): Promise<{ initialized: boolean; user?: { display_name: string; login: string }; session_id?: string }> =>
+    ipcRenderer.invoke('get-twitch-status'),
 });

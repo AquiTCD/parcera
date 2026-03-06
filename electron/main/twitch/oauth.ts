@@ -18,7 +18,7 @@ export class TwitchOAuthHandler {
     authUrl.searchParams.append('client_id', clientId);
     authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
     authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('scope', 'chat:read chat:edit channel:read:subscriptions moderation:read bits:read channel:read:redemptions');
+    authUrl.searchParams.append('scope', 'chat:read chat:edit channel:read:subscriptions moderation:read bits:read channel:read:redemptions moderator:read:followers');
     authUrl.searchParams.append('state', this.state);
 
     this.startLocalServer(clientId, clientSecret);

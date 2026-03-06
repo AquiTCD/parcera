@@ -302,6 +302,19 @@ ipcMain.handle('twitch-start-auth', async () => {
   await twitchOAuthHandler.startAuth(clientId, clientSecret);
 });
 
+ipcMain.handle('get-twitch-status', async () => {
+  const settings = loadSettings();
+  const port = settings.electron?.port || 8676;
+  const url = `http://127.0.0.1:${port}/twitch/status`;
+  try {
+    const res = await fetch(url);
+    if (res.ok) return await res.json();
+    return { initialized: false };
+  } catch (e) {
+    return { initialized: false };
+  }
+});
+
 ipcMain.handle('twitch-get-auth-status', async () => {
   return twitchTokenStore.loadTokens() !== null;
 });
