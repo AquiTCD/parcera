@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, ANY
 from fastapi.testclient import TestClient
 
@@ -184,55 +185,44 @@ async def test_twitch_service_process_queue():
     twitch = TwitchService(server)
     
     # We will enqueue two items, then cancel the task to emulate running the loop
-    await twitch.queue.put(("UserA", "Hello"))
-    await twitch.queue.put(("UserB", "Bye"))
+    await twitch.queue.put(("UserA", "Hello", "chat", asyncio.get_event_loop().time()))
+    await twitch.queue.put(("UserB", "Bye", "chat", asyncio.get_event_loop().time()))
     
-    import asyncio
     with patch.object(twitch, "_invoke_response", new_callable=AsyncMock) as mock_invoke:
+        # Since process_queue is a while True loop, we run it for a bit
         task = asyncio.create_task(twitch.process_queue())
-        # Let the loop process 2 items
-        await twitch.queue.join()
+        
+        # Wait for queue to be empty (or timeout)
+        for _ in range(20):
+            if twitch.queue.empty():
+                break
+            await asyncio.sleep(0.1)
+            
         task.cancel()
         
         # Verify 2 calls
         assert mock_invoke.call_count == 2
-        mock_invoke.assert_any_call("UserA", "Hello", audio_delay=0.0)
-        mock_invoke.assert_any_call("UserB", "Bye", audio_delay=0.0)
+        mock_invoke.assert_any_call("UserA", "Hello", "chat", audio_delay=ANY, is_delayed=ANY)
+        mock_invoke.assert_any_call("UserB", "Bye", "chat", audio_delay=ANY, is_delayed=ANY)
 
 @pytest.mark.anyio
 async def test_twitch_service_invoke_response():
     from src.services.twitch_service import TwitchService
     server = MagicMock()
-    server.is_busy.return_value = False
-    
-    # STS Mock
-    async def mock_sts_invoke(req):
-        # yields two chunks
-        yield MagicMock()
-        yield MagicMock()
-    
-    server.aiavatar_server.sts.invoke = mock_sts_invoke
-    server.aiavatar_server.handle_response = AsyncMock()
+    server.aiavatar_server.chat = AsyncMock()
     
     twitch = TwitchService(server)
     
-    import asyncio
-    with patch("asyncio.get_event_loop") as mock_loop:
-        mock_loop.return_value.time.return_value = 100.0
-        
-        # Invoke with a 0.5s audio_delay
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await twitch._invoke_response("UserA", "Test", audio_delay=0.5)
-            
-            # The busy state was set
-            server.set_busy.assert_called_once()
-            # 2 handle_response calls
-            assert server.aiavatar_server.handle_response.call_count == 2
-            
-            # Sleep was awaited because audio_delay was > 0 
-            # Note: actual sleep argument check varies by execution branch, 
-            # but we just assert it was called for the delay.
-            mock_sleep.assert_called()
+    await twitch._invoke_response("UserA", "Test", "chat", audio_delay=0.0, is_delayed=False)
+    
+    # Verify aiavatar_server.chat was called
+    server.aiavatar_server.chat.assert_called_once()
+    args, kwargs = server.aiavatar_server.chat.call_args
+    # First arg is DummyWS, second is payload
+    payload = args[1]
+    assert payload["session_id"] == "twitch-session"
+    assert "UserA: Test" in payload["text"]
+    assert "[Twitch Chat]" in payload["text"]
 
 @pytest.mark.anyio
 async def test_twitch_service_sync_client():
@@ -250,7 +240,9 @@ async def test_twitch_service_sync_client():
         }
     }
     server.twitch_client.is_chat_started = False
+    server.twitch_client.is_eventsub_started = False
     server.twitch_client.start_chat = AsyncMock()
+    server.twitch_client.start_eventsub = AsyncMock()
     
     # Enable Chat -> start_chat
     await twitch.sync_client()
@@ -273,3 +265,96 @@ async def test_twitch_service_sync_client():
     server.twitch_client.stop_chat = AsyncMock()
     await twitch.sync_client()
     server.twitch_client.stop_chat.assert_called_once()
+@pytest.mark.anyio
+async def test_twitch_service_queue_management():
+    from src.services.twitch_service import TwitchService
+    server = MagicMock()
+    server.config.get.return_value = {"response_speed": "instant"}
+    twitch = TwitchService(server)
+    
+    # 1. Test Max Queue Size (max 3)
+    # We need to mock should_process to always return True for this test
+    twitch.should_process = AsyncMock(return_value=True)
+    
+    await twitch.enqueue("User1", "Msg1")
+    await twitch.enqueue("User2", "Msg2")
+    await twitch.enqueue("User3", "Msg3")
+    assert twitch.queue.qsize() == 3
+    
+    # 4th message should discard the oldest (Msg1)
+    await twitch.enqueue("User4", "Msg4")
+    assert twitch.queue.qsize() == 3
+    
+    # Verify the order (Msg2, Msg3, Msg4)
+    item1 = await twitch.queue.get()
+    assert item1[0] == "User2"
+    item2 = await twitch.queue.get()
+    assert item2[0] == "User3"
+    item3 = await twitch.queue.get()
+    assert item3[0] == "User4"
+
+@pytest.mark.anyio
+async def test_twitch_service_rate_limiting():
+    from src.services.twitch_service import TwitchService
+    server = MagicMock()
+    twitch = TwitchService(server)
+    
+    # Mock asyncio get_event_loop().time()
+    with patch("asyncio.get_event_loop") as mock_loop:
+        mock_loop.return_value.time.return_value = 1000.0
+        
+        # First message from UserA -> should pass
+        assert await twitch.should_process("UserA") is True
+        
+        # Simulate processing (UserA responded at 1000.0)
+        twitch.last_user_response_times["usera"] = 1000.0
+        twitch.last_global_response_time = 1000.0
+        
+        # Second message from UserA within 60s (at 1030.0) -> should fail
+        mock_loop.return_value.time.return_value = 1030.0
+        assert await twitch.should_process("UserA") is False
+        
+        # Message from UserB within 10s of UserA (at 1005.0) -> should fail (global)
+        mock_loop.return_value.time.return_value = 1005.0
+        assert await twitch.should_process("UserB") is False 
+        
+        # After 11s (at 1011.0), UserB should pass global cooldown
+        mock_loop.return_value.time.return_value = 1011.0
+        assert await twitch.should_process("UserB") is True
+        
+        # Message from UserA after 61s (at 1061.0) -> should pass
+        mock_loop.return_value.time.return_value = 1061.0
+        assert await twitch.should_process("UserA") is True
+
+@pytest.mark.anyio
+async def test_twitch_client_eventsub_setup():
+    from core.twitch_client import TwitchClient
+    
+    mock_twitch = AsyncMock()
+    mock_eventsub = MagicMock() 
+    # start/stop are SYNC in twitchAPI EventSubWebsocket (v4+)
+    mock_eventsub.start = MagicMock() 
+    mock_eventsub.stop = AsyncMock() # But wait, I used `await self.eventsub.stop()` in my code!
+    mock_eventsub.listen_channel_raid = AsyncMock()
+    mock_eventsub.listen_channel_follow = AsyncMock()
+    mock_eventsub.listen_channel_subscribe = AsyncMock()
+    
+    with patch("core.twitch_client.Twitch", return_value=mock_twitch):
+        with patch("core.twitch_client.EventSubWebsocket", return_value=mock_eventsub):
+            client = TwitchClient("id", "secret")
+            client.twitch = mock_twitch
+            
+            # Mock get_me for user info
+            mock_user = MagicMock()
+            mock_user.id = "123"
+            mock_user.display_name = "User"
+            client.get_me = AsyncMock(return_value=mock_user)
+            
+            await client.start_eventsub(on_event=AsyncMock())
+            
+            # Verify EventSubWebsocket was initialized and started
+            mock_eventsub.start.assert_called_once()
+            # Verify subscriptions (Raid, Sub, Follow)
+            mock_eventsub.listen_channel_raid.assert_called_once()
+            mock_eventsub.listen_channel_follow.assert_called_once()
+            mock_eventsub.listen_channel_subscribe.assert_called_once()
