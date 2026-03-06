@@ -74,8 +74,7 @@ export const TwitchTab: React.FC<TabProps> = ({
             <a href="https://dev.twitch.tv/console" target="_blank" rel="noreferrer" style={{ color: '#61dafb', textDecoration: 'underline' }}>
               Twitch Developer Console ↗
             </a> で作成したアプリケーションの情報を入力してください。<br />
-            OAuthリダイレクトURIには <code>http://localhost:8677/auth/callback</code> を登録する必要があります。<br />
-            <span style={{ color: '#ffcc00', fontSize: '12px' }}>※ EventSubを使用する場合、初回連携時または再連携時に追加の権限が要求されます。</span>
+            OAuthリダイレクトURIには <code>http://localhost:8677/auth/callback</code> を登録する必要があります。
           </p>
         </div>
 
@@ -93,7 +92,7 @@ export const TwitchTab: React.FC<TabProps> = ({
           placeholder="Twitch App Client Secret"
         />
 
-        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
           {isAuthorized ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(74, 222, 128, 0.1)', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.2)' }}>
@@ -115,85 +114,76 @@ export const TwitchTab: React.FC<TabProps> = ({
       </div>
 
       <div className="setting-card">
-        <h3 className="setting-card-title">配信イベント反応</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="setting-card-title !mb-0">配信イベント反応</h3>
+          {isAuthorized && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {!sessionId ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(250, 204, 21, 0.05)', borderRadius: '6px', border: '1px solid rgba(250, 204, 21, 0.1)' }}>
+                  <span className="animate-pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: '#facc15' }}></span>
+                  <span style={{ color: '#facc15', fontWeight: 'bold', fontSize: '13px' }}>接続待ち</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(52, 211, 153, 0.1)', borderRadius: '6px', border: '1px solid rgba(52, 211, 153, 0.2)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #10b981' }}></span>
+                  <span style={{ color: '#34d399', fontWeight: 'bold', fontSize: '13px' }}>EventSub 接続済み</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <p className="setting-group-description" style={{ marginBottom: '15px' }}>
           フォローやサブスクライブなどのイベントを検知してパルセラが反応するようにします。
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '20px' }}>
-          <CheckboxSetting
-            label="レイドに反応する"
-            checked={twitchSettings.react_to_raid !== false}
-            onChange={(checked) => updateNested('twitch', 'react_to_raid', checked)}
-          />
-          <CheckboxSetting
-            label="フォローに反応する"
-            checked={twitchSettings.react_to_follow !== false}
-            onChange={(checked) => updateNested('twitch', 'react_to_follow', checked)}
-          />
-          <CheckboxSetting
-            label="サブスクに反応する"
-            checked={twitchSettings.react_to_subscribe !== false}
-            onChange={(checked) => updateNested('twitch', 'react_to_subscribe', checked)}
-          />
-        </div>
-
-        {/* EventSub Status */}
-        <div className="space-y-4 pt-4 border-t border-white/5">
-          <h3 className="text-sm font-medium text-white/80">
-            EventSub 接続状況
-          </h3>
-          <div className="bg-black/20 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              {!sessionId ? (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                  <p className="text-xs text-white/60">
-                    EventSubを初期化中...
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <p className="text-xs text-emerald-400 font-medium">
-                    接続済み（リアルタイム連携が有効です）
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Response Logic Test */}
-        {sessionId && (
-          <div className="space-y-4 pt-4 border-t border-white/5">
-            <h3 className="text-sm font-medium text-white/80">
-              応答ロジックのテスト
-            </h3>
-            <p className="text-xs text-white/50">
-              Twitchからの各イベントに対するパルセラの反応をテストできます。
-            </p>
-            <div className="flex gap-2">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+          <div className="space-y-2">
+            <CheckboxSetting
+              label="レイドに反応する"
+              checked={twitchSettings.react_to_raid !== false}
+              onChange={(checked) => updateNested('twitch', 'react_to_raid', checked)}
+            />
+            {sessionId && (
               <button
                 onClick={() => handleTestEvent('raid')}
-                className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-md text-xs transition-colors border border-white/10"
+                className="btn btn-outline ml-8 !py-1 !px-2 !text-[10px] !min-h-0"
               >
-                Raid テスト
+                反応テスト
               </button>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <CheckboxSetting
+              label="フォローに反応する"
+              checked={twitchSettings.react_to_follow !== false}
+              onChange={(checked) => updateNested('twitch', 'react_to_follow', checked)}
+            />
+            {sessionId && (
               <button
                 onClick={() => handleTestEvent('follow')}
-                className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-md text-xs transition-colors border border-white/10"
+                className="btn btn-outline ml-8 !py-1 !px-2 !text-[10px] !min-h-0"
               >
-                Follow テスト
+                反応テスト
               </button>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <CheckboxSetting
+              label="サブスクに反応する"
+              checked={twitchSettings.react_to_subscribe !== false}
+              onChange={(checked) => updateNested('twitch', 'react_to_subscribe', checked)}
+            />
+            {sessionId && (
               <button
                 onClick={() => handleTestEvent('subscribe')}
-                className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-md text-xs transition-colors border border-white/10"
+                className="btn btn-outline ml-8 !py-1 !px-2 !text-[10px] !min-h-0"
               >
-                Sub テスト
+                反応テスト
               </button>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       <div className="setting-card">
