@@ -103,14 +103,8 @@ export const TwitchTab: React.FC<TabProps> = ({
         </div>
 
         <div style={{ borderTop: '1px dotted rgba(255,255,255,0.1)', paddingTop: '15px' }}>
-          <h4 style={{ fontSize: '13px', marginBottom: '10px', color: '#94a3b8' }}>動作テスト（擬似イベント発火）</h4>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-outline btn-sm" onClick={() => window.electronAPI.twitchTestEvent('raid')}>Raidテスト</button>
-            <button className="btn btn-outline btn-sm" onClick={() => window.electronAPI.twitchTestEvent('follow')}>Followテスト</button>
-            <button className="btn btn-outline btn-sm" onClick={() => window.electronAPI.twitchTestEvent('subscribe')}>Subテスト</button>
-          </div>
           <p style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
-            ※実際にTwitchから通知を受ける前に、パルセラの反応動作を確認できます。
+            ※動作テストは Twitch CLI (<code>twitch event trigger subscribe</code>) などを使用して、実際の接続を確認することを推奨します。
           </p>
         </div>
       </div>
