@@ -2,16 +2,20 @@ import React from 'react';
 import { Settings } from './components/Settings';
 import type { ParceraSettings } from '../shared/types';
 import { Avatar } from './components/Avatar';
+import { TrainingView } from './components/TrainingView';
 import { ChromaKeyFilter } from './components/ChromaKeyFilter';
 import './style.css';
 
 const params = new URLSearchParams(window.location.search);
-const view = params.get('type') === 'settings' ? 'settings' : 'avatar';
-const avatarType = params.get('type') || 'user';
+const typeParam = params.get('type');
+const view = typeParam === 'settings' ? 'settings' : typeParam === 'training' ? 'training' : 'avatar';
+const avatarType = typeParam || 'user';
 
 // Set window title dynamically for OBS window capture
 if (view === 'settings') {
   document.title = 'Parcera - Settings';
+} else if (view === 'training') {
+  document.title = 'Parcera - Training Mode';
 } else if (avatarType === 'ai') {
   document.title = 'Parcera - AI';
 } else if (avatarType === 'user') {
@@ -34,13 +38,21 @@ export const App: React.FC = () => {
     };
   }, [settings]);
 
+  const renderContent = () => {
+    switch (view) {
+      case 'settings': return <Settings />;
+      case 'training': return <TrainingView />;
+      default: return <Avatar />;
+    }
+  };
+
   return (
     <>
       <ChromaKeyFilter
         enabled={chroma.enabled}
         color={chroma.color}
       />
-      {view === 'settings' ? <Settings /> : <Avatar />}
+      {renderContent()}
       <div className="obs-heartbeat" />
     </>
   );

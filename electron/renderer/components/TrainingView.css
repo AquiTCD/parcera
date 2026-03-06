@@ -1,0 +1,151 @@
+.training-embed-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  color: white;
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+}
+.training-card {
+  width: 100%;
+  max-width: 500px;
+  min-height: 400px;
+  background: #111;
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #222;
+}
+.training-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  height: 30px;
+  margin-bottom: 20px;
+}
+.category-badge {
+  background: #4fc1ff;
+  color: #000;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.progress-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: #222;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4fc1ff, #a155ff);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.progress-text {
+  font-size: 12px;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+.phrase-display {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px 0;
+}
+.phrase-display h2 {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 0;
+  word-break: break-word;
+}
+.pulse {
+  animation: pulse-red 1.5s infinite;
+}
+@keyframes pulse-red {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; color: #ff4f4f; }
+  100% { opacity: 1; }
+}
+.training-controls {
+  height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.control-fixed-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.record-btn {
+  width: 220px;
+  height: 56px;
+  border-radius: 28px;
+  font-size: 18px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.record-btn.start {
+  background: #4fc1ff;
+  color: #000;
+  box-shadow: 0 4px 15px rgba(79, 193, 255, 0.3);
+}
+.record-btn.start:hover:not(:disabled) {
+  background: #7dd3ff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(79, 193, 255, 0.4);
+}
+.record-btn.stop {
+  background: #ff4f4f;
+  color: #fff;
+  animation: btn-pulse 2s infinite;
+}
+@keyframes btn-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 79, 79, 0.4); }
+  70% { box-shadow: 0 0 0 15px rgba(255, 79, 79, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 79, 79, 0); }
+}
+.record-btn.done {
+  background: #4fff8d;
+  color: #000;
+  box-shadow: 0 4px 15px rgba(79, 255, 141, 0.3);
+}
+.record-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+.shortcut-hint {
+  font-size: 10px;
+  color: #444;
+  letter-spacing: 0.05em;
+}
+.status-container {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.status-message {
+  font-size: 13px;
+  font-weight: 600;
+}
+.status-message.success { color: #4fff8d; }
+.status-message.error { color: #ff4f4f; }
+.status-message.recording { color: #ff4f4f; }
+.status-message.uploading { color: #888; }

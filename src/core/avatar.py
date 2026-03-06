@@ -31,8 +31,10 @@ class ParceraAvatarBase:
         self.llm = self.factory.build_llm()
         self.stt = self.factory.build_stt(
             is_busy_handler=self._is_ai_busy_check,
-            set_busy_handler=self.set_busy
+            set_busy_handler=self.set_busy,
+            avatar=self
         )
+        self.silent_training = False
         self.tts = self.factory.build_tts()
         self.vad = self.factory.build_vad()
 

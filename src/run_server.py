@@ -17,6 +17,7 @@ from routers.config_router import create_config_router
 from routers.tts_router import create_tts_router
 from routers.twitch_router import create_twitch_router
 from routers.model_router import create_model_router
+from routers.training_router import create_training_router
 from services.twitch_service import TwitchService
 
 from core.interaction import InteractionController
@@ -248,6 +249,7 @@ app.include_router(create_config_router(_get_server))
 app.include_router(create_tts_router(_get_server))
 app.include_router(create_twitch_router(_get_server))
 app.include_router(create_model_router(_get_server))
+app.include_router(create_training_router(_get_server))
 app.include_router(parcera_server.aiavatar_server.get_websocket_router())
 
 

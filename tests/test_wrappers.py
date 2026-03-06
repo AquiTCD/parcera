@@ -86,3 +86,24 @@ async def test_stt_wrapper_callback():
     # Callback should receive (text, is_filtered=True)
     callback.assert_called_once_with("session", "ハロー", True)
     assert result.text == "" # Filtered out
+
+@pytest.mark.asyncio
+async def test_stt_wrapper_delegation():
+    class DummyRecognizer:
+        def __init__(self):
+            self.reload = MagicMock()
+            self.some_value = 42
+            
+    inner_stt = DummyRecognizer()
+    wrapper = ParceraSTTWrapper(inner_stt)
+    
+    # Delegate method
+    wrapper.reload()
+    inner_stt.reload.assert_called_once()
+    
+    # Delegate attribute
+    assert wrapper.some_value == 42
+    
+    # Should raise AttributeError for nonexistent items
+    with pytest.raises(AttributeError):
+        _ = wrapper.nonexistent_method()

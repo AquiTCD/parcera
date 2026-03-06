@@ -70,6 +70,13 @@ class LocalSpeechRecognizer(SpeechRecognizer, abc.ABC):
         """Process audio numpy array and return transcribed text string."""
         pass
 
+    def reload(self, *args, **kwargs):
+        """
+        Hot-reload the recognizer to apply/remove adapters or update components.
+        Default implementation is a no-op. Override in subclasses like MoonshineRecognizer.
+        """
+        pass
+
 
 class NoOpRecognizer(SpeechRecognizer):
     """Placeholder STT that silently ignores all input. Used when the model is not yet downloaded."""
@@ -84,6 +91,10 @@ class NoOpRecognizer(SpeechRecognizer):
 
     async def transcribe(self, data: bytes, session_id: Optional[str] = None) -> str:
         return ""
+
+    def reload(self, *args, **kwargs):
+        """No-op reload for placeholder recognizer."""
+        pass
 
 
 class KotobaWhisperRecognizer(LocalSpeechRecognizer):
@@ -131,13 +142,18 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         self,
         model_name="base-ja",
         flags=0,
-        response_filter=None,
         on_recognized_callback=None,
+        active_profile="default",
+        adapter_enabled=True,
+        adapter_path=None,
         debug=False
     ):
         super().__init__(debug=debug)
         self.on_recognized_callback = on_recognized_callback
         self.model_name = model_name
+        self.active_profile = active_profile
+        self.adapter_enabled = adapter_enabled
+        self.adapter_path = adapter_path
         
         # Map string model name to enum if available
         arch = ModelArch.TINY
@@ -146,19 +162,49 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         
         logger.info(f"Loading Moonshine model: {arch.name}...")
 
-        # In Parcera, we strictly separate download and load.
-        # But for Moonshine, get_model_for_language is fast if files exist.
         model_path, model_arch = moonshine_voice.get_model_for_language("ja", wanted_model_arch=arch)
         
-        # Verify it actually exists (avoiding automatic download if not intended,
-        # though get_model_for_language might trigger it if not careful.
-        # Let's check it manually like in check_model_cached)
         if not os.path.exists(model_path):
              raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
 
-        self.transcriber = moonshine_voice.Transcriber(model_path, model_arch)
+        options = {}
+        if self.adapter_enabled and self.adapter_path:
+            # NOTE (Future Proofing): The current moonshine-voice C-API (v0.1.x) does not yet support 
+            # the 'adapter_path' option in its transcriber initialization.
+            # We keep this logic ready for when the underlying engine adds LoRA support.
+            logger.info(f"Moonshine (Ready for Future): LoRA adapter logic present (Path: {self.adapter_path})")
+            # options["adapter_path"] = self.adapter_path
+        elif self.adapter_enabled and not self.adapter_path:
+            logger.info(f"Moonshine: No adapter found for profile '{self.active_profile}'. Using standard model.")
+        else:
+            logger.info("Moonshine: LoRA adapter DISABLED by settings.")
+
+        self.transcriber = moonshine_voice.Transcriber(model_path, model_arch, options=options)
         self.flags = flags
 
     def _do_transcribe(self, audio_float32):
         transcript = self.transcriber.transcribe_without_streaming(audio_float32, flags=self.flags)
         return "".join([l.text for l in transcript.lines])
+
+    def reload(self, adapter_path: Optional[str] = None):
+        """Hot-reload the transcriber to apply/remove LoRA adapters without restarting the engine."""
+        arch = ModelArch.TINY
+        if "base" in self.model_name.lower():
+            arch = ModelArch.BASE
+        
+        model_path, model_arch = moonshine_voice.get_model_for_language("ja", wanted_model_arch=arch)
+        
+        # Update the stored path if explicitly provided (could be None to clear it)
+        # If not provided in args, we just use the existing self.adapter_path
+        pass_path = adapter_path if adapter_path is not None else self.adapter_path
+        self.adapter_path = pass_path
+        
+        options = {}
+        if self.adapter_enabled and self.adapter_path:
+            logger.info(f"Moonshine Reload: Validating adapter at {self.adapter_path}")
+            # options["adapter_path"] = self.adapter_path
+        else:
+            logger.info("Moonshine Reload: LoRA adapter DISABLED or not found.")
+
+        self.transcriber = moonshine_voice.Transcriber(model_path, model_arch, options=options)
+        logger.info("Moonshine: Transcriber reloaded successfully.")

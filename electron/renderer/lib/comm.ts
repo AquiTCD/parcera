@@ -135,7 +135,7 @@ let closingIntentionally = false;
 
 async function checkServerHealth(port: number): Promise<boolean> {
   try {
-    const res = await fetch(`http://localhost:${port}/health`);
+    const res = await fetch(`http://127.0.0.1:${port}/health`);
     return res.ok;
   } catch {
     return false;
@@ -174,7 +174,7 @@ export function startWebSocket(): void {
   if (state.avatarType !== 'ai') return;
 
   const port = state.settings.electron?.port || 8080;
-  const wsUrl = `ws://localhost:${port}/ws`;
+  const wsUrl = `ws://127.0.0.1:${port}/ws`;
 
   // Skip if we are already connected or connecting to the correct URL
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
@@ -197,7 +197,7 @@ export function startWebSocket(): void {
       return;
     }
 
-    const wsUrl = `ws://localhost:${port}/ws`;
+    const wsUrl = `ws://127.0.0.1:${port}/ws`;
     logStatus('Connecting to AI Server...');
     socket = new WebSocket(wsUrl);
 

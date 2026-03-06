@@ -69,7 +69,7 @@ class ParceraComponentFactory:
 
         return service_instance
 
-    def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None):
+    def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None, **kwargs):
         stt_cfg = self.config.get("stt", {})
         provider = stt_cfg.get("provider", "faster_whisper")
         providers = stt_cfg.get("providers", {})
@@ -94,9 +94,6 @@ class ParceraComponentFactory:
             device = fw_cfg.get("device", "cpu")
             compute_type = fw_cfg.get("compute_type", "int8")
 
-            # CTranslate2 (faster-whisper backend) does not support 'mps'.
-            # Force to 'cpu' if someone has it set from an older config.
-            # Also reset compute_type since float16 (often paired with mps) is not supported on CPU.
             if device == "mps":
                 logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
                 device = "cpu"
@@ -119,9 +116,36 @@ class ParceraComponentFactory:
         elif provider == "moonshine":
             ms_cfg = providers.get("moonshine", {})
             try:
+                adapter_enabled = bool(ms_cfg.get("adapter_enabled", True))
+                weighted_profiles = ms_cfg.get("weighted_profiles", []) # List of {"id": str, "alpha": float}
+                active_profile = ms_cfg.get("active_profile", "default")
+                adapter_path = None
+                
+                if adapter_enabled:
+                    try:
+                        from services.training_service import TrainingService
+                        ts = TrainingService()
+                        
+                        if weighted_profiles and len(weighted_profiles) > 0:
+                            # Implementation Phase 3: Merged weighted adapters (Alpha blending)
+                            # This creates a combined .npz file that will be injected into Moonshine 
+                            # once its core engine supports external adapter paths.
+                            logger.info(f"Factory: Multi-adapter detected. Merging {len(weighted_profiles)} profiles...")
+                            adapter_path = ts.merge_adapters(weighted_profiles)
+                        else:
+                            # Fallback to single active_profile
+                            ts.profile_dir = os.path.join(ts.base_dir, "profiles", active_profile)
+                            adapter_path = ts.get_active_adapter()
+                            
+                    except Exception as e:
+                        logger.warning(f"Factory: Failed to get/merge adapter path: {e}")
+
                 recognizer_instance = MoonshineRecognizer(
                     model_name=ms_cfg.get("model", "base-ja"),
                     flags=int(ms_cfg.get("flags", 0)),
+                    active_profile=active_profile,
+                    adapter_enabled=adapter_enabled,
+                    adapter_path=adapter_path,
                     on_recognized_callback=on_recognized_callback,
                     debug=self.config.verbose
                 )
@@ -144,7 +168,8 @@ class ParceraComponentFactory:
                 is_busy_handler=is_busy_handler,
                 set_busy_handler=set_busy_handler,
                 response_filter=response_filter,
-                on_recognized_callback=on_recognized_callback
+                on_recognized_callback=on_recognized_callback,
+                avatar=kwargs.get("avatar")
             )
 
         elif provider == "azure":
@@ -169,7 +194,8 @@ class ParceraComponentFactory:
             is_busy_handler=is_busy_handler,
             set_busy_handler=set_busy_handler,
             response_filter=response_filter,
-            on_recognized_callback=on_recognized_callback
+            on_recognized_callback=on_recognized_callback,
+            avatar=kwargs.get("avatar")
         )
 
     def build_tts(self):

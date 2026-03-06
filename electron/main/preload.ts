@@ -110,4 +110,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('twitch-auth-status', listener);
     return () => ipcRenderer.removeListener('twitch-auth-status', listener);
   },
+  openTraining: (): void => ipcRenderer.send('open-training'),
+  setTrainingMode: async (enabled: boolean, port: number = 8676): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/training/mode?enabled=${enabled}`, { method: 'POST' });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
 });

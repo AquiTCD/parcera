@@ -6,13 +6,159 @@ import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
 import { useModelDownloader, ModelDownloaderUI } from './controls/ModelDownloader';
+import { TrainingView } from '../TrainingView';
 
 type FasterWhisperProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
 type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
 
 const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
   const port = settings.electron?.port || 8676;
+  const profileId = settings.stt?.providers?.moonshine?.active_profile || 'default';
   const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader('base-ja', port);
+  const [showTraining, setShowTraining] = useState(false);
+  const [trainingStatus, setTrainingStatus] = useState<{ status: string; started_at?: string; training_progress?: number }>({ status: 'idle' });
+  const [dataProgress, setDataProgress] = useState(0);
+  const [isApplying, setIsApplying] = useState(false);
+  const [isApplied, setIsApplied] = useState(false);
+
+  // 1. Initial manual fetch on mount or when returning from Training Mode
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const baseUrl = `http://localhost:${port}/training/profiles/${profileId}`;
+        const [resStatus, resProg] = await Promise.all([
+          fetch(`${baseUrl}/status`),
+          fetch(`${baseUrl}/progress`)
+        ]);
+        if (resStatus.ok && resProg.ok) {
+          const statusData = await resStatus.json();
+          const progData = await resProg.json();
+          setTrainingStatus(statusData || { status: 'idle' });
+          setDataProgress(progData.progress || 0);
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial training data:', err);
+      }
+    };
+    fetchInitialData();
+  }, [port, profileId, showTraining]); // Re-run when closing training view too
+
+  // 2. Specialized polling ONLY during active training
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    if (trainingStatus.status === 'training') {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/status`);
+          if (res.ok) {
+            const statusData = await res.json();
+            setTrainingStatus(statusData);
+            // Auto-stop if reached terminal state
+            if (statusData.status === 'completed' || statusData.status === 'failed') {
+              if (pollInterval) clearInterval(pollInterval);
+            }
+          }
+        } catch (err) {
+          console.error('Polling failed:', err);
+        }
+      }, 3000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [port, profileId, trainingStatus.status]);
+
+  const handleStartLoRA = async () => {
+    try {
+      const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/train`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTrainingStatus({ status: 'training', training_progress: 0 });
+      } else {
+        alert('学習を開始できなかったよ：' + data.error);
+        setTrainingStatus({ status: 'idle' });
+      }
+    } catch (err) {
+      console.error('Failed to start training:', err);
+      setTrainingStatus({ status: 'idle' });
+    }
+  };
+
+  const handleApplyMulti = async (weighted: { id: string, alpha: number }[]) => {
+    setIsApplying(true);
+    try {
+      const res = await fetch(`http://localhost:${port}/training/profiles/apply_multi`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(weighted)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsApplied(true);
+        // Persist to config so it survives restart
+        updateProvider('stt', 'moonshine', 'weighted_profiles', weighted);
+        setTimeout(() => setIsApplied(false), 3000);
+      } else {
+        alert('適用に失敗しちゃった：' + data.error);
+      }
+    } catch (err) {
+      console.error('Failed to apply multi training:', err);
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const handleApplyTraining = async () => {
+    setIsApplying(true);
+    try {
+      const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/apply`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsApplied(true);
+        setTimeout(() => setIsApplied(false), 3000);
+      } else {
+        alert('適用に失敗しちゃった：' + data.error);
+      }
+    } catch (err) {
+      console.error('Failed to apply training:', err);
+      alert('適用に失敗しちゃった。サーバーとの通信に問題があるかも。');
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const handleResetTraining = async () => {
+    if (!confirm('学習ステータスをリセットしますか？（録音データは削除されません）')) return;
+    try {
+      const res = await fetch(`http://localhost:${port}/training/profiles/${profileId}/reset`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTrainingStatus({ status: 'idle' });
+      }
+    } catch (err) {
+      console.error('Failed to reset training:', err);
+    }
+  };
+
+  if (showTraining) {
+    return (
+      <div className="setting-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 className="setting-card-title" style={{ margin: 0 }}>パルセラ特訓モード</h3>
+          <button className="btn btn-secondary" onClick={() => setShowTraining(false)}>キャンセル</button>
+        </div>
+        <TrainingView profileId={profileId} />
+      </div>
+    );
+  }
 
   return (
     <div className="setting-card">
@@ -32,14 +178,42 @@ const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings,
         notCachedDescription="Moonshine を使用するにはモデルのダウンロードが必要です"
       />
 
-      {/* Flags input hidden based on user request to simplify UI */}
+      <PersonalizationSection
+        port={port}
+        profileId={profileId}
+        settings={settings}
+        defaultSettings={defaultSettings}
+        trainingStatus={trainingStatus}
+        dataProgress={dataProgress}
+        isApplying={isApplying}
+        isApplied={isApplied}
+        updateProvider={updateProvider}
+        handleApplyMulti={handleApplyMulti}
+        handleStartLoRA={handleStartLoRA}
+        handleApplyTraining={handleApplyTraining}
+        handleResetTraining={handleResetTraining}
+        setShowTraining={setShowTraining}
+      />
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes spin-glow {
+          0% { transform: rotate(0deg); text-shadow: 0 0 5px #4fc1ff; }
+          50% { text-shadow: 0 0 20px #4fc1ff; }
+          100% { transform: rotate(360deg); text-shadow: 0 0 5px #4fc1ff; }
+        }
+        .spinner-glow {
+          display: inline-block;
+          animation: spin-glow 2s linear infinite;
+        }
+      `}} />
     </div>
   );
 };
 
 const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
-  const modelName = (settings.stt?.providers?.faster_whisper )?.model
-    || (defaultSettings?.stt?.providers?.faster_whisper )?.model
+  const modelName = (settings.stt?.providers?.faster_whisper)?.model
+    || (defaultSettings?.stt?.providers?.faster_whisper)?.model
     || 'longisland3/kotoba-whisper-v2.2-faster';
   const port = settings.electron?.port || 8676;
 
@@ -51,8 +225,8 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
 
       <InputSetting
         label="モデル (HuggingFace形式)"
-        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.model}
-        value={(settings.stt?.providers?.faster_whisper )?.model}
+        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper)?.model}
+        value={(settings.stt?.providers?.faster_whisper)?.model}
         onChange={(val) => {
           updateProvider('stt', 'faster_whisper', 'model', val);
         }}
@@ -75,7 +249,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
             <div style={{ flex: 1 }}>
               <SelectSetting
                 label="演算デバイス"
-                value={(settings.stt?.providers?.faster_whisper )?.device ?? (defaultSettings?.stt?.providers?.faster_whisper )?.device ?? 'auto'}
+                value={(settings.stt?.providers?.faster_whisper)?.device ?? (defaultSettings?.stt?.providers?.faster_whisper)?.device ?? 'auto'}
                 onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
                 options={[
                   { value: 'auto', label: 'Auto' },
@@ -87,7 +261,7 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
             <div style={{ flex: 1 }}>
               <SelectSetting
                 label="量子化"
-                value={(settings.stt?.providers?.faster_whisper )?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper )?.compute_type ?? 'default'}
+                value={(settings.stt?.providers?.faster_whisper)?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper)?.compute_type ?? 'default'}
                 onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
                 options={[
                   { value: 'default', label: 'デフォルト' },
@@ -100,8 +274,8 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
           <CheckboxSetting
             label="Whisper内蔵VADを使用"
             description="長文向けの設定（短文が無視されるリスクがあります）"
-            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.whisper_vad_filter}
-            checked={(settings.stt?.providers?.faster_whisper )?.whisper_vad_filter}
+            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper)?.whisper_vad_filter}
+            checked={(settings.stt?.providers?.faster_whisper)?.whisper_vad_filter}
             onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
           />
 
@@ -309,13 +483,13 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           <PasswordSetting
             label="APIキー"
             placeholder="Google Cloud API Key"
-            value={(settings.stt?.providers?.google )?.api_key ?? ''}
+            value={(settings.stt?.providers?.google)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'google', 'api_key', val)}
           />
           <InputSetting
             label="言語"
-            defaultValue={(defaultSettings?.stt?.providers?.google )?.language}
-            value={(settings.stt?.providers?.google )?.language}
+            defaultValue={(defaultSettings?.stt?.providers?.google)?.language}
+            value={(settings.stt?.providers?.google)?.language}
             onChange={(val) => updateProvider('stt', 'google', 'language', val)}
           />
         </div>
@@ -327,12 +501,12 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
           <PasswordSetting
             label="APIキー"
             placeholder="Azure API Key"
-            value={(settings.stt?.providers?.azure )?.api_key ?? ''}
+            value={(settings.stt?.providers?.azure)?.api_key ?? ''}
             onChange={(val) => updateProvider('stt', 'azure', 'api_key', val)}
           />
           <SelectSetting
             label="リージョン (Region)"
-            value={(settings.stt?.providers?.azure )?.region ?? (defaultSettings?.stt?.providers?.azure )?.region ?? 'japaneast'}
+            value={(settings.stt?.providers?.azure)?.region ?? (defaultSettings?.stt?.providers?.azure)?.region ?? 'japaneast'}
             onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
             options={[
               { value: 'japaneast', label: 'Japan East (東日本)' },
@@ -344,24 +518,263 @@ export const STTTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNe
               { value: 'custom', label: '-- 手入力 (カスタム) --' }
             ]}
           />
-          {((settings.stt?.providers?.azure )?.region &&
-            !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure )?.region)) && (
+          {((settings.stt?.providers?.azure)?.region &&
+            !['japaneast', 'japanwest', 'eastus', 'westus', 'southeastasia', 'westeurope'].includes((settings.stt?.providers?.azure)?.region)) && (
               <InputSetting
                 label="カスタムリージョン名"
                 placeholder="例: centralus"
-                defaultValue={(defaultSettings?.stt?.providers?.azure )?.region}
-                value={(settings.stt?.providers?.azure )?.region}
+                defaultValue={(defaultSettings?.stt?.providers?.azure)?.region}
+                value={(settings.stt?.providers?.azure)?.region}
                 onChange={(val) => updateProvider('stt', 'azure', 'region', val)}
               />
             )}
           <InputSetting
             label="言語"
-            defaultValue={(defaultSettings?.stt?.providers?.azure )?.language}
-            value={(settings.stt?.providers?.azure )?.language}
+            defaultValue={(defaultSettings?.stt?.providers?.azure)?.language}
+            value={(settings.stt?.providers?.azure)?.language}
             onChange={(val) => updateProvider('stt', 'azure', 'language', val)}
           />
         </div>
       )}
     </section>
+  );
+};
+interface WeightedProfileManagerProps {
+  port: number;
+  weightedProfiles: { id: string, alpha: number }[];
+  onApply: (weighted: { id: string, alpha: number }[]) => void;
+  isApplying: boolean;
+  isApplied: boolean;
+}
+
+const WeightedProfileManager: React.FC<WeightedProfileManagerProps> = ({ port, weightedProfiles, onApply, isApplying, isApplied }) => {
+  const [profiles, setProfiles] = useState<string[]>([]);
+  const [localWeighted, setLocalWeighted] = useState<{ id: string, alpha: number }[]>(weightedProfiles);
+
+  useEffect(() => {
+    fetch(`http://localhost:${port}/training/profiles`)
+      .then(res => res.json())
+      .then(data => setProfiles(data.profiles || []))
+      .catch(console.error);
+  }, [port]);
+
+  useEffect(() => {
+    setLocalWeighted(weightedProfiles);
+  }, [weightedProfiles]);
+
+  const toggleProfile = (id: string) => {
+    if (localWeighted.some(p => p.id === id)) {
+      setLocalWeighted(localWeighted.filter(p => p.id !== id));
+    } else {
+      setLocalWeighted([...localWeighted, { id, alpha: 1.0 }]);
+    }
+  };
+
+  const updateAlpha = (id: string, alpha: number) => {
+    setLocalWeighted(localWeighted.map(p => p.id === id ? { ...p, alpha } : p));
+  };
+
+  return (
+    <div style={{ border: '1px solid #633', borderRadius: '8px', padding: '12px', background: 'rgba(50, 20, 20, 0.2)' }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '10px',
+        color: '#ff9800',
+        fontSize: '11px',
+        fontWeight: 'bold'
+      }}>
+        <span>⚠️ 実験的機能 (開発中)</span>
+      </div>
+
+      <p style={{ fontSize: '10px', color: '#aaa', marginBottom: '12px', lineHeight: '1.4' }}>
+        ※ Moonshine 本体の LoRA 対応を待機中です。現在は複数の学習成果を合成したファイルを作成する機能のみを提供しています。
+      </p>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '15px' }}>
+        {profiles.map(id => {
+          const isActive = localWeighted.some(p => p.id === id);
+          return (
+            <button
+              key={id}
+              onClick={() => toggleProfile(id)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '15px',
+                fontSize: '11px',
+                border: isActive ? '1px solid #4fc1ff' : '1px solid #444',
+                background: isActive ? 'rgba(79, 193, 255, 0.2)' : 'transparent',
+                color: isActive ? '#4fc1ff' : '#888',
+                cursor: 'pointer'
+              }}
+            >
+              {isActive ? '✅ ' : '+ '}{id}
+            </button>
+          );
+        })}
+      </div>
+
+      {localWeighted.length > 0 && (
+        <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {localWeighted.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '11px', width: '80px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.id}</span>
+              <input
+                type="range"
+                min="0" max="1.5" step="0.1"
+                value={p.alpha}
+                onChange={(e) => updateAlpha(p.id, parseFloat(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ fontSize: '10px', width: '30px', color: '#4fc1ff' }}>{(p.alpha).toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        className="btn btn-primary"
+        disabled={isApplying || localWeighted.length === 0}
+        onClick={() => onApply(localWeighted)}
+        style={{ width: '100%', fontSize: '12px', padding: '6px' }}
+      >
+        {isApplying ? '⚙️ 生成中...' : isApplied ? '✅ 合成済み' : '⚙️ プロファイルを合成 (プレビュー)'}
+      </button>
+    </div>
+  );
+};
+// --- Experimental Components (Hidden) ---
+
+interface PersonalizationSectionProps {
+  port: number;
+  profileId: string;
+  settings: any;
+  defaultSettings: any;
+  trainingStatus: any;
+  dataProgress: number;
+  isApplying: boolean;
+  isApplied: boolean;
+  updateProvider: any;
+  handleApplyMulti: any;
+  handleStartLoRA: any;
+  handleApplyTraining: any;
+  handleResetTraining: any;
+  setShowTraining: any;
+}
+
+const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
+  port, profileId, settings, defaultSettings, trainingStatus, dataProgress,
+  isApplying, isApplied, updateProvider, handleApplyMulti, handleStartLoRA,
+  handleApplyTraining, handleResetTraining, setShowTraining
+}) => {
+  return (
+    <div style={{ marginTop: '20px', borderTop: '1px solid #333', paddingTop: '20px' }}>
+      <h4 style={{ fontSize: '14px', marginBottom: '10px' }}>パーソナライズ（追加学習）</h4>
+      <p style={{ fontSize: '12px', color: '#888', marginBottom: '15px' }}>
+        アキさんの声や、特定の用語（格ゲー用語など）をパルセラに覚え込ませます。
+        約100フレーズを読み上げることで、認識精度が劇的に向上します。
+      </p>
+
+      <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px' }}>
+        <CheckboxSetting
+          label="特訓成果を使用する"
+          description="学習済みのアダプターを使用して、認識精度を向上させます"
+          checked={settings.stt?.providers?.moonshine?.adapter_enabled ?? true}
+          onChange={(val) => updateProvider('stt', 'moonshine', 'adapter_enabled', val)}
+        />
+        <div style={{ marginTop: '10px' }}>
+          <InputSetting
+            label="メイン学習プロファイル"
+            description="特訓モードで録音データの保存先となるプロファイル"
+            value={settings.stt?.providers?.moonshine?.active_profile || 'default'}
+            onChange={(val) => updateProvider('stt', 'moonshine', 'active_profile', val)}
+          />
+        </div>
+
+        <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(0, 0, 0, 0.2)', borderRadius: '8px', border: '1px solid #333' }}>
+          <h5 style={{ fontSize: '13px', margin: '0 0 10px 0', color: '#4fc1ff' }}>🧬 マルチアダプター設定 (αブレンディング)</h5>
+          <WeightedProfileManager
+            port={port}
+            weightedProfiles={settings.stt?.providers?.moonshine?.weighted_profiles || []}
+            onApply={handleApplyMulti}
+            isApplying={isApplying}
+            isApplied={isApplied}
+          />
+        </div>
+      </div>
+
+      {trainingStatus.status === 'training' ? (
+        <div style={{ textAlign: 'center', padding: '15px', background: '#222', borderRadius: '12px', border: '1px solid #4fc1ff' }}>
+          <div className="spinner-glow" style={{ marginBottom: '10px', fontSize: '24px' }}>⚙️</div>
+          <div style={{ fontSize: '13px', color: '#4fc1ff', fontWeight: 'bold' }}>追加学習を実行中... {trainingStatus.training_progress ?? 0}%</div>
+
+          <div style={{ width: '100%', height: '6px', background: '#333', borderRadius: '3px', marginTop: '12px', overflow: 'hidden' }}>
+            <div style={{
+              width: `${trainingStatus.training_progress ?? 0}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, #4fc1ff, #a155ff)',
+              transition: 'width 0.5s ease'
+            }} />
+          </div>
+
+          <div style={{ fontSize: '11px', color: '#888', marginTop: '10px' }}>
+            アプリを閉じても学習は継続されます。完了するとステータスが更新されます。
+          </div>
+        </div>
+      ) : trainingStatus.status === 'completed' ? (
+        <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(79, 255, 141, 0.1)', borderRadius: '12px', border: '1px solid #4fff8d' }}>
+          <div style={{ fontSize: '32px', marginBottom: '10px' }}>🌈</div>
+          <div style={{ fontSize: '15px', color: '#4fff8d', fontWeight: 'bold' }}>追加学習が完了しました！</div>
+          <p style={{ fontSize: '12px', color: '#aaa', margin: '10px 0 20px' }}>
+            新しく学習したデータを反映して、パルセラの耳を強化しよう。
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button
+              className="btn btn-primary"
+              onClick={handleApplyTraining}
+              disabled={isApplying}
+              style={{ width: '100%', marginBottom: '10px' }}
+            >
+              {isApplying ? '⚙️ 適用中...' : isApplied ? '✅ 適用完了！' : '🛠 学習成果を反映（適用）する'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowTraining(true)}
+              style={{ width: '100%', marginTop: '5px', fontSize: '12px', background: 'transparent', color: '#888' }}
+            >
+              🔄 データを追加して再特訓 ({dataProgress}/113)
+            </button>
+            <button
+              className="btn"
+              onClick={handleResetTraining}
+              style={{ width: '100%', marginTop: '10px', fontSize: '11px', color: '#555', border: '1px solid #333' }}
+            >
+              学習ステータスをリセット
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {dataProgress >= 113 ? (
+            <button
+              className="btn btn-primary"
+              onClick={handleStartLoRA}
+              style={{ width: '100%', background: 'linear-gradient(90deg, #ff4fc1, #ff55b1)', border: 'none' }}
+            >
+              🚀 学習（ファインチューニング）を開始
+            </button>
+          ) : (
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowTraining(true)}
+              style={{ width: '100%', background: 'linear-gradient(90deg, #4fc1ff, #a155ff)', border: 'none' }}
+            >
+              🎤 パルセラ特訓モードを開始 ({dataProgress}/113)
+            </button>
+          )}
+        </>
+      )}
+    </div>
   );
 };

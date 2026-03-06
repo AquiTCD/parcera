@@ -38,6 +38,12 @@ class FasterWhisperConfig(BaseModel):
     compute_type: str = Field(default="int8")
     whisper_vad_filter: bool = Field(default=False)
 
+class MoonshineConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    model: str = Field(default="base-ja")
+    active_profile: str = Field(default="default")
+    adapter_enabled: bool = Field(default=True)
+
 class GoogleSTTConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
     api_key: str = Field(default="")
@@ -51,6 +57,7 @@ class AzureSTTConfig(BaseModel):
 
 class STTProviders(BaseModel):
     model_config = ConfigDict(extra="allow")
+    moonshine: MoonshineConfig = Field(default_factory=MoonshineConfig)
     faster_whisper: FasterWhisperConfig = Field(default_factory=FasterWhisperConfig)
     google: GoogleSTTConfig = Field(default_factory=GoogleSTTConfig)
     azure: AzureSTTConfig = Field(default_factory=AzureSTTConfig)
