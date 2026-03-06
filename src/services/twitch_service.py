@@ -39,15 +39,18 @@ class TwitchService:
 
     async def should_process(self, user_name: str) -> bool:
         now = asyncio.get_event_loop().time()
+        twitch_cfg = self.server.config.get("twitch", {})
         
-        # Per-user cooldown: 60s
+        # Per-user cooldown (default 60s)
+        user_cd = float(twitch_cfg.get("user_cooldown", 60.0))
         last_user_time = self.last_user_response_times.get(user_name.lower(), 0.0)
-        if now - last_user_time < 60.0:
+        if now - last_user_time < user_cd:
             logger.debug(f"Twitch: User {user_name} is on cooldown.")
             return False
             
-        # Global cooldown: 10s
-        if now - self.last_global_response_time < 10.0:
+        # Global cooldown (default 10s)
+        global_cd = float(twitch_cfg.get("global_cooldown", 10.0))
+        if now - self.last_global_response_time < global_cd:
             logger.debug(f"Twitch: Global response cooldown active.")
             return False
             
@@ -57,8 +60,11 @@ class TwitchService:
         if not await self.should_process(user_name):
             return
 
+        twitch_cfg = self.server.config.get("twitch", {})
+        max_q = int(twitch_cfg.get("max_queue_size", self.MAX_QUEUE_SIZE))
+
         # If queue is full, discard the oldest
-        if self.queue.qsize() >= self.MAX_QUEUE_SIZE:
+        if self.queue.qsize() >= max_q:
             try:
                 self.queue.get_nowait()
                 self.queue.task_done()
@@ -77,8 +83,11 @@ class TwitchService:
                 user_name, text, event_type, timestamp = await self.queue.get()
                 now = asyncio.get_event_loop().time()
                 
+                twitch_cfg = self.server.config.get("twitch", {})
+                expiry = float(twitch_cfg.get("queue_expiry_seconds", self.QUEUE_EXPIRY))
+
                 # Check expiry
-                if now - timestamp > self.QUEUE_EXPIRY:
+                if now - timestamp > expiry:
                     logger.info(f"Twitch Queue: Discarding expired message from <{user_name}>")
                     self.queue.task_done()
                     continue

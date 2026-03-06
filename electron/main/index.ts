@@ -317,6 +317,19 @@ ipcMain.handle('twitch-clear-auth', async () => {
   return true;
 });
 
+ipcMain.handle('twitch-test-event', async (_event, eventType: string) => {
+  const settings = loadSettings();
+  const port = settings.electron?.port || 8676;
+  const url = `http://127.0.0.1:${port}/twitch/test-event?event_type=${eventType}`;
+  try {
+    const res = await fetch(url, { method: 'POST' });
+    if (res.ok) return { success: true };
+    return { success: false, error: await res.text() };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+});
+
 ipcMain.handle('twitch-get-tokens', async () => {
   // Only for internal use or highly trusted calls
   return twitchTokenStore.loadTokens();

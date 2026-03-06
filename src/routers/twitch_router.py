@@ -78,4 +78,23 @@ def create_twitch_router(get_server):
             logger.info("Twitch client stopped and cleared.")
         return {"success": True}
 
+    @router.post("/test-event")
+    async def test_event(event_type: str = "raid"):
+        server = get_server()
+        if not hasattr(server, "twitch_service") or server.twitch_service is None:
+            raise HTTPException(status_code=400, detail="Twitch service not active or initialized.")
+
+        # Simulate event data and trigger enqueue
+        detail = "Simulated Event"
+        if event_type == "raid":
+            detail = "Raid: 100 viewers"
+        elif event_type == "subscribe":
+            detail = "Subscription: Tier 1000"
+        elif event_type == "follow":
+            detail = "Follow"
+            
+        await server.twitch_service.enqueue("TestUser", detail, event_type=event_type)
+        logger.info(f"Triggered simulated Twitch event: {event_type}")
+        return {"success": True, "event_type": event_type}
+
     return router

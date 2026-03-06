@@ -40,6 +40,10 @@ export interface TwitchSettings {
   react_to_raid?: boolean;
   react_to_follow?: boolean;
   react_to_subscribe?: boolean;
+  global_cooldown?: number;
+  user_cooldown?: number;
+  max_queue_size?: number;
+  queue_expiry_seconds?: number;
 }
 
 export interface LLMSettings {
@@ -232,6 +236,7 @@ export interface ElectronAPI {
   twitchStartAuth: () => Promise<void>;
   twitchGetAuthStatus: () => Promise<boolean>;
   twitchClearAuth: () => Promise<boolean>;
+  twitchTestEvent: (eventType: string) => Promise<{ success: boolean; error?: string }>;
   onTwitchAuthStatus: (callback: (status: { success: boolean }) => void) => () => void;
   updateSetting: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
 

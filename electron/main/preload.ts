@@ -105,6 +105,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   twitchStartAuth: (): Promise<void> => ipcRenderer.invoke('twitch-start-auth'),
   twitchGetAuthStatus: (): Promise<boolean> => ipcRenderer.invoke('twitch-get-auth-status'),
   twitchClearAuth: (): Promise<boolean> => ipcRenderer.invoke('twitch-clear-auth'),
+  twitchTestEvent: (eventType: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('twitch-test-event', eventType),
   onTwitchAuthStatus: (callback: (status: { success: boolean }) => void): (() => void) => {
     const listener = (_event: any, status: { success: boolean }) => callback(status);
     ipcRenderer.on('twitch-auth-status', listener);

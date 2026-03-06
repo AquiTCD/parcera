@@ -84,7 +84,7 @@ export const TwitchTab: React.FC<TabProps> = ({
         <p className="setting-group-description" style={{ marginBottom: '15px' }}>
           フォローやサブスクライブなどのイベントを検知してパルセラが反応するようにします。
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '20px' }}>
           <CheckboxSetting
             label="レイドに反応する"
             checked={twitchSettings.react_to_raid !== false}
@@ -100,6 +100,18 @@ export const TwitchTab: React.FC<TabProps> = ({
             checked={twitchSettings.react_to_subscribe !== false}
             onChange={(checked) => updateNested('twitch', 'react_to_subscribe', checked)}
           />
+        </div>
+
+        <div style={{ borderTop: '1px dotted rgba(255,255,255,0.1)', paddingTop: '15px' }}>
+          <h4 style={{ fontSize: '13px', marginBottom: '10px', color: '#94a3b8' }}>動作テスト（擬似イベント発火）</h4>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="btn btn-outline btn-sm" onClick={() => window.electronAPI.twitchTestEvent('raid')}>Raidテスト</button>
+            <button className="btn btn-outline btn-sm" onClick={() => window.electronAPI.twitchTestEvent('follow')}>Followテスト</button>
+            <button className="btn btn-outline btn-sm" onClick={() => window.electronAPI.twitchTestEvent('subscribe')}>Subテスト</button>
+          </div>
+          <p style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+            ※実際にTwitchから通知を受ける前に、パルセラの反応動作を確認できます。
+          </p>
         </div>
       </div>
 
@@ -142,6 +154,36 @@ export const TwitchTab: React.FC<TabProps> = ({
           defaultValue={defaultSettings?.twitch?.ng_words?.join(', ')}
           onChange={(val: string | number) => updateNested('twitch', 'ng_words', String(val).split(',').map((s: string) => s.trim()).filter((s: string) => s))}
         />
+
+        <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <h4 style={{ fontSize: '14px', marginBottom: '15px', color: '#94a3b8' }}>詳細な配信制御</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+            <InputSetting
+              label="同一ユーザーのクールダウン (秒)"
+              description="連投への反応を抑制します。"
+              value={twitchSettings.user_cooldown ?? 60}
+              onChange={(val: string | number) => updateNested('twitch', 'user_cooldown', Number(val))}
+            />
+            <InputSetting
+              label="全体のクールダウン (秒)"
+              description="パルセラの反応間隔を制御します。"
+              value={twitchSettings.global_cooldown ?? 10}
+              onChange={(val: string | number) => updateNested('twitch', 'global_cooldown', Number(val))}
+            />
+            <InputSetting
+              label="キューの最大数"
+              description="溜め込むチャットの最大数です。"
+              value={twitchSettings.max_queue_size ?? 3}
+              onChange={(val: string | number) => updateNested('twitch', 'max_queue_size', Number(val))}
+            />
+            <InputSetting
+              label="メッセージの有効期限 (秒)"
+              description="これ以上古いチャットは無視します。"
+              value={twitchSettings.queue_expiry_seconds ?? 120}
+              onChange={(val: string | number) => updateNested('twitch', 'queue_expiry_seconds', Number(val))}
+            />
+          </div>
+        </div>
       </div>
     </section>
   );
