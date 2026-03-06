@@ -30,15 +30,25 @@ class InternalWebSocket:
         self.server = server
 
     async def send_text(self, text: str):
-        # Forward this response to all real WebSocket clients (UI)
-        # This keeps the UI in sync even for Twitch-triggered interactions.
+        # Forward text messages to all real UI sockets
         for sid, ws in getattr(self.server, "websockets", {}).items():
             if sid != TWITCH_SESSION_ID:
-                try:
-                    await ws.send_text(text)
-                except Exception:
-                    # Ignore failures on stale or concurrently closed sockets
-                    pass
+                try: await ws.send_text(text)
+                except Exception: pass
+
+    async def send_json(self, data: dict):
+        # Forward JSON messages (thinking, commands) to all real UI sockets
+        for sid, ws in getattr(self.server, "websockets", {}).items():
+            if sid != TWITCH_SESSION_ID:
+                try: await ws.send_json(data)
+                except Exception: pass
+
+    async def send_bytes(self, data: bytes):
+        # Forward binary messages (audio) to all real UI sockets
+        for sid, ws in getattr(self.server, "websockets", {}).items():
+            if sid != TWITCH_SESSION_ID:
+                try: await ws.send_bytes(data)
+                except Exception: pass
 
     async def close(self, code: int = 1000, reason: str = ""):
         pass

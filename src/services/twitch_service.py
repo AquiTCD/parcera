@@ -124,12 +124,47 @@ class TwitchService:
         from core.constants import TWITCH_SESSION_ID
 
         try:
-            # Re-initialize or get current components from server
+            # 1. Log to terminal with context-appropriate colors
+            if event_type == "chat":
+                chat_logger.log_twitch(user_name, text)
+            else:
+                chat_logger.log_twitch_event(event_type, user_name, text)
+
+            # 2. Manually trigger thinking signal via InternalWebSocket
+            internal_ws = self.server.aiavatar_server.websockets.get(TWITCH_SESSION_ID)
+            if internal_ws:
+                await internal_ws.send_json({
+                    "type": "thinking",
+                    "session_id": TWITCH_SESSION_ID,
+                    "text": context_prefix + f" {user_name}: {text}"
+                })
+
+            # 3. Invoke and forward chunks to the bridge
+            import base64
             from aiavatar.sts.models import STSRequest
             
             async for r in self.server.aiavatar_server.sts.invoke(STSRequest(text=full_text + instructions, session_id=TWITCH_SESSION_ID)):
-                # Just iterate to consume the generator and let AIAvatar callbacks trigger
-                pass
+                if internal_ws:
+                    msg = {
+                        "type": r.type,
+                        "session_id": TWITCH_SESSION_ID,
+                        "text": r.text
+                    }
+                    if r.audio_data:
+                        msg["audio_data"] = base64.b64encode(r.audio_data).decode()
+                    
+                    await internal_ws.send_json(msg)
+
+                # 4. Log AI response when final
+                if r.type == "final":
+                    chat_logger.log_ai(r.text)
+                    # Also trigger the controller's on_response to set busy flags
+                    if hasattr(self.server, "controller"):
+                        # We mock the 'aiavatar_response' object as it only needs session_id
+                        from dataclasses import dataclass
+                        @dataclass
+                        class MockResp: session_id: str
+                        await self.server.controller.on_response(MockResp(TWITCH_SESSION_ID), r)
         except Exception as e:
             logger.error(f"Error invoking AI from Twitch: {e}")
             self.server.set_busy(TWITCH_SESSION_ID, False)

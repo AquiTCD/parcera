@@ -134,9 +134,12 @@ class TwitchClient:
                 logger.error("Failed to get user info for EventSub subscription.")
                 return False
 
-            # Subscribe to events
-            await self.eventsub.listen_channel_raid(user.id, self._on_raid)
-            await self.eventsub.listen_channel_follow(user.id, user.id, self._on_follow)
+            # Subscribe to events with correct positional/named arguments
+            # listen_channel_raid expects (callback, to_id, from_id)
+            await self.eventsub.listen_channel_raid(self._on_raid, to_broadcaster_user_id=user.id)
+            # listen_channel_follow_v2 expects (broadcaster_id, moderator_id, callback)
+            await self.eventsub.listen_channel_follow_v2(user.id, user.id, self._on_follow)
+            # listen_channel_subscribe expects (broadcaster_id, callback)
             await self.eventsub.listen_channel_subscribe(user.id, self._on_subscribe)
 
             self.is_eventsub_started = True
