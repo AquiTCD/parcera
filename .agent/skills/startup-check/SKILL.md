@@ -9,6 +9,12 @@ description: Mandatory Startup Check Procedure for Parcera
 ## When to Use This Skill
 You **MUST** follow this procedure and verify its success before declaring any code refactoring, feature addition, or configuration change complete. A successful `pytest` run or `tsc` compilation is **not** enough. You must confirm the runtime environment stands up successfully.
 
+> [!IMPORTANT]
+> **Environment Dependency Check**:
+> - 外部パッケージ (`python-multipart`等) が `pyproject.toml` に正しく追加されているか。
+> - 外部オーディオバイナリ (`ffmpeg`, `ffprobe`, `afconvert`) が環境に存在するか。
+> - もしバイナリがない場合、フォールバックパス（例: Macでの `afconvert` 使用）が正しく機能するかをランタイムで確認すること。
+
 ## Procedure
 
 1. **Start the Application Stack**:
