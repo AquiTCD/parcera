@@ -37,6 +37,9 @@ export interface TwitchSettings {
   ng_words?: string[];
   ignored_users?: string[];
   response_speed?: string;
+  react_to_raid?: boolean;
+  react_to_follow?: boolean;
+  react_to_subscribe?: boolean;
 }
 
 export interface LLMSettings {
