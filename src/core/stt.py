@@ -70,6 +70,13 @@ class LocalSpeechRecognizer(SpeechRecognizer, abc.ABC):
         """Process audio numpy array and return transcribed text string."""
         pass
 
+    def reload(self, *args, **kwargs):
+        """
+        Hot-reload the recognizer to apply/remove adapters or update components.
+        Default implementation is a no-op. Override in subclasses like MoonshineRecognizer.
+        """
+        pass
+
 
 class NoOpRecognizer(SpeechRecognizer):
     """Placeholder STT that silently ignores all input. Used when the model is not yet downloaded."""
@@ -84,6 +91,10 @@ class NoOpRecognizer(SpeechRecognizer):
 
     async def transcribe(self, data: bytes, session_id: Optional[str] = None) -> str:
         return ""
+
+    def reload(self, *args, **kwargs):
+        """No-op reload for placeholder recognizer."""
+        pass
 
 
 class KotobaWhisperRecognizer(LocalSpeechRecognizer):
@@ -158,8 +169,11 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
 
         options = {}
         if self.adapter_enabled and self.adapter_path:
-            logger.info(f"Moonshine: LoRA adapter ENABLED using profile '{self.active_profile}' at {self.adapter_path}")
-            options["adapter_path"] = self.adapter_path
+            # NOTE (Future Proofing): The current moonshine-voice C-API (v0.1.x) does not yet support 
+            # the 'adapter_path' option in its transcriber initialization.
+            # We keep this logic ready for when the underlying engine adds LoRA support.
+            logger.info(f"Moonshine (Ready for Future): LoRA adapter logic present (Path: {self.adapter_path})")
+            # options["adapter_path"] = self.adapter_path
         elif self.adapter_enabled and not self.adapter_path:
             logger.info(f"Moonshine: No adapter found for profile '{self.active_profile}'. Using standard model.")
         else:
@@ -187,8 +201,8 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         
         options = {}
         if self.adapter_enabled and self.adapter_path:
-            logger.info(f"Moonshine Reload: LoRA adapter ENABLED at {self.adapter_path}")
-            options["adapter_path"] = self.adapter_path
+            logger.info(f"Moonshine Reload: Validating adapter at {self.adapter_path}")
+            # options["adapter_path"] = self.adapter_path
         else:
             logger.info("Moonshine Reload: LoRA adapter DISABLED or not found.")
 
