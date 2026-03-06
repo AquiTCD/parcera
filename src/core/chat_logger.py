@@ -4,6 +4,7 @@ import logging
 C_USER = "\033[1;36m"    # Bold Cyan
 C_AI = "\033[1;32m"      # Bold Green
 C_TWITCH = "\033[1;33m"  # Bold Yellow
+C_EVENT = "\033[1;35m"   # Bold Magenta (Pink-ish)
 C_SKIP = "\033[37m"      # White (for filtered/ignored)
 C_RESET = "\033[0m"
 
@@ -26,6 +27,9 @@ class ChatLogger:
 
     def log_twitch(self, user_name: str, text: str):
         self.logger.info(f"{C_TWITCH}[Twitch]: <{user_name}> {text}{C_RESET}")
+
+    def log_twitch_event(self, event_type: str, user_name: str, text: str):
+        self.logger.info(f"{C_EVENT}[Twitch {event_type.capitalize()}]: <{user_name}> {text}{C_RESET}")
 
     def log_system(self, message: str):
         self.logger.info(f"{C_SKIP}{message}{C_RESET}")

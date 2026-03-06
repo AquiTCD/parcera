@@ -38,28 +38,32 @@ export const LogTab: React.FC = () => {
         {logs.length === 0 && <div style={{ color: '#444' }}>ログを待機中...</div>}
         {logs.map((log, i) => {
           // Clean ANSI escape codes from Python logs
-          const cleanText = log.text.replace(/\x1b\[[0-9;]*m/g, '');
+          const clean_text = log.text.replace(/\x1b\[[0-9;]*m/g, '');
 
           // Determine color based on content
           let contentColor = '#ccc'; // Default neutral grey
           if (log.source === 'stderr') contentColor = '#ff6b6b'; // Error
 
-          if (cleanText.includes('(ignored)')) {
+          if (clean_text.includes('(ignored)')) {
             contentColor = '#888'; // Grey for ignored (Matches Python white/skipped)
-          } else if (cleanText.includes('[USER]')) {
+          } else if (clean_text.includes('[USER]')) {
             contentColor = '#22d3ee'; // Bold Cyan (Matches Python \033[1;36m)
-          } else if (cleanText.includes('[AI]')) {
+          } else if (clean_text.includes('[AI]')) {
             contentColor = '#4ade80'; // Bold Green (Matches Python \033[1;32m)
-          } else if (cleanText.includes('[Main]')) {
+          } else if (clean_text.includes('[Twitch Chat]') || (clean_text.includes('[Twitch]') && !clean_text.includes('Event'))) {
+            contentColor = '#fbbf24'; // Bold Yellow (Matches Python \033[1;33m)
+          } else if (clean_text.includes('[Twitch Raid]') || clean_text.includes('[Twitch Follow]') || clean_text.includes('[Twitch Subscribe]')) {
+            contentColor = '#d946ef'; // Bold Magenta (Matches Python \033[1;35m)
+          } else if (clean_text.includes('[Main]')) {
             contentColor = '#888'; // Main process (Medium grey)
-          } else if (cleanText.includes('INFO:')) {
+          } else if (clean_text.includes('INFO:')) {
             contentColor = '#bbb'; // Standard Info (Light grey)
           }
 
           return (
             <div key={i} style={{ marginBottom: '4px', whiteSpace: 'pre-wrap' }}>
               <span style={{ color: '#555', marginRight: '8px' }}>[{log.timestamp}]</span>
-              <span style={{ color: contentColor }}>{cleanText}</span>
+              <span style={{ color: contentColor }}>{clean_text}</span>
             </div>
           );
         })}
