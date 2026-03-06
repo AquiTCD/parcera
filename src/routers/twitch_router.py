@@ -93,8 +93,10 @@ def create_twitch_router(get_server):
         elif event_type == "follow":
             detail = "Follow"
             
-        await server.twitch_service.enqueue("TestUser", detail, event_type=event_type)
-        logger.info(f"Triggered simulated Twitch event: {event_type}")
+        # Use unique names for testing to bypass user cooldown
+        test_user = f"Test_{event_type}_{int(asyncio.get_event_loop().time()) % 1000}"
+        await server.twitch_service.enqueue(test_user, detail, event_type=event_type)
+        logger.info(f"Triggered simulated Twitch event: {event_type} (as {test_user})")
         return {"success": True, "event_type": event_type}
 
     return router
