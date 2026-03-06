@@ -48,6 +48,10 @@ def test_training_task_management(training_service):
     status = training_service.get_training_status()
     assert status["status"] == "idle"
     
+    # Add files for progress (need 10 to pass the check)
+    for i in range(10):
+        training_service.update_dataset(f"test{i}.wav", f"Phrase {i}")
+    
     # Start training
     result = training_service.start_training()
     assert result["success"] is True
@@ -92,3 +96,37 @@ def test_get_active_adapter_path(training_service):
         f.write("dummy adapter")
     
     assert training_service.get_active_adapter() == adapter_path
+
+def test_merge_adapters(training_service, tmp_path):
+    import numpy as np
+    # Create two profiles with dummy adapters
+    p1_dir = tmp_path / "training_data" / "profiles" / "p1"
+    p2_dir = tmp_path / "training_data" / "profiles" / "p2"
+    p1_dir.mkdir(parents=True)
+    p2_dir.mkdir(parents=True)
+    
+    # Save dummy .npz with weights
+    w1 = {"lora_A": np.array([1.0, 1.0], dtype=np.float32)}
+    w2 = {"lora_A": np.array([2.0, 2.0], dtype=np.float32)}
+    
+    np.savez(p1_dir / "adapters.npz", **w1)
+    np.savez(p2_dir / "adapters.npz", **w2)
+    
+    # Merge p1=1.0, p2=0.5
+    # Result should be 1.0 + 2.0*0.5 = 2.0
+    profile_alphas = [
+        {"id": "p1", "alpha": 1.0},
+        {"id": "p2", "alpha": 0.5}
+    ]
+    
+    merged_path = training_service.merge_adapters(profile_alphas)
+    assert merged_path is not None
+    assert os.path.exists(merged_path)
+    
+    # Load and check values
+    merged_w = np.load(merged_path)
+    assert "lora_A" in merged_w.files
+    np.testing.assert_array_almost_equal(merged_w["lora_A"], np.array([2.0, 2.0], dtype=np.float32))
+    
+    # Cleanup (not strictly necessary for tmp_path but good practice)
+    os.remove(merged_path)

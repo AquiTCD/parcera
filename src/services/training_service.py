@@ -1,8 +1,12 @@
 import os
 import json
 import uuid
+import logging
 from pathlib import Path
 from pydub import AudioSegment
+import numpy as np
+
+logger = logging.getLogger(__name__)
 
 class TrainingService:
     def __init__(self, base_dir=None, profile_id=None):
@@ -44,17 +48,29 @@ class TrainingService:
         with open(self.metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
 
-    def initialize_profile(self, name: str, description: str = ""):
+    def initialize_profile(self, name: str, author: str = "User", description: str = ""):
+        import datetime
         metadata = {
             "name": name,
+            "author": author,
             "description": description,
             "profile_id": os.path.basename(self.profile_dir),
-            "created_at": str(Path(self.profile_dir).stat().st_ctime) if os.path.exists(self.profile_dir) else None,
+            "created_at": datetime.datetime.now().isoformat(),
             "base_model": "moonshine-base",
-            "is_trained": False
+            "status": "idle",
+            "is_trained": False,
+            "recording_count": self.get_progress()
         }
         self.save_metadata(metadata)
         return metadata
+
+    def sync_recording_count(self):
+        """
+        Syncs the recording_count in metadata.json with the actual lines in data.jsonl.
+        """
+        count = self.get_progress()
+        self.update_metadata(recording_count=count)
+        return count
 
     def update_metadata(self, **kwargs):
         metadata = self.get_metadata()
@@ -187,6 +203,7 @@ class TrainingService:
             "profile_id": os.path.basename(self.profile_dir),
             "is_trained": metadata.get("is_trained", False),
             "last_trained_at": metadata.get("last_trained_at"),
+            "training_progress": metadata.get("training_progress", 0),
             "error": metadata.get("training_error"),
             "started_at": metadata.get("training_started_at"),
             "active_adapter": active_adapter
@@ -201,8 +218,58 @@ class TrainingService:
             return adapter_path
         return None
 
+    def merge_adapters(self, profile_alphas: list) -> str:
+        """
+        Merges multiple LoRA adapters with given alpha weights.
+        profile_alphas: List of dicts like [{"id": "prof1", "alpha": 1.0}, ...]
+        Returns the absolute path to the temporary merged adapter file.
+        """
+        merged_weights = {}
+        successful_merges = 0
+        
+        for item in profile_alphas:
+            p_id = item.get("id")
+            alpha = float(item.get("alpha", 1.0))
+            
+            p_dir = os.path.join(self.base_dir, "profiles", p_id)
+            p_adapter = os.path.join(p_dir, "adapters.npz")
+            
+            if not os.path.exists(p_adapter):
+                logger.warning(f"Merge: Adapter for profile {p_id} not found at {p_adapter}")
+                continue
+                
+            try:
+                weights = np.load(p_adapter)
+                for key in weights.files:
+                    w = weights[key]
+                    if key not in merged_weights:
+                        merged_weights[key] = w * alpha
+                    else:
+                        merged_weights[key] += w * alpha
+                successful_merges += 1
+                logger.info(f"Merged adapter from {p_id} with alpha={alpha}")
+            except Exception as e:
+                logger.error(f"Failed to load adapter from {p_id}: {e}")
+
+        if successful_merges == 0:
+            return None
+            
+        # Create a temp file for the merged adapter
+        merged_filename = f"merged_adapter_{uuid.uuid4().hex[:8]}.npz"
+        merged_path = os.path.join(self.base_dir, merged_filename)
+        
+        # Cleanup old merged files first to keep it clean
+        for f in os.listdir(self.base_dir):
+            if f.startswith("merged_adapter_") and f.endswith(".npz"):
+                try:
+                    os.remove(os.path.join(self.base_dir, f))
+                except: pass
+                
+        np.savez(merged_path, **merged_weights)
+        logger.info(f"Created merged adapter with {successful_merges} profiles at {merged_path}")
+        return merged_path
+
     def start_training(self, epochs: int = 10):
-#...
         """
         Starts the LoRA training process in the background.
         """
@@ -210,6 +277,11 @@ class TrainingService:
         import subprocess
         import sys
         
+        # Phase 2: Validate minimum samples
+        samples_count = self.get_progress()
+        if samples_count < 10:
+             return {"success": False, "error": f"Minimum 10 recordings required (Current: {samples_count})"}
+
         # Check if already training
         status = self.get_training_status()
         if status["status"] == "training":
@@ -232,6 +304,7 @@ class TrainingService:
         self.update_metadata(
             status="training",
             training_started_at=now,
+            training_progress=0, # Reset progress
             training_error=None,
             training_log=log_path
         )

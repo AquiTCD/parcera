@@ -1,5 +1,6 @@
 import logging
-from fastapi import APIRouter, UploadFile, File, Form
+from typing import List, Optional
+from fastapi import APIRouter, UploadFile, File, Form, Body
 from services.training_service import TrainingService
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,27 @@ def create_training_router(get_server_callback):
         service = TrainingService(profile_id=profile_id)
         return service.start_training(epochs=epochs)
 
+    @router.post("/profiles/apply_multi")
+    async def apply_multi_adapters(profile_alphas: List[dict] = Body(...)):
+        """
+        Merge multiple profiles with alphas and apply the result.
+        Example body: [{"id": "prof1", "alpha": 0.8}, {"id": "prof2", "alpha": 0.5}]
+        """
+        ts = TrainingService()
+        merged_path = ts.merge_adapters(profile_alphas)
+        if not merged_path:
+             return {"success": False, "error": "No valid adapters to merge"}
+             
+        server = get_server_callback()
+        if server and hasattr(server, "stt"):
+            try:
+                # server.stt is probably wrapped in ParceraSTTWrapper, so we use .reload()
+                server.stt.reload(adapter_path=merged_path)
+                return {"success": True, "path": merged_path}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Server or STT not available"}
+
     @router.post("/profiles/{profile_id}/apply")
     async def apply_training(profile_id: str):
         # This triggers a reload of the STT component on the server
@@ -95,9 +117,9 @@ def create_training_router(get_server_callback):
         }
 
     @router.post("/profiles")
-    async def create_profile(profile_id: str, name: str, description: str = ""):
+    async def create_profile(profile_id: str, name: str, description: str = "", author: str = "User"):
         service = TrainingService(profile_id=profile_id)
-        metadata = service.initialize_profile(name, description)
+        metadata = service.initialize_profile(name=name, author=author, description=description)
         return {"success": True, "metadata": metadata}
 
     @router.patch("/profiles/{profile_id}")
@@ -122,8 +144,12 @@ def create_training_router(get_server_callback):
         
         # Also trigger a reload so the running STT unloads the deleted adapter
         server = get_server_callback()
-        if server and hasattr(server, "stt"):
-            server.stt.reload()
+        if server:
+            if hasattr(server, "reload_stt"):
+                # server.reload_stt() re-runs the factory logic which checks the filesystem
+                server.reload_stt()
+            elif hasattr(server, "stt") and hasattr(server.stt, "reload"):
+                server.stt.reload()
             
         return {"success": True}
 
