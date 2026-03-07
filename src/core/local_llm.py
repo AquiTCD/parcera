@@ -110,46 +110,62 @@ class LocalLLMService(LLMService):
     ) -> AsyncGenerator[LLMResponse, None]:
         from mlx_lm.generate import stream_generate
         from mlx_lm.sample_utils import make_sampler
-        
+        import queue
+
         model, tokenizer = self._load_model(self.model, self.adapter_path)
-        
-        # Apply chat template
         prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        
-        logger.debug(f"Local LLM: Starting generation for context {context_id}")
-        
-        # Create sampler for temperature
         sampler = make_sampler(self.temperature)
-        
-        count = 0
-        # Use stream_generate which handles temperature and decoding via sampler
-        for response in stream_generate(
-            model=model,
-            tokenizer=tokenizer,
-            prompt=prompt,
-            max_tokens=self.max_tokens,
-            sampler=sampler
-        ):
-            clean_text = response.text
-            # Remove Gemma special tokens and roles that might leak
-            for tag in ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]:
+
+        logger.debug(f"Local LLM: Starting threaded generation for context {context_id}")
+
+        q = queue.Queue()
+
+        def producer():
+            try:
+                count = 0
+                for response in stream_generate(
+                    model=model,
+                    tokenizer=tokenizer,
+                    prompt=prompt,
+                    max_tokens=self.max_tokens,
+                    sampler=sampler
+                ):
+                    q.put(response.text)
+                    count += 1
+                    if count >= self.max_tokens:
+                        break
+                q.put(None)  # Sentinel for end
+            except Exception as e:
+                logger.error(f"Error in MLX generation thread: {e}")
+                q.put(e)
+
+        # Run inference in a separate thread
+        threading.Thread(target=producer, daemon=True).start()
+
+        # Gemma 2 specific tags to filter
+        SPECIAL_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
+
+        while True:
+            # Yield control back to event loop while waiting for the next word
+            word = await asyncio.to_thread(q.get)
+            
+            if word is None:
+                break
+            if isinstance(word, Exception):
+                raise word
+
+            clean_text = word
+            for tag in SPECIAL_TAGS:
                 clean_text = clean_text.replace(tag, "")
             
-            # If we have content, yield it
             if clean_text.strip() or clean_text == " ":
                 yield LLMResponse(context_id=context_id, text=clean_text)
-            
-            # small sleep to allow other tasks to run if needed
-            await asyncio.sleep(0.01)
-            
-            count += 1
-            if count >= self.max_tokens:
-                break
-        
-        logger.debug(f"Local LLM: Finished generation ({count} tokens)")
+
+        logger.debug(f"Local LLM: Finished generation for context {context_id}")
 
     async def warmup(self):
         """Pre-load the model to memory."""
         logger.info("Local LLM: Warming up (pre-loading model)...")
+        # Run loading in thread to avoid blocking loop during startup
         await asyncio.to_thread(self._load_model, self.model, self.adapter_path)
         logger.info("Local LLM: Warm-up complete.")
