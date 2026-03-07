@@ -59,13 +59,15 @@ async def test_twitch_queue_logic():
     # Mock calculate_wait_time to return fast for testing
     server.twitch_service._calculate_wait_time = MagicMock(return_value=0.01)
 
-    # Put item in queue
-    await server.twitch_service.queue.put(("User", "Hello"))
+    # Put item in queue (matching new 4-tuple schema: user, text, type, timestamp)
+    import time
+    await server.twitch_service.queue.put(("User", "Hello", "chat", time.time()))
 
     # Run the processor briefly
     task = asyncio.create_task(server.twitch_service.process_queue())
-    await asyncio.sleep(0.1)
+    # Increase sleep to ensure it has time to process (especially if calculate_wait_time is mocked to 0.01)
+    await asyncio.sleep(0.5)
     task.cancel()
 
-    # Verify AI was invoked with delay
-    server.twitch_service._invoke_response.assert_called_once_with("User", "Hello", audio_delay=0.01)
+    # Verify AI was invoked with correct arguments
+    server.twitch_service._invoke_response.assert_called_once_with("User", "Hello", "chat", audio_delay=0.01, is_delayed=False)

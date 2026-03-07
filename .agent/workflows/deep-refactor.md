@@ -26,15 +26,16 @@ description: Deep Refactor Workflow
 - Ensure that tests exist that guarantee *Behavior* rather than just validating isolated methods.
 - If the tests themselves have flaky issues (e.g., incorrect Mocks or timing-dependent `asyncio.sleep`), fix them first. **Do not alter the code structure without this step.**
 
-### 3. Incremental Implementation
-- Based on the approved plan, do not destroy everything at once. Implement changes incrementally in meaningful chunks (by module or layer):
+### 3. Incremental Implementation (with Active Guardrails)
+- Based on the approved plan, do not destroy everything at once. Implement changes incrementally in meaningful chunks (by module or layer).
+- **Run associated tests after EACH incremental change** to catch regressions immediately.
   1. Isolate constants and enforce strict type definitions.
   2. Abstract common logic into helpers/utilities.
   3. Replace and separate core logic.
   4. Finally, wire up the UI layer or router layer.
 
-### 4. Automated Verification (Local Safeguard)
-- Run the full automated test suite (e.g., `pytest`) to confirm there is absolutely no functional regression.
+### 4. Full Automated Verification (The Ultimate Safeguard)
+- **Run the ENTIRE project test suite** (e.g., `pytest` on the root directory) to confirm there is zero functional regression across the whole system. Do not skip any files.
 - Crush any remaining errors reported by compilers or Linters (TypeScript / Mypy, etc.).
 
 ### 5. Quality Gate: Startup & UI Verification
