@@ -68,6 +68,7 @@ class ParceraServer(ParceraAvatarBase):
         # Track current providers for hot-swapping
         self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
         self.current_tts_provider = self.config.get("tts", {}).get("provider", "aivisspeech")
+        self.current_llm_provider = self.config.get("llm", {}).get("provider", "gemini")
 
         # Redirect all side-effect databases and files to writable directory
         db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
@@ -116,6 +117,25 @@ class ParceraServer(ParceraAvatarBase):
         self.stt = self.factory.build_stt(is_busy_handler=self._is_ai_busy_check)
         self._sync_to_server()
         logger.info(f"STT reloaded. New type: {type(self.stt).__name__}")
+
+    async def reload_llm(self):
+        """Re-initialize LLM component."""
+        logger.info("Reloading LLM component...")
+        self.config.refresh()
+        self.llm = self.factory.build_llm()
+        
+        # Update AIAvatar instance references
+        if self.avatar:
+            self.avatar.chat.llm_service = self.llm
+            self.avatar.sts.llm = self.llm
+        
+        self.current_llm_provider = self.factory.config.llm.provider
+        self._sync_to_server()
+        logger.info(f"LLM reloaded. New provider: {self.current_llm_provider}")
+        
+        # Trigger warmup for local LLM
+        if hasattr(self.llm, "warmup"):
+            asyncio.create_task(self.llm.warmup())
 
     def _sync_to_server(self):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""

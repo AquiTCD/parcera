@@ -29,14 +29,23 @@ def create_config_router(get_server):
             new_stt_provider = stt_cfg.get("provider")
             tts_cfg = server.config.get("tts", {})
             new_tts_provider = tts_cfg.get("provider", "aivisspeech")
+            llm_cfg = server.config.get("llm", {})
+            new_llm_provider = llm_cfg.get("provider", "gemini")
 
             stt_changed = new_stt_provider != server.current_stt_provider
             tts_changed = new_tts_provider != server.current_tts_provider
-            restart_required = stt_changed or tts_changed
+            llm_changed = new_llm_provider != server.current_llm_provider
+            
+            # If ONLY LLM changed, we can try hot-reload
+            if llm_changed and not (stt_changed or tts_changed):
+                await server.reload_llm()
+                restart_required = False
+            else:
+                restart_required = stt_changed or tts_changed or llm_changed
 
             if restart_required:
                 logger.warning(
-                    f"Provider change detected (STT: {stt_changed}, TTS: {tts_changed}). "
+                    f"Provider change detected (STT: {stt_changed}, TTS: {tts_changed}, LLM: {llm_changed}). "
                     "Server restart is recommended for core engine changes."
                 )
             else:
@@ -50,6 +59,7 @@ def create_config_router(get_server):
                 "restart_required": restart_required,
                 "stt_active": server.current_stt_provider,
                 "tts_active": server.current_tts_provider,
+                "llm_active": server.current_llm_provider,
             }
         except Exception as e:
             logger.error(f"Reload failed: {e}")
