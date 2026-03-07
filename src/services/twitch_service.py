@@ -11,6 +11,9 @@ class TwitchService:
     CLEAN_TEXT_RE = re.compile(r"[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]")
     MAX_QUEUE_SIZE = 3
     QUEUE_EXPIRY = 120  # 2 minutes
+    USER_COOLDOWN_DEFAULT = 60.0
+    GLOBAL_COOLDOWN_DEFAULT = 10.0
+    DELAY_WARNING_THRESHOLD_SECONDS = 15.0
 
     def __init__(self, server):
         self.server = server
@@ -41,15 +44,15 @@ class TwitchService:
         now = asyncio.get_event_loop().time()
         twitch_cfg = self.server.config.get("twitch", {})
         
-        # Per-user cooldown (default 60s)
-        user_cd = float(twitch_cfg.get("user_cooldown", 60.0))
+        # Per-user cooldown 
+        user_cd = float(twitch_cfg.get("user_cooldown", self.USER_COOLDOWN_DEFAULT))
         last_user_time = self.last_user_response_times.get(user_name.lower(), 0.0)
         if now - last_user_time < user_cd:
             logger.debug(f"Twitch: User {user_name} is on cooldown.")
             return False
             
-        # Global cooldown (default 10s)
-        global_cd = float(twitch_cfg.get("global_cooldown", 10.0))
+        # Global cooldown 
+        global_cd = float(twitch_cfg.get("global_cooldown", self.GLOBAL_COOLDOWN_DEFAULT))
         if now - self.last_global_response_time < global_cd:
             logger.debug(f"Twitch: Global response cooldown active.")
             return False
@@ -93,7 +96,7 @@ class TwitchService:
                     continue
 
                 # Prepare context
-                is_delayed = (now - timestamp > 15.0) # If more than 15s late
+                is_delayed = (now - timestamp > self.DELAY_WARNING_THRESHOLD_SECONDS) 
                 
                 wait_time = self._calculate_wait_time(text)
                 logger.info(f"Twitch Queue: Processing <{user_name}> (type: {event_type}, delay: {now - timestamp:.1f}s)")
@@ -111,6 +114,15 @@ class TwitchService:
                 logger.error(f"Error in Twitch queue processor: {e}", exc_info=True)
                 await asyncio.sleep(1.0)
 
+    async def _send_ui_signal(self, **kwargs):
+        """Abstracts sending state/responses to the UI."""
+        from core.constants import TWITCH_SESSION_ID
+        internal_ws = getattr(self.server, "aiavatar_server", None)
+        if internal_ws and hasattr(internal_ws, "websockets"):
+            ws = internal_ws.websockets.get(TWITCH_SESSION_ID)
+            if ws:
+                await ws.send_json({"session_id": TWITCH_SESSION_ID, **kwargs})
+
     async def _invoke_response(self, user_name: str, text: str, event_type: str = "chat", audio_delay: float = 0.0, is_delayed: bool = False):
         context_prefix = f"[Twitch {event_type.capitalize()}]"
         full_text = f"{context_prefix} {user_name}: {text}"
@@ -121,8 +133,6 @@ class TwitchService:
 
         logger.info(f"Invoking Twitch Response (Thinking) for <{user_name}>")
 
-        from core.constants import TWITCH_SESSION_ID
-
         try:
             # 1. Log to terminal with context-appropriate colors
             if event_type == "chat":
@@ -130,37 +140,26 @@ class TwitchService:
             else:
                 chat_logger.log_twitch_event(event_type, user_name, text)
 
-            # 2. Manually trigger thinking signal via InternalWebSocket
-            internal_ws = self.server.aiavatar_server.websockets.get(TWITCH_SESSION_ID)
-            if internal_ws:
-                await internal_ws.send_json({
-                    "type": "thinking",
-                    "session_id": TWITCH_SESSION_ID,
-                    "text": context_prefix + f" {user_name}: {text}"
-                })
+            # 2. Trigger thinking signal via helper
+            await self._send_ui_signal(type="thinking", text=f"{context_prefix} {user_name}: {text}")
 
             # 3. Invoke and forward chunks to the bridge
             import base64
             from aiavatar.sts.models import STSRequest
+            from core.constants import TWITCH_SESSION_ID
             
             async for r in self.server.aiavatar_server.sts.invoke(STSRequest(text=full_text + instructions, session_id=TWITCH_SESSION_ID)):
-                if internal_ws:
-                    msg = {
-                        "type": r.type,
-                        "session_id": TWITCH_SESSION_ID,
-                        "text": r.text
-                    }
-                    if r.audio_data:
-                        msg["audio_data"] = base64.b64encode(r.audio_data).decode()
-                    
-                    await internal_ws.send_json(msg)
+                msg = {"type": r.type, "text": r.text}
+                if r.audio_data:
+                    msg["audio_data"] = base64.b64encode(r.audio_data).decode()
+                
+                await self._send_ui_signal(**msg)
 
                 # 4. Log AI response when final
                 if r.type == "final":
                     chat_logger.log_ai(r.text)
-                    # Also trigger the controller's on_response to set busy flags
+                    # Trigger the controller's on_response to correctly set logic states
                     if hasattr(self.server, "controller"):
-                        # We mock the 'aiavatar_response' object as it only needs session_id
                         from dataclasses import dataclass
                         @dataclass
                         class MockResp: session_id: str

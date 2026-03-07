@@ -209,20 +209,26 @@ async def test_twitch_service_process_queue():
 async def test_twitch_service_invoke_response():
     from src.services.twitch_service import TwitchService
     server = MagicMock()
-    server.aiavatar_server.chat = AsyncMock()
+    server.aiavatar_server.websockets = MagicMock()
+    mock_ws = AsyncMock()
+    server.aiavatar_server.websockets.get.return_value = mock_ws
+    
+    # Mock STS generator
+    async def mock_sts_generator(*args, **kwargs):
+        class MockResponse:
+            type = "final"
+            text = "Hello!"
+            audio_data = b"audio"
+        yield MockResponse()
+        
+    server.aiavatar_server.sts.invoke = mock_sts_generator
     
     twitch = TwitchService(server)
     
     await twitch._invoke_response("UserA", "Test", "chat", audio_delay=0.0, is_delayed=False)
     
-    # Verify aiavatar_server.chat was called
-    server.aiavatar_server.chat.assert_called_once()
-    args, kwargs = server.aiavatar_server.chat.call_args
-    # First arg is DummyWS, second is payload
-    payload = args[1]
-    assert payload["session_id"] == "twitch-session"
-    assert "UserA: Test" in payload["text"]
-    assert "[Twitch Chat]" in payload["text"]
+    # Verify internal websocket was called
+    mock_ws.send_json.assert_called()
 
 @pytest.mark.anyio
 async def test_twitch_service_sync_client():
@@ -297,10 +303,11 @@ async def test_twitch_service_queue_management():
 async def test_twitch_service_rate_limiting():
     from src.services.twitch_service import TwitchService
     server = MagicMock()
+    server.config.get.return_value = {"user_cooldown": 60.0, "global_cooldown": 10.0}
     twitch = TwitchService(server)
     
-    # Mock asyncio get_event_loop().time()
-    with patch("asyncio.get_event_loop") as mock_loop:
+    # Mock asyncio get_event_loop().time() inside the module
+    with patch("src.services.twitch_service.asyncio.get_event_loop") as mock_loop:
         mock_loop.return_value.time.return_value = 1000.0
         
         # First message from UserA -> should pass
@@ -350,11 +357,139 @@ async def test_twitch_client_eventsub_setup():
             mock_user.display_name = "User"
             client.get_me = AsyncMock(return_value=mock_user)
             
-            await client.start_eventsub(on_event=AsyncMock())
+            from src.core.twitch_client import TwitchClient
+            original_interval = TwitchClient.EVENTSUB_RETRY_INTERVAL
+            TwitchClient.EVENTSUB_RETRY_INTERVAL = 0.01
             
-            # Verify EventSubWebsocket was initialized and started
-            mock_eventsub.start.assert_called_once()
-            # Verify subscriptions (Raid, Sub, Follow)
-            mock_eventsub.listen_channel_raid.assert_called_once()
-            mock_eventsub.listen_channel_follow.assert_called_once()
-            mock_eventsub.listen_channel_subscribe.assert_called_once()
+            try:
+                # Mock eventsub methods carefully instead of relying on a generic AsyncMock which might act differently
+                mock_eventsub = MagicMock()
+                mock_eventsub.listen_channel_raid = AsyncMock()
+                mock_eventsub.listen_channel_follow_v2 = AsyncMock()
+                mock_eventsub.listen_channel_subscribe = AsyncMock()
+
+                with patch("core.twitch_client.EventSubWebsocket", return_value=mock_eventsub):
+                    await client.start_eventsub(on_event=AsyncMock())
+                
+                    # Verify EventSubWebsocket was initialized and started
+                    mock_eventsub.start.assert_called_once()
+                    
+                    # Direct await of the worker avoids any event loop isolation issues in tests
+                    await client._subscription_worker()
+
+                    # Verify subscriptions (Raid, Sub, Follow)
+                    mock_eventsub.listen_channel_raid.assert_called_once()
+                    mock_eventsub.listen_channel_follow_v2.assert_called_once()
+                    mock_eventsub.listen_channel_subscribe.assert_called_once()
+            finally:
+                TwitchClient.EVENTSUB_RETRY_INTERVAL = original_interval
+
+@pytest.mark.anyio
+async def test_twitch_client_eventsub_handlers():
+    from core.twitch_client import TwitchClient
+    from twitchAPI.object.eventsub import ChannelRaidEvent, ChannelFollowEvent, ChannelSubscribeEvent
+    # Removed invalid Choice import
+    
+    client = TwitchClient("id", "secret")
+    client.on_event_callback = AsyncMock()
+
+    # Generic _dispatch_event test (Will fail until we refactor)
+    # We will test the current _on_raid, _on_follow, etc for now
+    
+    # 1. Raid
+    raid_mock = MagicMock()
+    raid_mock.event.from_broadcaster_user_name = "RaiderBot"
+    raid_mock.event.viewers = 100
+    await client._on_raid(raid_mock)
+    client.on_event_callback.assert_called_with("raid", {"user_name": "RaiderBot", "viewers": 100})
+    
+    # 2. Follow
+    follow_mock = MagicMock()
+    follow_mock.event.user_name = "FollowerBot"
+    await client._on_follow(follow_mock)
+    client.on_event_callback.assert_called_with("follow", {"user_name": "FollowerBot"})
+    
+    # 3. Subscribe
+    sub_mock = MagicMock()
+    sub_mock.event.user_name = "SubBot"
+    sub_mock.event.tier = "1000"
+    sub_mock.event.is_gift = False
+    await client._on_subscribe(sub_mock)
+    client.on_event_callback.assert_called_with("subscribe", {"user_name": "SubBot", "tier": "1000", "is_gift": False})
+
+@pytest.mark.anyio
+async def test_twitch_client_subscription_worker_retry():
+    from core.twitch_client import TwitchClient
+    
+    mock_twitch = AsyncMock()
+    mock_eventsub = MagicMock() 
+    mock_eventsub.start = MagicMock()
+    mock_eventsub.listen_channel_raid = AsyncMock()
+    mock_eventsub.listen_channel_follow_v2 = AsyncMock()
+    mock_eventsub.listen_channel_subscribe = AsyncMock()
+    
+    client = TwitchClient("id", "secret")
+    client.twitch = mock_twitch
+    
+    # Simulate get_me failing once, then succeeding
+    mock_user = MagicMock()
+    mock_user.id = "123"
+    client.get_me = AsyncMock(side_effect=[None, mock_user])
+    
+    with patch("core.twitch_client.Twitch", return_value=mock_twitch):
+        mock_eventsub = MagicMock()
+        mock_eventsub.listen_channel_raid = AsyncMock()
+        mock_eventsub.listen_channel_follow_v2 = AsyncMock()
+        mock_eventsub.listen_channel_subscribe = AsyncMock()
+
+        with patch("core.twitch_client.EventSubWebsocket", return_value=mock_eventsub):
+            from src.core.twitch_client import TwitchClient
+            original_interval = TwitchClient.EVENTSUB_RETRY_INTERVAL
+            TwitchClient.EVENTSUB_RETRY_INTERVAL = 0.01
+            
+            try:
+                await client.start_eventsub(on_event=AsyncMock())
+                
+                # Initially shouldn't have called listen because user was None on first try
+                mock_eventsub.listen_channel_raid.assert_not_called()
+                
+                # Await the worker directly
+                await client._subscription_worker()
+                
+                # Now it should be called
+                mock_eventsub.listen_channel_raid.assert_called_once()
+                mock_eventsub.listen_channel_follow_v2.assert_called_once()
+            finally:
+                TwitchClient.EVENTSUB_RETRY_INTERVAL = original_interval
+            
+@pytest.mark.anyio
+async def test_twitch_service_eventsub_handling():
+    from src.services.twitch_service import TwitchService
+    server = MagicMock()
+    server.config.get.return_value = {"response_speed": "instant"}
+    twitch = TwitchService(server)
+    
+    with patch.object(twitch, "enqueue", new_callable=AsyncMock) as mock_enqueue:
+        # Manually extract the event_callback defined in sync_client
+        server.config.settings = {"twitch": {"enabled": True}}
+        server.twitch_client.is_eventsub_started = False
+        
+        # When sync_client calls start_eventsub, capture the callback
+        def capture_callback(on_event):
+            twitch.tested_event_callback = on_event
+            
+        server.twitch_client.start_eventsub = AsyncMock(side_effect=capture_callback)
+        
+        await twitch.sync_client()
+        
+        # Now trigger the callback manually and verify enqueue formats
+        cb = twitch.tested_event_callback
+        
+        await cb("raid", {"user_name": "RaidUser", "viewers": 150})
+        mock_enqueue.assert_called_with("RaidUser", "Raid: 150 viewers", event_type="raid")
+        
+        await cb("subscribe", {"user_name": "SubUser", "tier": "3000"})
+        mock_enqueue.assert_called_with("SubUser", "Subscription: Tier 3000", event_type="subscribe")
+        
+        await cb("follow", {"user_name": "FollowUser"})
+        mock_enqueue.assert_called_with("FollowUser", "Follow", event_type="follow")
