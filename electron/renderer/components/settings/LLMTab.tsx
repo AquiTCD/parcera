@@ -5,7 +5,7 @@ import { CheckboxSetting } from './controls/CheckboxSetting';
 import { InputSetting } from './controls/InputSetting';
 import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
-import { ModelDownloaderUI, useModelDownloader } from './controls/ModelDownloader';
+import { LocalLLMSettings } from './LocalLLMSettings';
 
 export const LLMTab: React.FC<TabProps> = ({
   settings,
@@ -17,12 +17,7 @@ export const LLMTab: React.FC<TabProps> = ({
 }) => {
   const currentLLMProvider = settings.llm?.provider || 'gemini';
   const apiKey = settings.llm?.providers?.[currentLLMProvider]?.api_key;
-
   const { models, error, isFetchingModels, retryModels } = useLLMModels(currentLLMProvider, apiKey);
-
-  // Local Model Downloader
-  const localModelName = settings.llm?.providers?.local?.model || 'mlx-community/gemma-2-9b-it-4bit';
-  const downloader = useModelDownloader(localModelName, settings.electron?.port || 10101);
 
   React.useEffect(() => {
     if (error) {
@@ -53,84 +48,56 @@ export const LLMTab: React.FC<TabProps> = ({
         ]}
       />
 
-      {currentLLMProvider === 'local' && (
-        <div style={{ marginBottom: '20px' }}>
-          <ModelDownloaderUI
-            status={downloader.modelStatus}
-            progress={downloader.progress}
-            progressDetail={downloader.progressDetail}
-            errorMsg={downloader.errorMsg}
-            onDownload={downloader.handleDownload}
-            notCachedDescription="ローカルでの推論にはモデルのダウンロードが必要です（約6GB）。安定したネット環境で実行してください。"
+      {currentLLMProvider === 'local' ? (
+        <LocalLLMSettings
+          settings={settings}
+          defaultSettings={defaultSettings}
+          updateProvider={updateProvider}
+          port={settings.electron?.port || 10101}
+        />
+      ) : (
+        <div className="setting-card">
+          <h3 className="setting-card-title">{currentLLMProvider.toUpperCase()} の設定</h3>
+
+          <PasswordSetting
+            label="1. APIキー (必須)"
+            placeholder="API Key"
+            value={settings.llm?.providers?.[currentLLMProvider]?.api_key ?? ''}
+            onChange={(val) => updateProvider('llm', currentLLMProvider, 'api_key', val)}
+            buttonAction={
+              <button
+                onClick={handleFetchModels}
+                className="btn btn-outline"
+                disabled={isFetchingModels}
+              >
+                APIキーを使ってモデル一覧を取得する
+              </button>
+            }
           />
-        </div>
-      )}
 
-      <div className="setting-card">
-        <h3 className="setting-card-title">{currentLLMProvider} の設定</h3>
-        {currentLLMProvider === 'local' ? (
-          <InputSetting
-            label="1. 使用するモデル (HuggingFace Repo)"
-            placeholder="mlx-community/gemma-2-9b-it-4bit"
-            value={settings.llm?.providers?.local?.model ?? ''}
-            onChange={(val) => updateProvider('llm', 'local', 'model', val)}
+          <SelectSetting
+            label="2. 使用するモデル"
+            value={settings.llm?.providers?.[currentLLMProvider]?.model ?? ''}
+            onChange={(val) => updateProvider('llm', currentLLMProvider, 'model', val)}
+            disabled={isFetchingModels || !models || models.length === 0}
+            options={isFetchingModels ? [{ value: '', label: 'モデル一覧を取得中...' }] : (models && models.length > 0 ? [
+              { value: '', label: '-- 指定なし (デフォルト) --' },
+              ...models.map((m: string) => ({ value: m, label: m }))
+            ] : [{ value: '', label: '(取得失敗: APIキーを確認してください)' }])}
           />
-        ) : (
-          <>
-            <PasswordSetting
-              label="1. APIキー (必須)"
-              placeholder="API Key"
-              value={settings.llm?.providers?.[currentLLMProvider]?.api_key ?? ''}
-              onChange={(val) => updateProvider('llm', currentLLMProvider, 'api_key', val)}
-              buttonAction={
-                <button
-                  onClick={handleFetchModels}
-                  className="btn btn-outline"
-                  disabled={isFetchingModels}
-                >
-                  APIキーを使ってモデル一覧を取得する
-                </button>
-              }
-            />
 
-            <SelectSetting
-              label="2. 使用するモデル"
-              value={settings.llm?.providers?.[currentLLMProvider]?.model ?? ''}
-              onChange={(val) => updateProvider('llm', currentLLMProvider, 'model', val)}
-              disabled={isFetchingModels || !models || models.length === 0}
-              options={isFetchingModels ? [{ value: '', label: 'モデル一覧を取得中...' }] : (models && models.length > 0 ? [
-                { value: '', label: '-- 指定なし (デフォルト) --' },
-                ...models.map((m: string) => ({ value: m, label: m }))
-              ] : [{ value: '', label: '(取得失敗: APIキーを確認してください)' }])}
-            />
-          </>
-        )}
-
-        <div className="setting-form-row">
-          <div style={{ flex: 1 }}>
-            <InputSetting
-              label="表現のランダム性 (Temperature)"
-              description="0.0で安定、高いほど独創的になります。"
-              type="number"
-              step="0.1"
-              defaultValue={defaultSettings?.llm?.providers?.[currentLLMProvider]?.temperature}
-              value={settings.llm?.providers?.[currentLLMProvider]?.temperature}
-              onChange={(val) => updateProvider('llm', currentLLMProvider, 'temperature', val)}
-            />
-          </div>
-          {currentLLMProvider === 'local' ? (
+          <div className="setting-form-row">
             <div style={{ flex: 1 }}>
               <InputSetting
-                label="最大出力トークン数 (Max Tokens)"
-                description="一度の返答で生成する最大文字数。150〜300程度が自然です。"
+                label="表現のランダム性 (Temperature)"
+                description="0.0で安定、高いほど独創的になります。"
                 type="number"
-                step="1"
-                defaultValue={defaultSettings?.llm?.providers?.local?.max_tokens}
-                value={settings.llm?.providers?.local?.max_tokens}
-                onChange={(val) => updateProvider('llm', 'local', 'max_tokens', val)}
+                step="0.1"
+                defaultValue={defaultSettings?.llm?.providers?.[currentLLMProvider]?.temperature}
+                value={settings.llm?.providers?.[currentLLMProvider]?.temperature}
+                onChange={(val) => updateProvider('llm', currentLLMProvider, 'temperature', val)}
               />
             </div>
-          ) : (
             <div style={{ flex: 1 }}>
               <InputSetting
                 label="文章の分割文字数 (ストリーミング)"
@@ -142,19 +109,11 @@ export const LLMTab: React.FC<TabProps> = ({
                 onChange={(val) => updateProvider('llm', currentLLMProvider, 'option_split_threshold', val)}
               />
             </div>
-          )}
+          </div>
         </div>
+      )}
 
-        {currentLLMProvider === 'local' && (
-          <InputSetting
-            label="LoRAアダプタ パス (オプション)"
-            description="学習済みのアダプタを適用する場合、絶対パスを入力してください。"
-            placeholder="/path/to/adapter"
-            value={settings.llm?.providers?.local?.adapter_path ?? ''}
-            onChange={(val) => updateProvider('llm', 'local', 'adapter_path', val)}
-          />
-        )}
-
+      <div className="setting-card" style={{ marginTop: '20px' }}>
         <CheckboxSetting
           label="前回の会話内容を記憶し続ける"
           description="有効にすると、セッションを越えて記憶を保持します（長期間の運用でコストや精度に影響する場合があります）。"
