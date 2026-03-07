@@ -20,6 +20,7 @@ dependencies = [
   "twitchapi>=4.5.0",
   "moonshine-voice",
   "pydantic>=2.12.5",
+  "mlx-lm>=0.30.7",
 ]
 
 [dependency-groups]

@@ -77,6 +77,15 @@ def check_model_cached(model_name: str) -> bool:
             return True
         except Exception:
             return False
+    elif "/" in model_name:
+        # Assume HuggingFace model (e.g. mlx-community/gemma-2-9b-it-4bit)
+        from huggingface_hub import try_to_load_from_cache
+        try:
+            # Check for a specific file that should exist (e.g., config.json)
+            path = try_to_load_from_cache(model_name, filename="config.json")
+            return isinstance(path, str)
+        except Exception:
+            return False
     else:
         from faster_whisper.utils import download_model
         try:
@@ -117,6 +126,23 @@ def download_model_with_progress(model_name: str) -> str:
             return path
         finally:
             tqdm_lib.tqdm = original_tqdm  # type: ignore
+
+    elif "/" in model_name:
+        # Assume HuggingFace model (MLX compatible)
+        from huggingface_hub import snapshot_download
+        logger.info(f"Starting download of HuggingFace model: {model_name}")
+        try:
+            # snapshot_download supports tqdm out of the box.
+            # We use LoggingTqdm to capture progress for SSE.
+            model_path = snapshot_download(
+                repo_id=model_name,
+                tqdm_class=LoggingTqdm
+            )
+            logger.info(f"HuggingFace model '{model_name}' download complete at {model_path}.")
+            return model_path
+        except Exception as e:
+            logger.error(f"HuggingFace download error: {e}")
+            raise
 
     else:
         import faster_whisper.utils as fw_utils
