@@ -51,6 +51,7 @@ export interface LLMSettings {
   providers?: {
     gemini?: LLMProviderConfig;
     openai?: LLMProviderConfig;
+    local?: LLMProviderConfig;
     [key: string]: LLMProviderConfig | undefined;
   };
 }
@@ -61,6 +62,8 @@ export interface LLMProviderConfig {
   persist_history?: boolean;
   option_split_threshold?: number;
   api_key?: string;
+  max_tokens?: number;
+  adapter_path?: string;
 }
 
 export interface STTSettings {
