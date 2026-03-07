@@ -119,8 +119,11 @@ class ParceraServer(ParceraAvatarBase):
         logger.info(f"STT reloaded. New type: {type(self.stt).__name__}")
 
     async def reload_llm(self):
-        """Re-initialize LLM component."""
-        logger.info("Reloading LLM component...")
+        """Re-initialize LLM component and update avatar references."""
+        new_provider = self.factory.config.llm.provider
+        logger.info(f"Reloading LLM component (New provider: {new_provider})...")
+        
+        # Refresh factory config and rebuild LLM
         self.config.refresh()
         self.llm = self.factory.build_llm()
         
@@ -129,13 +132,14 @@ class ParceraServer(ParceraAvatarBase):
             self.avatar.chat.llm_service = self.llm
             self.avatar.sts.llm = self.llm
         
-        self.current_llm_provider = self.factory.config.llm.provider
+        self.current_llm_provider = new_provider
         self._sync_to_server()
-        logger.info(f"LLM reloaded. New provider: {self.current_llm_provider}")
         
         # Trigger warmup for local LLM
         if hasattr(self.llm, "warmup"):
             asyncio.create_task(self.llm.warmup())
+            
+        logger.info(f"LLM reloaded: {type(self.llm).__name__}")
 
     def _sync_to_server(self):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""

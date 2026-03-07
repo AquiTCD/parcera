@@ -32,6 +32,7 @@ def test_reload_config_endpoint(client):
     parcera_server.config = MagicMock()
     parcera_server.current_stt_provider = "faster_whisper"
     parcera_server.current_tts_provider = "aivisspeech"
+    parcera_server.current_llm_provider = "gemini"
     parcera_server.apply_runtime_config = MagicMock()
     parcera_server._sync_to_server = MagicMock()
 
@@ -62,6 +63,7 @@ def test_reload_config_restart_required(client):
     parcera_server.config = MagicMock()
     parcera_server.current_stt_provider = "faster_whisper"
     parcera_server.current_tts_provider = "aivisspeech"
+    parcera_server.current_llm_provider = "gemini"
 
     # Change provider to trigger restart_required
     new_settings = {
