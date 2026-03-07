@@ -12,6 +12,14 @@ export interface ElectronAPI {
   getWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
   getAvatarWindowBounds: (type: 'user' | 'ai') => Promise<{ x: number; y: number; width: number; height: number } | null>;
   resolveLocalPath: (filePath: string) => string;
+  onLogMessage: (callback: (log: any) => void) => () => void;
+  getLogHistory: () => Promise<any[]>;
+  twitchStartAuth: () => Promise<void>;
+  twitchGetAuthStatus: () => Promise<boolean>;
+  twitchClearAuth: () => Promise<boolean>;
+  twitchTestEvent: (eventType: string) => Promise<{ success: boolean; error?: string }>;
+  onTwitchAuthStatus: (callback: (status: { success: boolean }) => void) => () => void;
+  getTwitchStatus: () => Promise<{ initialized: boolean; user?: { display_name: string; login: string }; session_id?: string }>;
 }
 
 declare global {

@@ -59,14 +59,24 @@ def create_twitch_router(get_server):
         is_initialized = hasattr(server, "twitch_client") and server.twitch_client is not None and server.twitch_client.twitch is not None
 
         user_info = None
+        session_id = None
         if is_initialized:
             user = await server.twitch_client.get_me()
             if user:
                 user_info = {"display_name": user.display_name, "login": user.login}
 
+            # Get session ID from client's explicit store or library internal
+            session_id = server.twitch_client.session_id
+            if not session_id and hasattr(server.twitch_client, "eventsub") and server.twitch_client.eventsub:
+                es = server.twitch_client.eventsub
+                session_id = getattr(es, "session_id", None)
+                if not session_id and hasattr(es, 'active_session') and es.active_session:
+                    session_id = getattr(es.active_session, 'id', None)
+
         return {
             "initialized": is_initialized,
-            "user": user_info
+            "user": user_info,
+            "session_id": session_id
         }
 
     @router.post("/stop")
@@ -77,5 +87,26 @@ def create_twitch_router(get_server):
             server.twitch_client = None
             logger.info("Twitch client stopped and cleared.")
         return {"success": True}
+
+    @router.post("/test-event")
+    async def test_event(event_type: str = "raid"):
+        server = get_server()
+        if not hasattr(server, "twitch_service") or server.twitch_service is None:
+            raise HTTPException(status_code=400, detail="Twitch service not active or initialized.")
+
+        # Simulate event data and trigger enqueue
+        detail = "Simulated Event"
+        if event_type == "raid":
+            detail = "Raid: 100 viewers"
+        elif event_type == "subscribe":
+            detail = "Subscription: Tier 1000"
+        elif event_type == "follow":
+            detail = "Follow"
+            
+        # Use unique names for testing to bypass user cooldown
+        test_user = f"Test_{event_type}_{int(asyncio.get_event_loop().time()) % 1000}"
+        await server.twitch_service.enqueue(test_user, detail, event_type=event_type)
+        logger.info(f"Triggered simulated Twitch event: {event_type} (as {test_user})")
+        return {"success": True, "event_type": event_type}
 
     return router

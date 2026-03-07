@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-07 - Twitch EventSub & Architecture Refactoring
+
+### Added
+- **Twitch EventSub**: Implemented comprehensive EventSub support in `TwitchClient` to react to new channel events.
+- **Queueing & Rate Limiting**: Added robust rate limiting and refined queueing to `TwitchService` with configurable cooldowns and queue sizes.
+- **EventSub UI**: Added UI toggles for EventSub reactions and a dedicated test event trigger within the Twitch settings tab.
+- **Agent Workflows**: Introduced heavy-duty `deep-refactor` markdown workflow for systematic codebase auditing and structural improvements.
+
+### Changed
+- **UI Architecture**: Refactored the monolithic `TwitchTab.tsx` by splitting it into specialized subcomponents (`TwitchAuthCard`, `TwitchEventsCard`, `TwitchResponseLogicCard`) to improve maintainability.
+- **Backend Architecture**: Applied DRY principles and extracted magic numbers in `TwitchClient` and `TwitchService` to class-level constants.
+
+### Fixed
+- **Testing Stability**: Addressed flakiness in EventSub tests by exposing the `_subscription_worker` and creating comprehensive rate-limiting and queueing tests.
+- **Audio/Thinking Signals**: Restored correct AI invocation methods, updated EventSub OAuth scopes, and re-enabled audio/thinking signals during Twitch events.
+
 ## [0.3.1] - 2026-03-05 - Codebase Stabilization & Refactoring
 
 ### Changed

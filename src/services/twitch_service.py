@@ -9,10 +9,17 @@ logger = logging.getLogger(__name__)
 
 class TwitchService:
     CLEAN_TEXT_RE = re.compile(r"[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]")
+    MAX_QUEUE_SIZE = 3
+    QUEUE_EXPIRY = 120  # 2 minutes
+    USER_COOLDOWN_DEFAULT = 60.0
+    GLOBAL_COOLDOWN_DEFAULT = 10.0
+    DELAY_WARNING_THRESHOLD_SECONDS = 15.0
 
     def __init__(self, server):
         self.server = server
         self.queue = asyncio.Queue()
+        self.last_user_response_times: dict[str, float] = {}
+        self.last_global_response_time: float = 0.0
 
     def _calculate_wait_time(self, text: str) -> float:
         twitch_cfg = self.server.config.get("twitch", {})
@@ -33,55 +40,132 @@ class TwitchService:
         weight = sum(2 if "\u4e00" <= c <= "\u9fff" else 1 for c in clean_text)
         return base + (weight * spw)
 
+    async def should_process(self, user_name: str) -> bool:
+        now = asyncio.get_event_loop().time()
+        twitch_cfg = self.server.config.get("twitch", {})
+        
+        # Per-user cooldown 
+        user_cd = float(twitch_cfg.get("user_cooldown", self.USER_COOLDOWN_DEFAULT))
+        last_user_time = self.last_user_response_times.get(user_name.lower(), 0.0)
+        if now - last_user_time < user_cd:
+            logger.debug(f"Twitch: User {user_name} is on cooldown.")
+            return False
+            
+        # Global cooldown 
+        global_cd = float(twitch_cfg.get("global_cooldown", self.GLOBAL_COOLDOWN_DEFAULT))
+        if now - self.last_global_response_time < global_cd:
+            logger.debug(f"Twitch: Global response cooldown active.")
+            return False
+            
+        return True
+
+    async def enqueue(self, user_name: str, text: str, event_type: str = "chat"):
+        if not await self.should_process(user_name):
+            return
+
+        twitch_cfg = self.server.config.get("twitch", {})
+        max_q = int(twitch_cfg.get("max_queue_size", self.MAX_QUEUE_SIZE))
+
+        # If queue is full, discard the oldest
+        if self.queue.qsize() >= max_q:
+            try:
+                self.queue.get_nowait()
+                self.queue.task_done()
+                logger.debug("Twitch Queue: Discarded oldest message (Max size reached)")
+            except asyncio.QueueEmpty:
+                pass
+
+        timestamp = asyncio.get_event_loop().time()
+        await self.queue.put((user_name, text, event_type, timestamp))
+        logger.debug(f"Twitch Queue: Enqueued {event_type} from {user_name}")
+
     async def process_queue(self):
         logger.info("Twitch queue processor started.")
         while True:
             try:
-                user_name, text = await self.queue.get()
-                logger.debug(f"Twitch Queue: Processing message from <{user_name}>")
+                user_name, text, event_type, timestamp = await self.queue.get()
+                now = asyncio.get_event_loop().time()
+                
+                twitch_cfg = self.server.config.get("twitch", {})
+                expiry = float(twitch_cfg.get("queue_expiry_seconds", self.QUEUE_EXPIRY))
 
+                # Check expiry
+                if now - timestamp > expiry:
+                    logger.info(f"Twitch Queue: Discarding expired message from <{user_name}>")
+                    self.queue.task_done()
+                    continue
+
+                # Prepare context
+                is_delayed = (now - timestamp > self.DELAY_WARNING_THRESHOLD_SECONDS) 
+                
                 wait_time = self._calculate_wait_time(text)
-                logger.info(f"Twitch Queue: Starting LLM background thinking for <{user_name}> (reading wait: {wait_time:.2f}s)")
+                logger.info(f"Twitch Queue: Processing <{user_name}> (type: {event_type}, delay: {now - timestamp:.1f}s)")
 
-                await self._invoke_response(user_name, text, audio_delay=wait_time)
+                # Update cooldown trackers BEFORE starting to talk to avoid overlaps
+                self.last_user_response_times[user_name.lower()] = now
+                self.last_global_response_time = now
+
+                await self._invoke_response(user_name, text, event_type, audio_delay=wait_time, is_delayed=is_delayed)
 
                 self.queue.task_done()
-                await asyncio.sleep(0.5)
+                # Ensure spacing between even if LLM was slow
+                await asyncio.sleep(0.5) 
             except Exception as e:
                 logger.error(f"Error in Twitch queue processor: {e}", exc_info=True)
                 await asyncio.sleep(1.0)
 
-    async def _invoke_response(self, user_name, text, audio_delay: float = 0.0):
-        full_text = f"[Twitch Viewer] {user_name}: {text}"
-        logger.info(f"Invoking Twitch Response (Thinking) for <{user_name}>: {text}")
+    async def _send_ui_signal(self, **kwargs):
+        """Abstracts sending state/responses to the UI."""
+        from core.constants import TWITCH_SESSION_ID
+        internal_ws = getattr(self.server, "aiavatar_server", None)
+        if internal_ws and hasattr(internal_ws, "websockets"):
+            ws = internal_ws.websockets.get(TWITCH_SESSION_ID)
+            if ws:
+                await ws.send_json({"session_id": TWITCH_SESSION_ID, **kwargs})
 
-        start_time = asyncio.get_event_loop().time()
-        first_chunk = True
+    async def _invoke_response(self, user_name: str, text: str, event_type: str = "chat", audio_delay: float = 0.0, is_delayed: bool = False):
+        context_prefix = f"[Twitch {event_type.capitalize()}]"
+        full_text = f"{context_prefix} {user_name}: {text}"
+        
+        instructions = ""
+        if is_delayed:
+            instructions = "\n\n指示: 返答が少し遅れたことを考慮し、不自然にならないように「そういえば」などの言葉を混ぜて自然に切り出してください。"
+
+        logger.info(f"Invoking Twitch Response (Thinking) for <{user_name}>")
 
         try:
-            async for r in self.server.aiavatar_server.sts.invoke(STSRequest(
-                type="invoke",
-                session_id=TWITCH_SESSION_ID,
-                text=full_text
-            )):
-                if first_chunk:
-                    while self.server.is_busy(exclude_session=TWITCH_SESSION_ID):
-                        await asyncio.sleep(0.2)
+            # 1. Log to terminal with context-appropriate colors
+            if event_type == "chat":
+                chat_logger.log_twitch(user_name, text)
+            else:
+                chat_logger.log_twitch_event(event_type, user_name, text)
 
-                    self.server.set_busy(TWITCH_SESSION_ID, True, timeout=20.0, source="twitch")
+            # 2. Trigger thinking signal via helper
+            await self._send_ui_signal(type="thinking", text=f"{context_prefix} {user_name}: {text}")
 
-                    if audio_delay > 0:
-                        elapsed = asyncio.get_event_loop().time() - start_time
-                        remaining = audio_delay - elapsed
-                        if remaining > 0:
-                            logger.debug(f"Twitch: LLM was fast ({elapsed:.2f}s), waiting {remaining:.2f}s more.")
-                            await asyncio.sleep(remaining)
+            # 3. Invoke and forward chunks to the bridge
+            import base64
+            from aiavatar.sts.models import STSRequest
+            from core.constants import TWITCH_SESSION_ID
+            
+            async for r in self.server.aiavatar_server.sts.invoke(STSRequest(text=full_text + instructions, session_id=TWITCH_SESSION_ID)):
+                msg = {"type": r.type, "text": r.text}
+                if r.audio_data:
+                    msg["audio_data"] = base64.b64encode(r.audio_data).decode()
+                
+                await self._send_ui_signal(**msg)
 
-                    first_chunk = False
-
-                await self.server.aiavatar_server.handle_response(r)
+                # 4. Log AI response when final
+                if r.type == "final":
+                    chat_logger.log_ai(r.text)
+                    # Trigger the controller's on_response to correctly set logic states
+                    if hasattr(self.server, "controller"):
+                        from dataclasses import dataclass
+                        @dataclass
+                        class MockResp: session_id: str
+                        await self.server.controller.on_response(MockResp(TWITCH_SESSION_ID), r)
         except Exception as e:
-            logger.error(f"Error invoking AI from Twitch Chat: {e}")
+            logger.error(f"Error invoking AI from Twitch: {e}")
             self.server.set_busy(TWITCH_SESSION_ID, False)
 
     async def sync_client(self):
@@ -98,21 +182,35 @@ class TwitchService:
         )
 
         enabled = settings.get("enabled", False)
-        main_loop = asyncio.get_running_loop()
+        
+        async def chat_callback(user_name, text):
+            # In a real app, you might want to log this to a file
+            await self.enqueue(user_name, text, event_type="chat")
+
+        async def event_callback(event_type, data):
+            user_name = data.get("user_name", "Unknown")
+            detail = ""
+            if event_type == "raid":
+                detail = f"Raid: {data.get('viewers')} viewers"
+            elif event_type == "subscribe":
+                detail = f"Subscription: Tier {data.get('tier')}"
+            elif event_type == "follow":
+                detail = "Follow"
+            
+            await self.enqueue(user_name, detail, event_type=event_type)
 
         if enabled:
-            async def chat_callback(user_name, text):
-                chat_logger.log_twitch(user_name, text)
-
-                async def enqueue():
-                    await self.queue.put((user_name, text))
-
-                asyncio.run_coroutine_threadsafe(enqueue(), main_loop)
-
             if not self.server.twitch_client.is_chat_started:
                 await self.server.twitch_client.start_chat(on_message=chat_callback)
             else:
                 self.server.twitch_client.on_message_callback = chat_callback
+                
+            if not self.server.twitch_client.is_eventsub_started:
+                await self.server.twitch_client.start_eventsub(on_event=event_callback)
+            else:
+                self.server.twitch_client.on_event_callback = event_callback
         else:
             if self.server.twitch_client.is_chat_started:
                 await self.server.twitch_client.stop_chat()
+            if self.server.twitch_client.is_eventsub_started:
+                await self.server.twitch_client.stop_eventsub()

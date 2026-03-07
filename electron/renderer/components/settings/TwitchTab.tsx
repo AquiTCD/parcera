@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TabProps } from './types';
 import { CheckboxSetting } from './controls/CheckboxSetting';
 import { useTwitchAuth } from '../../hooks/useTwitchAuth';
-import { InputSetting } from './controls/InputSetting';
-import { PasswordSetting } from './controls/PasswordSetting';
-import { SelectSetting } from './controls/SelectSetting';
-import { SettingGroup } from './controls/SettingGroup';
+import { TwitchAuthCard } from './twitch/TwitchAuthCard';
+import { TwitchEventsCard } from './twitch/TwitchEventsCard';
+import { TwitchResponseLogicCard } from './twitch/TwitchResponseLogicCard';
 
 export const TwitchTab: React.FC<TabProps> = ({
   settings,
@@ -15,6 +14,32 @@ export const TwitchTab: React.FC<TabProps> = ({
   setStatus,
 }) => {
   const { isAuthorized, handleStartAuth, handleClearAuth } = useTwitchAuth(setStatus);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthorized && !sessionId) {
+      const fetchStatus = async () => {
+        try {
+          const status = await (window.electronAPI as any).getTwitchStatus();
+          if (status.session_id) {
+            setSessionId(status.session_id);
+          }
+        } catch (e) {
+          console.error('Failed to fetch Twitch status:', e);
+        }
+      };
+
+      fetchStatus();
+      const interval = setInterval(() => {
+        if (sessionId) {
+          clearInterval(interval);
+        } else {
+          fetchStatus();
+        }
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthorized, !!sessionId]);
 
   const twitchSettings = settings.twitch || {};
 
@@ -32,92 +57,27 @@ export const TwitchTab: React.FC<TabProps> = ({
         />
       </div>
 
-      <div className="setting-card">
-        <h3 className="setting-card-title">認証設定</h3>
-        <div style={{ marginBottom: '16px' }}>
-          <p className="setting-group-description">
-            <a href="https://dev.twitch.tv/console" target="_blank" rel="noreferrer" style={{ color: '#61dafb', textDecoration: 'underline' }}>
-              Twitch Developer Console ↗
-            </a> で作成したアプリケーションの情報を入力してください。<br />
-            OAuthリダイレクトURIには <code>http://localhost:8677/auth/callback</code> を登録する必要があります。
-          </p>
-        </div>
+      <TwitchAuthCard
+        twitchSettings={twitchSettings}
+        updateNested={updateNested}
+        isAuthorized={isAuthorized}
+        handleStartAuth={handleStartAuth}
+        handleClearAuth={handleClearAuth}
+      />
 
-        <InputSetting
-          label="Client ID"
-          value={twitchSettings.client_id || ''}
-          onChange={(val) => updateNested('twitch', 'client_id', val)}
-          placeholder="Twitch App Client ID"
-        />
+      <TwitchEventsCard
+        twitchSettings={twitchSettings}
+        updateNested={updateNested}
+        isAuthorized={isAuthorized}
+        sessionId={sessionId}
+        settings={settings}
+      />
 
-        <PasswordSetting
-          label="Client Secret"
-          value={twitchSettings.client_secret || ''}
-          onChange={(val) => updateNested('twitch', 'client_secret', val)}
-          placeholder="Twitch App Client Secret"
-        />
-
-        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {isAuthorized ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(74, 222, 128, 0.1)', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.2)' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 8px #40c070' }}></span>
-                <span style={{ color: '#4ade80', fontWeight: 'bold', fontSize: '13px' }}>認証済み</span>
-              </div>
-              <button className="btn btn-outline" onClick={handleClearAuth}>連携を解除</button>
-            </>
-          ) : (
-            <button
-              className="btn btn-primary"
-              onClick={handleStartAuth}
-              disabled={!twitchSettings.client_id || !twitchSettings.client_secret}
-            >
-              Twitchと連携を開始
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="setting-card">
-        <h3 className="setting-card-title">応答ロジック</h3>
-
-        <SelectSetting
-          label="反応までの待ち時間"
-          description="チャットが届いてからパルセラが反応するまでの時間を調整します。棒読みちゃんの読み上げ待ちなどを考慮できます。"
-          value={twitchSettings.response_speed || 'natural'}
-          options={[
-            { label: 'なし', value: 'instant' },
-            { label: '短め', value: 'fast' },
-            { label: '標準', value: 'natural' },
-            { label: '長め', value: 'slow' },
-          ]}
-          onChange={(val) => updateNested('twitch', 'response_speed', val)}
-        />
-
-        <InputSetting
-          label="Wake Word (正規表現)"
-          description="チャットのどこかにこの正規表現にマッチする単語が含まれる場合のみ反応します。"
-          value={twitchSettings.wake_word || ''}
-          defaultValue={defaultSettings?.twitch?.wake_word}
-          onChange={(val) => updateNested('twitch', 'wake_word', val)}
-        />
-
-        <InputSetting
-          label="無視するユーザー"
-          description="カンマ区切りで入力（例: Nightbot, Moobot）"
-          value={(twitchSettings.ignored_users || []).join(', ')}
-          defaultValue={defaultSettings?.twitch?.ignored_users?.join(', ')}
-          onChange={(val) => updateNested('twitch', 'ignored_users', String(val).split(',').map((s: string) => s.trim()).filter((s: string) => s))}
-        />
-
-        <InputSetting
-          label="NGワード (正規表現)"
-          description="これらの単語が含まれるチャットを無視します。カンマ区切りで入力。"
-          value={(twitchSettings.ng_words || []).join(', ')}
-          defaultValue={defaultSettings?.twitch?.ng_words?.join(', ')}
-          onChange={(val) => updateNested('twitch', 'ng_words', String(val).split(',').map((s: string) => s.trim()).filter((s: string) => s))}
-        />
-      </div>
+      <TwitchResponseLogicCard
+        twitchSettings={twitchSettings}
+        defaultSettings={defaultSettings}
+        updateNested={updateNested}
+      />
     </section>
   );
 };

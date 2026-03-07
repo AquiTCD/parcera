@@ -302,6 +302,19 @@ ipcMain.handle('twitch-start-auth', async () => {
   await twitchOAuthHandler.startAuth(clientId, clientSecret);
 });
 
+ipcMain.handle('get-twitch-status', async () => {
+  const settings = loadSettings();
+  const port = settings.electron?.port || 8676;
+  const url = `http://127.0.0.1:${port}/twitch/status`;
+  try {
+    const res = await fetch(url);
+    if (res.ok) return await res.json();
+    return { initialized: false };
+  } catch (e) {
+    return { initialized: false };
+  }
+});
+
 ipcMain.handle('twitch-get-auth-status', async () => {
   return twitchTokenStore.loadTokens() !== null;
 });
@@ -315,6 +328,19 @@ ipcMain.handle('twitch-clear-auth', async () => {
   fetch(url, { method: 'POST' }).catch(() => { });
 
   return true;
+});
+
+ipcMain.handle('twitch-test-event', async (_event, eventType: string) => {
+  const settings = loadSettings();
+  const port = settings.electron?.port || 8676;
+  const url = `http://127.0.0.1:${port}/twitch/test-event?event_type=${eventType}`;
+  try {
+    const res = await fetch(url, { method: 'POST' });
+    if (res.ok) return { success: true };
+    return { success: false, error: await res.text() };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 });
 
 ipcMain.handle('twitch-get-tokens', async () => {
