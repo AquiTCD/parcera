@@ -114,4 +114,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getTwitchStatus: (): Promise<{ initialized: boolean; user?: { display_name: string; login: string }; session_id?: string }> =>
     ipcRenderer.invoke('get-twitch-status'),
+  openTrainingWindow: (profile: string): void => ipcRenderer.send('open-training-window', profile),
+  onTrainingProfileChanged: (callback: (profile: string) => void): (() => void) => {
+    const listener = (_event: any, profile: string) => callback(profile);
+    ipcRenderer.on('training-profile-changed', listener);
+    return () => ipcRenderer.removeListener('training-profile-changed', listener);
+  },
+  broadcastProfilesUpdated: (): void => ipcRenderer.send('broadcast-profiles-updated'),
+  onProfilesUpdated: (callback: () => void): (() => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('profiles-updated', listener);
+    return () => ipcRenderer.removeListener('profiles-updated', listener);
+  },
 });

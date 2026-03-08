@@ -483,6 +483,49 @@ function createSettingsWindow() {
   settingsWindow = win;
 }
 
+let trainingWindow: BrowserWindow | null = null;
+
+function createTrainingWindow(profile: string) {
+  if (trainingWindow) {
+    trainingWindow.focus();
+    trainingWindow.webContents.send('training-profile-changed', profile);
+    return;
+  }
+
+  const win = new BrowserWindow({
+    width: 900,
+    height: 700,
+    title: `追加学習`,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+  });
+
+  const url = VITE_DEV_SERVER_URL
+    ? `${VITE_DEV_SERVER_URL}?type=training&profile=${profile}`
+    : `file://${path.join(RENDERER_DIST, 'index.html')}?type=training&profile=${profile}`;
+
+  win.loadURL(url);
+
+  win.on('closed', () => {
+    trainingWindow = null;
+  });
+
+  trainingWindow = win;
+}
+
+ipcMain.on('open-training-window', (_event, profile: string) => {
+  createTrainingWindow(profile);
+});
+
+ipcMain.on('broadcast-profiles-updated', () => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('profiles-updated');
+  }
+});
+
 ipcMain.handle('save-settings', async (_event, newSettings: ParceraSettings) => {
   try {
     store.store = newSettings;
