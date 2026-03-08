@@ -57,6 +57,11 @@ class TwitchService:
             logger.debug(f"Twitch: Global response cooldown active.")
             return False
             
+        # Check if AI is busy with Training
+        if self.server.is_busy(source="training"):
+            logger.debug(f"Twitch: Muted because AI is busy with Training.")
+            return False
+            
         return True
 
     async def enqueue(self, user_name: str, text: str, event_type: str = "chat"):

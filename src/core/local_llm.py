@@ -51,6 +51,19 @@ class LocalLLMService(LLMService):
             logger.info("MLX model loaded.")
         return cls._model, cls._tokenizer
 
+    @classmethod
+    def clear_cache(cls):
+        """Unload the model from VRAM/RAM."""
+        if cls._model is not None:
+            logger.info("Local LLM: Unloading model to free up memory for training...")
+            import gc
+            cls._model = None
+            cls._tokenizer = None
+            cls._current_model_path = None
+            cls._current_adapter_path = None
+            gc.collect()
+            logger.info("Local LLM: Model unloaded.")
+
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: List[Dict[str, str]] = None, system_prompt_params: Dict[str, Any] = None) -> List[Dict]:
         messages = []
         
@@ -122,17 +135,19 @@ class LocalLLMService(LLMService):
 
         def producer():
             try:
+                # Use max_tokens from kwargs if provided, otherwise fallback to default
+                m_tokens = kwargs.get("max_tokens", self.max_tokens)
                 count = 0
                 for response in stream_generate(
                     model=model,
                     tokenizer=tokenizer,
                     prompt=prompt,
-                    max_tokens=self.max_tokens,
+                    max_tokens=m_tokens,
                     sampler=sampler
                 ):
                     q.put(response.text)
                     count += 1
-                    if count >= self.max_tokens:
+                    if count >= m_tokens:
                         break
                 q.put(None)  # Sentinel for end
             except Exception as e:
