@@ -17,7 +17,9 @@ from routers.config_router import create_config_router
 from routers.tts_router import create_tts_router
 from routers.twitch_router import create_twitch_router
 from routers.model_router import create_model_router
+from routers.training_router import create_training_router
 from services.twitch_service import TwitchService
+from services.training_service import TrainingService
 
 from core.interaction import InteractionController
 from core.constants import TWITCH_SESSION_ID, DEFAULT_UVICORN_PORT, DEFAULT_UVICORN_HOST
@@ -64,6 +66,39 @@ class ParceraServer(ParceraAvatarBase):
         # Interaction Controller (Orchestrates the pipeline)
         self.controller = InteractionController(self, self.config)
         self.twitch_service = TwitchService(self)
+
+        # Teacher LLM for Training
+        class TeacherLLM:
+            def __init__(self, server):
+                self.server = server
+            async def generate(self, prompt: str) -> str:
+                # Use a universal way to get response from any aiavatar LLM component
+                logger.info(f"TeacherLLM: Processing knowledge using {self.server.llm.__class__.__name__}")
+                full_text = ""
+                try:
+                    messages = [{"role": "user", "content": prompt}]
+                    # Note: context_id='teacher_internal' to separate from main chat if needed
+                    # We pass max_tokens=2048 to ensure long JSON doesn't get truncated
+                    async for response in self.server.llm.get_llm_stream_response(
+                        "teacher_internal", "system", messages, max_tokens=2048
+                    ):
+                        if hasattr(response, "text"):
+                            full_text += response.text
+                        else:
+                            # Fallback for providers that yield raw strings
+                            full_text += str(response)
+                    
+                    if not full_text:
+                        logger.warning("TeacherLLM: Empty response generated.")
+                    else:
+                        logger.debug(f"TeacherLLM: Generated context ({len(full_text)} chars)")
+                        
+                    return full_text
+                except Exception as e:
+                    logger.error(f"TeacherLLM generation failed: {e}", exc_info=True)
+                    raise ValueError(f"Knowledge processing failed: {e}. Make sure a model is loaded if using LocalBrain.")
+
+        self.training_service = TrainingService(self.config, teacher_llm=TeacherLLM(self))
 
         # Track current providers for hot-swapping
         self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
@@ -282,6 +317,7 @@ app.include_router(create_config_router(_get_server))
 app.include_router(create_tts_router(_get_server))
 app.include_router(create_twitch_router(_get_server))
 app.include_router(create_model_router(_get_server))
+app.include_router(create_training_router(_get_server))
 app.include_router(parcera_server.aiavatar_server.get_websocket_router())
 
 

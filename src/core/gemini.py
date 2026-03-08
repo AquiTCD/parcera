@@ -14,7 +14,7 @@ class FixedGeminiService(GeminiService):
         self.profile_mode = profile_mode
         self._system_prompt_logged = False
 
-    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: List[Any], system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Dict[str, Any]]] = None):
+    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: List[Any], system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Dict[str, Any]]] = None, **kwargs):
         if messages:
             last_msg = messages[-1]
             if hasattr(last_msg, "parts"):
@@ -35,7 +35,7 @@ class FixedGeminiService(GeminiService):
 
         try:
             first_chunk = True
-            async for chunk in super().get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools):
+            async for chunk in super().get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
                 if self.profile_mode:
                     import time
                     if first_chunk:
