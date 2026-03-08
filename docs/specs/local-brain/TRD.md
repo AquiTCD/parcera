@@ -19,15 +19,18 @@ Python サイドカーサーバーに `mlx-lm` を統合。
 - **初期パラメータ**: `max_tokens: 50-100`, `temperature: 0.7-0.8` (ギャルらしい揺らぎの創出)。
 
 ### Phase 2: 学習機能とパーソナライズ (Training Pipeline)
-ユーザーの好みに合わせて LoRA アダプタを作成・適用する。
-- **データ生成**: 
-  - 会話ログから `{"text": "<start_of_turn>user\n[Q]<end_of_turn>\n<start_of_turn>model\n[A]<end_of_turn>"}` 形式の JSONL を出力。
+ユーザーの好みに合わせて LLM 独自の LoRA アダプタを作成・適用する。
+- **データ生成 (Teacher LLM 連携)**: 
+  - **クレンジング**: 外部 LLM（Gemini 等）を使用し、誤字脱字の修正およびパルセラらしい回答への「自問自答形式 (Q&A)」への変換。
+  - **添削ステータス**: DB 上で `pending / ok / correction / ignored` を管理。`ok` および `correction` のみを学習対象とする。
+- **Web/Text インポート**: 
+  - URL スクレイピングから得た情報を Teacher LLM もしくはローカル LLM で要約し、対話データに変換。
 - **LoRA学習実行**:
-  - `mlx_lm.lora` モジュールをサブプロセスとしてキック。
-  - **リソース制限**: GPU メモリ占有率を監視し、学習中のシステム安定性を確保。
-- **アダプタ管理**: 
-  - 生成された `adapters.npz` のメタデータ管理。
-  - 推論モデルロード時に `--adapter-path` を指定して動的に適用。
+  - `mlx_lm.lora --train` モジュールをバックグラウンドで実行。
+  - **手動実行**: ユーザーが UI の「特訓開始」ボタンを押した際のみ実行。
+- **独立したアダプタ管理**: 
+  - `adapters/llm/{profile_id}/` 以下のフォルダ構成。
+  - STT 用アダプタとは独立して管理し、粒度の異なる知識や性格を自由に組み合わせて適用可能にする。
 
 ## 4. 運用上の考慮事項 (Operational Notes)
 - **メモリ消費**: 

@@ -3,15 +3,20 @@ import { Settings } from './components/Settings';
 import type { ParceraSettings } from '../shared/types';
 import { Avatar } from './components/Avatar';
 import { ChromaKeyFilter } from './components/ChromaKeyFilter';
+import { TrainingTab } from './components/settings/TrainingTab';
 import './style.css';
 
 const params = new URLSearchParams(window.location.search);
-const view = params.get('type') === 'settings' ? 'settings' : 'avatar';
-const avatarType = params.get('type') || 'user';
+const typeParam = params.get('type');
+const view = typeParam === 'settings' ? 'settings' : typeParam === 'training' ? 'training' : 'avatar';
+const avatarType = typeParam || 'user';
+const profileParam = params.get('profile') || 'default';
 
 // Set window title dynamically for OBS window capture
 if (view === 'settings') {
   document.title = 'Parcera - Settings';
+} else if (view === 'training') {
+  document.title = `Parcera - 追加学習 (${profileParam})`;
 } else if (avatarType === 'ai') {
   document.title = 'Parcera - AI';
 } else if (avatarType === 'user') {
@@ -34,13 +39,21 @@ export const App: React.FC = () => {
     };
   }, [settings]);
 
+  if (!settings) return null;
+
   return (
     <>
       <ChromaKeyFilter
         enabled={chroma.enabled}
         color={chroma.color}
       />
-      {view === 'settings' ? <Settings /> : <Avatar />}
+      {view === 'settings' ? (
+        <Settings />
+      ) : view === 'training' ? (
+        <TrainingTab settings={settings} profile={profileParam} />
+      ) : (
+        <Avatar />
+      )}
       <div className="obs-heartbeat" />
     </>
   );
