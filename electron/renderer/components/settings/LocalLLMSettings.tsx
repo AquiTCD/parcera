@@ -143,9 +143,11 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
             </div>
           )}
           {profileList.map(p => {
-            const name = p.name;
+            const name = typeof p === 'string' ? p : p.name;
+            const statusMessage = typeof p === 'string' ? 'データなし' : p.status_message;
+            const needsTrain = typeof p === 'string' ? false : p.needs_train;
             const isApplied = activeAdapterPath.includes(`/${name}`) || activeAdapterPath.endsWith(name);
-            const canApply = p.status_message !== 'データなし' && p.status_message !== '未学習';
+            const canApply = statusMessage !== 'データなし' && statusMessage !== '未学習';
 
             return (
               <div key={name} className="lora-profile-item" style={{
@@ -168,12 +170,12 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
                   <span style={{ fontWeight: 600, color: isApplied ? '#61dafb' : '#eee' }}>{name}</span>
                   <span style={{
                     fontSize: '10px',
-                    color: p.needs_train ? '#ffcc00' : '#888',
-                    border: p.needs_train ? '1px solid #ffcc0066' : '1px solid #444',
+                    color: needsTrain ? '#ffcc00' : '#888',
+                    border: needsTrain ? '1px solid #ffcc0066' : '1px solid #444',
                     padding: '1px 5px',
                     borderRadius: '4px'
                   }}>
-                    {p.status_message}
+                    {statusMessage}
                   </span>
                   {isApplied && <span style={{ fontSize: '10px', background: '#61dafb', color: '#000', padding: '1px 5px', borderRadius: '4px' }}>適用中</span>}
                 </div>

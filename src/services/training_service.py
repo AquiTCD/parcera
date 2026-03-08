@@ -261,6 +261,9 @@ JSON形式のリストのみを出力してください。説明文等は一切�
             elif trainable != last_count:
                 needs_train = True
                 status_message = "更新あり"
+            else:
+                needs_train = False
+                status_message = "学習済み"
             
             return {
                 "total": total,
