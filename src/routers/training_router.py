@@ -1,8 +1,11 @@
 import os
 import asyncio
+import logging
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 class KnowledgeRequest(BaseModel):
     text: Optional[str] = None
@@ -16,6 +19,17 @@ class PairUpdateRequest(BaseModel):
 class RunTrainingRequest(BaseModel):
     profile: str = "default"
     iters: int = 100
+
+class ApplyProfilesRequest(BaseModel):
+    profiles: List[Dict[str, Any]]
+
+class ImportProfileRequest(BaseModel):
+    source_path: str
+    name: str
+
+class ExportProfileRequest(BaseModel):
+    profile_name: str
+    destination_path: str
 
 def create_training_router(get_server):
     router = APIRouter(prefix="/training", tags=["training"])
@@ -63,6 +77,7 @@ def create_training_router(get_server):
 
     @router.delete("/profiles/{profile}")
     async def delete_profile(profile: str):
+        server = get_server()
         await server.training_service.delete_profile(profile)
         return {"status": "success"}
 
@@ -119,5 +134,54 @@ def create_training_router(get_server):
     async def get_training_status(profile: str = "default"):
         server = get_server()
         return server.training_service.get_training_status(profile)
+
+    @router.post("/apply-profiles")
+    async def apply_profiles(request: ApplyProfilesRequest):
+        server = get_server()
+        try:
+            # 1. Merge adapters
+            fused_adapter_path = await server.training_service.merge_adapters(request.profiles)
+            
+            # 2. Update model settings
+            # We want to use the fused path as the active adapter_path
+            current_config = server.config.settings
+            llm_cfg = current_config.get("llm", {})
+            local_cfg = llm_cfg.get("providers", {}).get("local", {})
+            
+            # If no adapters were merged (fused_adapter_path is empty), clear the adapter_path
+            local_cfg["adapter_path"] = fused_adapter_path if fused_adapter_path else None
+            
+            # Update the underlying config object (which usually handles saving)
+            server.config.update({"llm": llm_cfg})
+            
+            # 3. Reload LLM if current provider is local
+            if llm_cfg.get("provider") == "local":
+                await server.reload_llm()
+                
+            return {
+                "status": "success",
+                "adapter_path": fused_adapter_path
+            }
+        except Exception as e:
+            logger.error(f"Failed to apply profiles: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post("/profiles/import")
+    async def import_profile(request: ImportProfileRequest):
+        try:
+            await server.training_service.import_profile(request.source_path, request.name)
+            return {"status": "success"}
+        except Exception as e:
+            logger.error(f"Failed to import profile: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post("/profiles/export")
+    async def export_profile(request: ExportProfileRequest):
+        try:
+            await server.training_service.export_profile(request.profile_name, request.destination_path)
+            return {"status": "success"}
+        except Exception as e:
+            logger.error(f"Failed to export profile: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
     return router

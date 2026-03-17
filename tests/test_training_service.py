@@ -19,7 +19,7 @@ def clean_db(mock_config):
     import os
     if not os.path.exists(mock_config.app_data_dir):
         os.makedirs(mock_config.app_data_dir)
-    db_path = os.path.join(mock_config.app_data_dir, "aiavatar.db")
+    db_path = os.path.join(mock_config.app_data_dir, "training.db")
     if os.path.exists(db_path):
         os.remove(db_path)
     yield
@@ -98,3 +98,48 @@ async def test_dynamic_prompt_generation(mock_config, mock_gemini):
     assert "TestAI" in call_args
     assert "Cheerful" in call_args
     assert "Master" in call_args
+@pytest.mark.asyncio
+async def test_calculate_merge_weights(mock_config):
+    service = TrainingService(mock_config)
+    
+    # Case 1: Total weight <= 1.2, no scaling
+    configs = [
+        {"name": "A", "weight": 0.5, "is_main": False},
+        {"name": "B", "weight": 0.5, "is_main": False}
+    ]
+    weights = service._calculate_merge_weights(configs)
+    assert weights["A"] == 0.5
+    assert weights["B"] == 0.5
+    
+    # Case 2: Total weight > 1.2, no main, all scale equally
+    configs = [
+        {"name": "A", "weight": 1.0, "is_main": False},
+        {"name": "B", "weight": 1.0, "is_main": False}
+    ]
+    weights = service._calculate_merge_weights(configs)
+    # Total 2.0 -> scaled to 1.2 sum -> 0.6 each
+    assert weights["A"] == pytest.approx(0.6)
+    assert weights["B"] == pytest.approx(0.6)
+    
+    # Case 3: Total weight > 1.2, has main. 
+    # Logic: Target 1.2. Main stays strong (max 0.8), others shared.
+    configs = [
+        {"name": "Main", "weight": 1.0, "is_main": True},
+        {"name": "Exp1", "weight": 0.5, "is_main": False},
+        {"name": "Exp2", "weight": 0.5, "is_main": False}
+    ]
+    # Current behavior desired by user: "Main can drop to 0.8" 
+    # If total is 2.0.
+    weights = service._calculate_merge_weights(configs)
+    assert weights["Main"] == pytest.approx(0.8)
+    assert weights["Exp1"] == pytest.approx(0.2)
+    assert weights["Exp2"] == pytest.approx(0.2)
+    
+    # Case 4: Main is set to 0.5, total still safe
+    configs = [
+        {"name": "Main", "weight": 0.5, "is_main": True},
+        {"name": "Exp1", "weight": 0.3, "is_main": False}
+    ]
+    weights = service._calculate_merge_weights(configs)
+    assert weights["Main"] == 0.5
+    assert weights["Exp1"] == 0.3

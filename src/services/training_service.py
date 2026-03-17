@@ -8,6 +8,10 @@ import sys
 from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import shutil
+import numpy as np
+import safetensors
+from safetensors.numpy import save_file, load_file
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +22,17 @@ class TrainingService:
         self.db_path = os.path.join(self.config.app_data_dir, "training.db")
         self.training_status: Dict[str, Dict[str, Any]] = {}
         self._init_db()
+        self._cleanup_temp_dirs()
+
+    def _cleanup_temp_dirs(self):
+        """Cleanup temporary fused adapter directories on startup."""
+        temp_dir = os.path.join(self.config.app_data_dir, "adapters", "llm", "_fused_adapter_temp")
+        if os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.info("Training: Cleaned up temporary fused adapter directory.")
+            except Exception as e:
+                 logger.warning(f"Failed to cleanup temp dir: {e}")
 
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -58,7 +73,133 @@ class TrainingService:
             if "last_trained_count" not in meta_columns:
                 cursor.execute("ALTER TABLE training_metadata ADD COLUMN last_trained_count INTEGER DEFAULT 0")
 
-            conn.commit()
+    def _get_adapter_path(self, profile_name: str) -> Optional[str]:
+        """Get the absolute path to the adapter file, checking common names."""
+        base_dir = os.path.join(self.config.app_data_dir, "adapters", "llm", profile_name)
+        for name in ["adapters.safetensors", "adapter_model.safetensors"]:
+            path = os.path.join(base_dir, name)
+            if os.path.exists(path):
+                return path
+        return None
+
+    def _calculate_merge_weights(self, configs: List[Dict[str, Any]]) -> Dict[str, float]:
+        """
+        Calculates balanced weights for merging multiple LoRA adapters.
+        Target total weight limit: 1.2
+        Rules:
+        - If total <= 1.2: use values as is.
+        - If total > 1.2 and there is a 'main' profile:
+            - Main can drop to 0.8 minimum if it was set to 1.0 or higher.
+            - Others share the remaining capacity (1.2 - main_weight).
+        - If total > 1.2 and no 'main': Scale all proportionally to sum to 1.2.
+        """
+        target_total = 1.2
+        results = {c["name"]: float(c["weight"]) for c in configs}
+        total = sum(results.values())
+        
+        if total <= target_total:
+            return results
+        
+        main_config = next((c for c in configs if c.get("is_main")), None)
+        
+        if main_config:
+            name = main_config["name"]
+            orig_main_weight = float(main_config["weight"])
+            
+            # Simple prioritization: 
+            # If main was 1.0, it can drop to 0.8. 
+            # Scale main down to max(0.8, proportional_scaled_main)
+            prop_scale = target_total / total
+            new_main_weight = max(0.8 if orig_main_weight >= 1.0 else (orig_main_weight * 0.8), orig_main_weight * prop_scale)
+            # Ensure new_main does not exceed its original setting
+            new_main_weight = min(orig_main_weight, new_main_weight)
+            
+            results[name] = new_main_weight
+            
+            # Distribute remaining to others
+            remaining = target_total - new_main_weight
+            other_sum = total - orig_main_weight
+            
+            if other_sum > 0:
+                others_scale = remaining / other_sum
+                for c in configs:
+                    if not c.get("is_main"):
+                        results[c["name"]] = float(c["weight"]) * others_scale
+            else:
+                # No others, just main (already handled but for safety)
+                pass
+        else:
+            # Proportionally scale all
+            scale = target_total / total
+            for name in results:
+                results[name] *= scale
+                
+        return results
+    async def merge_adapters(self, profile_configs: List[Dict[str, Any]]) -> str:
+        """
+        Merges multiple LoRA adapters with weights.
+        Returns the path to the temporary merged adapter directory.
+        """
+        # 1. Filter out 0 weight or non-existent adapters
+        configs = []
+        for c in profile_configs:
+            adapter_path = self._get_adapter_path(c["name"])
+            if float(c["weight"]) > 0 and adapter_path:
+                configs.append(c)
+        
+        if not configs:
+            return "" # Or should we return a default? If no adapters, clear it.
+            
+        # 2. Calculate actual weights using Smart Auto-Balance
+        final_weights = self._calculate_merge_weights(configs)
+        logger.info(f"Training: Merging adapters with balanced weights: {final_weights}")
+        
+        # 3. Load and blend tensors
+        merged_tensors = {}
+        all_keys = set()
+        
+        # Determine base directory for metadata (e.g. adapter_config.json)
+        # We use the 'main' adapter's config, or the first one if no main.
+        main_profile = next((c["name"] for c in configs if c.get("is_main")), configs[0]["name"])
+        main_adapter_dir = os.path.join(self.config.app_data_dir, "adapters", "llm", main_profile)
+        
+        for name, weight in final_weights.items():
+            adapter_path = self._get_adapter_path(name)
+            if not adapter_path:
+                logger.warning(f"Training: Skipping {name}, no adapter file found.")
+                continue
+            try:
+                tensors = load_file(adapter_path)
+                for key, value in tensors.items():
+                    all_keys.add(key)
+                    if key not in merged_tensors:
+                        # Initialize with same shape/type as base, but all zeros
+                        merged_tensors[key] = np.zeros_like(value, dtype=np.float32)
+                    
+                    # Add weighted contribution
+                    # Convert to float32 for summation precision
+                    merged_tensors[key] += value.astype(np.float32) * weight
+            except Exception as e:
+                logger.error(f"Training: Failed to load/blend adapter {name}: {e}")
+                
+        # 4. Save to temporary fused directory
+        fused_dir = os.path.join(self.config.app_data_dir, "adapters", "llm", "_fused_adapter_temp")
+        if os.path.exists(fused_dir):
+            shutil.rmtree(fused_dir)
+        os.makedirs(fused_dir, exist_ok=True)
+        
+        # Save merged safetensors
+        # Convert back to bfloat16 or similar if the original was that, 
+        # but float16/32 is safer for general compatibility. 
+        # We'll use float16 as it's common for LoRA weights.
+        merged_tensors_f16 = {k: v.astype(np.float16) for k, v in merged_tensors.items()}
+        save_file(merged_tensors_f16, os.path.join(fused_dir, "adapters.safetensors"))
+        
+        # Copy metadata from main_adapter_dir (config.json)
+        shutil.copy(os.path.join(main_adapter_dir, "adapter_config.json"), os.path.join(fused_dir, "adapter_config.json"))
+        
+        return fused_dir
+
 
     async def add_knowledge_from_url(self, url: str, profile: str = "default"):
         logger.info(f"Training: Scraping URL: {url} for profile: {profile}")
@@ -287,10 +428,26 @@ JSON形式のリストのみを出力してください。説明文等は一切�
                 UNION 
                 SELECT profile FROM training_metadata
             """)
-            profile_names = [row[0] for row in cursor.fetchall()]
+            db_profile_names = [row[0] for row in cursor.fetchall()]
+
+            # --- Automatic Discovery ---
+            adapters_dir = os.path.join(self.config.app_data_dir, "adapters", "llm")
+            discovered_names = []
+            if os.path.exists(adapters_dir):
+                for folder in os.listdir(adapters_dir):
+                    if folder.startswith("_") or folder == "default":
+                        continue
+                    folder_path = os.path.join(adapters_dir, folder)
+                    if os.path.isdir(folder_path):
+                        # Check for model file (standardized or common variants)
+                        if os.path.exists(os.path.join(folder_path, "adapters.safetensors")) or \
+                           os.path.exists(os.path.join(folder_path, "adapter_model.safetensors")):
+                            discovered_names.append(folder)
+
+            all_names = sorted(list(set(db_profile_names + discovered_names)))
             
             result = []
-            for name in profile_names:
+            for name in all_names:
                 stats = self._get_stats_sync(name)
                 result.append({
                     "name": name,
@@ -337,6 +494,56 @@ JSON形式のリストのみを出力してください。説明文等は一切�
                 shutil.move(old_adapter_dir, new_adapter_dir)
             except Exception as e:
                 logger.warning(f"Failed to move adapter dir: {e}")
+
+    async def import_profile(self, source_path: str, name: str):
+        """Import an external LoRA adapter folder/file into the managed storage."""
+        await asyncio.to_thread(self._import_profile_sync, source_path, name)
+
+    def _import_profile_sync(self, source_path: str, name: str):
+        if not os.path.exists(source_path):
+            raise FileNotFoundError(f"Source path does not exist: {source_path}")
+        
+        dest_dir = os.path.join(self.config.app_data_dir, "adapters", "llm", name)
+        os.makedirs(dest_dir, exist_ok=True)
+        
+        # Check if source is a single file (safetensors) or a directory
+        if os.path.isfile(source_path):
+             # If just a file, we assume it's the adapter itself
+             shutil.copy2(source_path, os.path.join(dest_dir, "adapters.safetensors"))
+             # Also try to find a config.json in the same dir
+             parent = os.path.dirname(source_path)
+             if os.path.exists(os.path.join(parent, "adapter_config.json")):
+                 shutil.copy2(os.path.join(parent, "adapter_config.json"), os.path.join(dest_dir, "adapter_config.json"))
+        else:
+            # Directory - copy contents
+            for item in os.listdir(source_path):
+                s = os.path.join(source_path, item)
+                d = os.path.join(dest_dir, item)
+                if os.path.isdir(s):
+                    shutil.copytree(s, d, dirs_exist_ok=True)
+                else:
+                    # Rename to standard adapters.safetensors if it looks like one
+                    if item in ["adapter_model.safetensors", "adapters.safetensors"]:
+                        shutil.copy2(s, os.path.join(dest_dir, "adapters.safetensors"))
+                    else:
+                        shutil.copy2(s, d)
+        
+        # Also init in DB so it shows up with stats
+        self._init_profile_sync(name)
+
+    async def export_profile(self, profile_name: str, destination_root: str):
+        """Export a managed LoRA adapter to an external directory."""
+        await asyncio.to_thread(self._export_profile_sync, profile_name, destination_root)
+
+    def _export_profile_sync(self, profile_name: str, destination_root: str):
+        source_dir = os.path.join(self.config.app_data_dir, "adapters", "llm", profile_name)
+        if not os.path.exists(source_dir):
+            raise FileNotFoundError(f"Profile adapter directory not found: {profile_name}")
+        
+        # We create a subfolder with the profile name in the destination
+        dest_dir = os.path.join(destination_root, profile_name)
+        shutil.copytree(source_dir, dest_dir, dirs_exist_ok=True)
+        logger.info(f"Training: Exported profile {profile_name} to {dest_dir}")
 
     async def delete_profile(self, profile: str):
         await asyncio.to_thread(self._delete_profile_sync, profile)

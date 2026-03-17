@@ -98,6 +98,36 @@ class ParceraConfig:
             logger.error(f"Error refreshing config: {e}")
         return False
 
+    def update(self, delta: Dict[str, Any], save: bool = True):
+        """Update settings with a partial delta and re-save to disk."""
+        # 1. Start with existing user settings from disk if they exist, 
+        # otherwise use our current in-memory view.
+        user_settings = {}
+        if os.path.exists(self.settings_path):
+            user_settings = load_config_file(self.settings_path)
+        else:
+            # Fallback (should rarely happen in production)
+            user_settings = self.settings
+
+        # 2. Merge delta into user settings
+        # We merge into the "user overrides" layer
+        updated_user_settings = deep_merge(user_settings, delta)
+        
+        # 3. Save back to disk (This will trigger Electron's watcher if saving to config.json)
+        if save:
+            try:
+                with open(self.settings_path, "w", encoding="utf-8") as f:
+                    if self.settings_path.endswith(".json"):
+                        json.dump(updated_user_settings, f, indent=2, ensure_ascii=False)
+                    else:
+                        yaml.dump(updated_user_settings, f, allow_unicode=True, sort_keys=False)
+                logger.info(f"Config updated and saved to {self.settings_path}")
+            except Exception as e:
+                logger.error(f"Failed to save config: {e}")
+
+        # 4. Refresh in-memory state (re-calculate prompts, rebuild merged view)
+        self.refresh()
+
     def _load_settings(self, new_settings: Optional[Dict[str, Any]] = None) -> bool:
         """Load internal system constants, then UI defaults, then user overrides."""
         vitals_path = os.path.join(self.base_path, "configs", "system_vitals.yaml")
@@ -262,6 +292,30 @@ class ParceraConfig:
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
         return path
+
+    @property
+    def llm(self):
+        return self.data.llm
+
+    @property
+    def stt(self):
+        return self.data.stt
+
+    @property
+    def tts(self):
+        return self.data.tts
+
+    @property
+    def vad(self):
+        return self.data.vad
+
+    @property
+    def avatars(self):
+        return self.data.avatars
+
+    @property
+    def electron(self):
+        return self.data.electron
 
     def get(self, key, default=None):
         return self.settings.get(key, default)

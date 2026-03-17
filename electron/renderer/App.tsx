@@ -16,7 +16,7 @@ const profileParam = params.get('profile') || 'default';
 if (view === 'settings') {
   document.title = 'Parcera - Settings';
 } else if (view === 'training') {
-  document.title = `Parcera - 追加学習 (${profileParam})`;
+  document.title = 'Parcera - 追加学習';
 } else if (avatarType === 'ai') {
   document.title = 'Parcera - AI';
 } else if (avatarType === 'user') {

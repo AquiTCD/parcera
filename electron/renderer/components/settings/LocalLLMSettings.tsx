@@ -21,6 +21,10 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
   const [newProfileName, setNewProfileName] = React.useState('');
   const activeAdapterPath = settings.llm?.providers?.local?.adapter_path || '';
 
+  // Weights state: { [name: string]: { weight: number, isMain: boolean } }
+  const [blendWeights, setBlendWeights] = React.useState<Record<string, { weight: number, isMain: boolean }>>({});
+  const [isApplying, setIsApplying] = React.useState(false);
+
   const fetchProfiles = React.useCallback(async () => {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/training/profiles`);
@@ -41,20 +45,115 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
     }
   }, [fetchProfiles]);
 
-  const handleApplyProfile = (name: string, shouldApply: boolean) => {
-    if (shouldApply) {
-      fetch(`http://127.0.0.1:${port}/training/adapter-path?profile=${encodeURIComponent(name)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.adapter_path) {
-            updateProvider('llm', 'local', 'adapter_path', data.adapter_path);
-          }
-        })
-        .catch(err => console.error('Apply failed:', err));
-    } else {
-      updateProvider('llm', 'local', 'adapter_path', '');
+  // Load current blending config if available in settings (optional future persist)
+  // For now, we'll derive it from what's folder-named in activeAdapterPath if it's not fused
+  React.useEffect(() => {
+    if (profileList.length > 0 && Object.keys(blendWeights).length === 0) {
+      const initial: Record<string, any> = {};
+      profileList.forEach(p => {
+        const name = typeof p === 'string' ? p : p.name;
+        // If it's currently applied as a single adapter, set to 1.0
+        const isCurrentlySingle = activeAdapterPath.includes(`/${name}`) || activeAdapterPath.endsWith(name);
+        initial[name] = { weight: isCurrentlySingle ? 1.0 : 0, isMain: isCurrentlySingle };
+      });
+      setBlendWeights(initial);
+    }
+  }, [profileList, activeAdapterPath]);
+
+  const handleApplyBlends = async () => {
+    setIsApplying(true);
+    try {
+      const activeProfiles = Object.entries(blendWeights)
+        .filter(([_, cfg]) => cfg.weight > 0)
+        .map(([name, cfg]) => ({ name, weight: cfg.weight, is_main: cfg.isMain }));
+
+      const res = await fetch(`http://127.0.0.1:${port}/training/apply-profiles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profiles: activeProfiles })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        updateProvider('llm', 'local', 'adapter_path', data.adapter_path);
+      } else {
+        alert(`適用に失敗したよ: ${data.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error('Apply blends failed:', e);
+      alert('適用中にエラーが発生しちゃった。');
+    } finally {
+      setIsApplying(false);
     }
   };
+
+  const updateWeight = (name: string, weight: number) => {
+    setBlendWeights(prev => ({
+      ...prev,
+      [name]: { ...prev[name], weight }
+    }));
+  };
+
+  const toggleMain = (name: string) => {
+    setBlendWeights(prev => {
+      const newWeights = { ...prev };
+      // Only one main allowed
+      Object.keys(newWeights).forEach(k => {
+        newWeights[k] = { ...newWeights[k], isMain: k === name ? !prev[k].isMain : false };
+      });
+      return newWeights;
+    });
+  };
+
+  const handleImportProfile = async () => {
+    try {
+      // Use electron's directory picker
+      const sourcePath = await window.electronAPI.selectDirectory();
+      if (!sourcePath) return;
+
+      const defaultName = sourcePath.split(/[\\/]/).pop() || 'imported_profile';
+      const name = window.prompt('プロファイル名を入力してください', defaultName);
+      if (!name) return;
+
+      const res = await fetch(`http://127.0.0.1:${port}/training/profiles/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_path: sourcePath, name })
+      });
+      
+      if (res.ok) {
+        fetchProfiles();
+      } else {
+        const data = await res.json();
+        alert(`インポートに失敗したよ: ${data.detail}`);
+      }
+    } catch (e) {
+      console.error('Import failed:', e);
+    }
+  };
+
+  const handleExportProfile = async (profileName: string) => {
+    try {
+      const destPath = await window.electronAPI.selectDirectory();
+      if (!destPath) return;
+
+      const res = await fetch(`http://127.0.0.1:${port}/training/profiles/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_name: profileName, destination_path: destPath })
+      });
+
+      if (res.ok) {
+        alert(`${profileName} をエクスポートしたよ！`);
+      } else {
+        const data = await res.json();
+        alert(`エクスポートに失敗したよ: ${data.detail}`);
+      }
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+  };
+
+  const totalIntensityRaw = Object.values(blendWeights).reduce((sum, cfg) => sum + cfg.weight, 0);
 
   const handleDeleteProfile = async (name: string) => {
     if (!window.confirm(`プロファイル「${name}」と学習データを削除しますか？\nこの操作は取り消せません。`)) return;
@@ -121,13 +220,15 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
           </div>
         </div>
 
-        <InputSetting
-          label="LoRAアダプタ パス (手動指定)"
-          description="通常は以下のプロファイル一覧から選択してください。"
-          placeholder="/path/to/adapter"
-          value={activeAdapterPath}
-          onChange={(val) => updateProvider('llm', 'local', 'adapter_path', val)}
-        />
+        <div style={{ marginTop: '10px' }}>
+          <button 
+            className="btn btn-secondary btn-small"
+            onClick={handleImportProfile}
+            style={{ width: '100%', padding: '5px', fontSize: '11px', background: '#333' }}
+          >
+            🔗 外部プロンプトセットを取り込む
+          </button>
+        </div>
       </div>
 
       <div className="setting-card" style={{ border: '1px solid #61dafb33' }}>
@@ -146,28 +247,36 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
             const name = typeof p === 'string' ? p : p.name;
             const statusMessage = typeof p === 'string' ? 'データなし' : p.status_message;
             const needsTrain = typeof p === 'string' ? false : p.needs_train;
-            const isApplied = activeAdapterPath.includes(`/${name}`) || activeAdapterPath.endsWith(name);
+
+            const cfg = blendWeights[name] || { weight: 0, isMain: false };
             const canApply = statusMessage !== 'データなし' && statusMessage !== '未学習';
 
             return (
               <div key={name} className="lora-profile-item" style={{
                 display: 'flex',
-                alignItems: 'center',
-                padding: '10px 15px',
+                flexDirection: 'column',
+                padding: '12px 15px',
                 background: '#1a1a1a',
                 borderRadius: '8px',
-                border: isApplied ? '1px solid #61dafb' : '1px solid #333'
+                border: cfg.weight > 0 ? '1px solid #61dafb' : '1px solid #333',
+                opacity: canApply ? 1 : 0.6
               }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                   <button
-                    className={`btn btn-small ${isApplied ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ minWidth: '60px', fontSize: '11px', padding: '4px 8px' }}
-                    onClick={() => handleApplyProfile(name, !isApplied)}
-                    title={!canApply ? 'まず特訓を完了させる必要があります' : ''}
+                    onClick={() => canApply && toggleMain(name)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: canApply ? 'pointer' : 'default',
+                      fontSize: '18px',
+                      color: cfg.isMain ? '#ffcc00' : '#444',
+                      padding: 0
+                    }}
+                    title={cfg.isMain ? 'メイン性格' : 'メインに設定'}
                   >
-                    {isApplied ? '適用解除' : '適用する'}
+                    {cfg.isMain ? '⭐' : '☆'}
                   </button>
-                  <span style={{ fontWeight: 600, color: isApplied ? '#61dafb' : '#eee' }}>{name}</span>
+                  <span style={{ flex: 1, fontWeight: 600, color: cfg.weight > 0 ? '#61dafb' : '#eee' }}>{name}</span>
                   <span style={{
                     fontSize: '10px',
                     color: needsTrain ? '#ffcc00' : '#888',
@@ -177,28 +286,90 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
                   }}>
                     {statusMessage}
                   </span>
-                  {isApplied && <span style={{ fontSize: '10px', background: '#61dafb', color: '#000', padding: '1px 5px', borderRadius: '4px' }}>適用中</span>}
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="btn btn-secondary btn-small"
+                      onClick={() => window.electronAPI.openTrainingWindow(name)}
+                      style={{ padding: '2px 8px' }}
+                    >
+                      📝
+                    </button>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <button
+                        className="btn btn-secondary btn-small"
+                        onClick={() => handleExportProfile(name)}
+                        title="エクスポート"
+                        style={{ padding: '2px 8px', fontSize: '10px' }}
+                      >
+                        📤
+                      </button>
+                      <button
+                        className="btn btn-danger btn-small"
+                        onClick={() => handleDeleteProfile(name)}
+                        title="削除"
+                        style={{ padding: '2px 8px', fontSize: '10px' }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className="btn btn-secondary btn-small"
-                    onClick={() => window.electronAPI.openTrainingWindow(name)}
-                  >
-                    📝 編集
-                  </button>
-                  <button
-                    className="btn btn-danger btn-small"
-                    onClick={() => handleDeleteProfile(name)}
-                    style={{ padding: '4px 8px' }}
-                  >
-                    🗑️
-                  </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    disabled={!canApply}
+                    value={cfg.weight}
+                    onChange={(e) => updateWeight(name, parseFloat(e.target.value))}
+                    style={{ flex: 1, height: '4px', cursor: canApply ? 'pointer' : 'default' }}
+                  />
+                  <span style={{ fontSize: '12px', color: '#61dafb', minWidth: '35px', textAlign: 'right', fontWeight: 'bold' }}>
+                    {Math.round(cfg.weight * 100)}%
+                  </span>
                 </div>
               </div>
             );
           })}
         </div>
+
+        {profileList.length > 0 && (
+          <div style={{ marginTop: '20px', padding: '15px', background: '#00000055', borderRadius: '8px', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#eee' }}>ブレンド強度 (Total Intensity)</span>
+              <span style={{
+                fontSize: '14px',
+                fontWeight: 'bold',
+                color: totalIntensityRaw <= 1.0 ? '#61dafb' : totalIntensityRaw <= 1.5 ? '#ffcc00' : '#ff4444'
+              }}>
+                {Math.round(totalIntensityRaw * 100)}%
+              </span>
+            </div>
+            <div style={{ width: '100%', height: '8px', background: '#222', borderRadius: '4px', overflow: 'hidden', marginBottom: '15px' }}>
+              <div style={{
+                width: `${Math.min(100, (totalIntensityRaw / 2.0) * 100)}%`,
+                height: '100%',
+                background: totalIntensityRaw <= 1.0 ? '#61dafb' : totalIntensityRaw <= 1.5 ? '#ffcc00' : '#ff4444',
+                transition: 'width 0.3s ease, background-color 0.3s ease'
+              }} />
+            </div>
+
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '10px', fontSize: '14px', fontWeight: 'bold' }}
+              disabled={isApplying}
+              onClick={handleApplyBlends}
+            >
+              {isApplying ? '適用中...' : '🚀 ブレンド内容を適用する'}
+            </button>
+            <p style={{ fontSize: '11px', color: '#666', marginTop: '10px', textAlign: 'center' }}>
+              ※ 合計が120%を超えると「スマート・オートバランス」が働き、比率を保ったまま自動調整されます。
+            </p>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
           <input
@@ -231,9 +402,6 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
             ➕ 作成
           </button>
         </div>
-        <p style={{ fontSize: '10px', color: '#555', marginTop: '10px' }}>
-          ※ アダプタの重ねがけは現在1つまでに制限されています。
-        </p>
       </div>
     </div>
   );

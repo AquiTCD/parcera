@@ -155,17 +155,12 @@ class ParceraServer(ParceraAvatarBase):
 
     async def reload_llm(self):
         """Re-initialize LLM component and update avatar references."""
-        new_provider = self.factory.config.llm.provider
+        new_provider = self.config.llm.provider
         logger.info(f"Reloading LLM component (New provider: {new_provider})...")
         
         # Refresh factory config and rebuild LLM
         self.config.refresh()
         self.llm = self.factory.build_llm()
-        
-        # Update AIAvatar instance references
-        if self.avatar:
-            self.avatar.chat.llm_service = self.llm
-            self.avatar.sts.llm = self.llm
         
         self.current_llm_provider = new_provider
         self._sync_to_server()
