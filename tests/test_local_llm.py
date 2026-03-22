@@ -53,6 +53,17 @@ async def test_local_llm_service_inference(mock_mlx):
     # Verify stream_generate calls
     assert mock_stream.call_count == 1
 
+def test_detect_model_family_qwen():
+    assert LocalLLMService._detect_model_family("mlx-community/Qwen3.5-9B-MLX-4bit") == "qwen"
+    assert LocalLLMService._detect_model_family("Qwen/Qwen3.5-4B") == "qwen"
+
+def test_detect_model_family_gemma():
+    assert LocalLLMService._detect_model_family("mlx-community/gemma-2-9b-it-4bit") == "gemma"
+    assert LocalLLMService._detect_model_family("google/gemma-2-2b-it") == "gemma"
+
+def test_detect_model_family_unknown():
+    assert LocalLLMService._detect_model_family("some-other-model/llama-3") == "unknown"
+
 @pytest.mark.asyncio
 async def test_local_llm_service_cache_behavior(mock_mlx):
     mock_load, _, _, _ = mock_mlx

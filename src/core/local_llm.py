@@ -13,6 +13,16 @@ class LocalLLMService(LLMService):
     _current_model_path = None
     _current_adapter_path = None
 
+    @staticmethod
+    def _detect_model_family(model_path: str) -> str:
+        """Detect model family from model path string."""
+        path_lower = model_path.lower()
+        if "qwen" in path_lower:
+            return "qwen"
+        if "gemma" in path_lower:
+            return "gemma"
+        return "unknown"
+
     def __init__(
         self,
         *,
