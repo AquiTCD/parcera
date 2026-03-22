@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-22 - LoRA Management & Multi-Adapter Blending
+
+### Added
+- **Multi-Adapter Blending**: Implemented advanced weighted blending for multiple LoRA adapters with smart auto-balancing logic.
+- **Auto-Discovery**: Added automatic detection of LoRA adapters placed directly in the `adapters/llm/` directory.
+- **Import/Export UI**: Added "Import External Profile" and "Export Profile" buttons to allow easy sharing and management of LoRA adapters.
+- **Status Badges**: Added visual indicators for adapter presence and training status in the profile list.
+
+### Changed
+- **UX Simplification**: Removed the manual "Adapter Path" input field in favor of a unified, self-managing profile list.
+- **Backend Architecture**: Enhanced `TrainingService` with robust file operations (copying/renaming) and background cleanup of temporary fused adapters.
+- **FastAPI Routing**: Added dedicated endpoints for profile importing and exporting in `training_router.py`.
+
+### Fixed
+- **Adapter Compatibility**: Improved discovery logic to support both `adapters.safetensors` and `adapter_model.safetensors` filenames.
+- **Stability**: Fixed memory leaks and stale files by implementing startup cleanup for temporary directories.
+
 ## [0.4.0] - 2026-03-07 - Twitch EventSub & Architecture Refactoring
 
 ### Added

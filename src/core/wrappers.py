@@ -33,7 +33,7 @@ class ParceraLLMWrapper(LLMService):
     async def update_context(self, context_id: str, user_id: str, messages: list, response_text: str):
         return await self.wrapped.update_context(context_id, user_id, messages, response_text)
 
-    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: list, system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Any]] = None):
+    async def get_llm_stream_response(self, context_id: str, user_id: str, messages: list, system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Any]] = None, **kwargs):
         # 1. System Prompt Logging (First time only)
         if not self._system_prompt_logged:
             # We try to inspect the wrapped service to see if we can log the system prompt
@@ -51,7 +51,7 @@ class ParceraLLMWrapper(LLMService):
         start_time = time.time()
         first_chunk = True
 
-        async for chunk in self.wrapped.get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools):
+        async for chunk in self.wrapped.get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
             if first_chunk:
                 latency = time.time() - start_time
                 if self.profile_mode:

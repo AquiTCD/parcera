@@ -51,6 +51,7 @@ export interface LLMSettings {
   providers?: {
     gemini?: LLMProviderConfig;
     openai?: LLMProviderConfig;
+    local?: LLMProviderConfig;
     [key: string]: LLMProviderConfig | undefined;
   };
 }
@@ -61,6 +62,8 @@ export interface LLMProviderConfig {
   persist_history?: boolean;
   option_split_threshold?: number;
   api_key?: string;
+  max_tokens?: number;
+  adapter_path?: string;
 }
 
 export interface STTSettings {
@@ -244,6 +247,21 @@ export interface ElectronAPI {
   checkModelCached: (modelName: string, port: number) => Promise<boolean>;
   downloadModel: (modelName: string, callback: (data: ModelDownloadProgress) => void, port: number) => void;
   reloadModel: (port: number) => Promise<void>;
+  getTwitchStatus: () => Promise<{ initialized: boolean; user?: { display_name: string; login: string }; session_id?: string }>;
+  openTrainingWindow: (profile: string) => void;
+  onTrainingProfileChanged: (callback: (profile: string) => void) => () => void;
+  broadcastProfilesUpdated: () => void;
+  onProfilesUpdated: (callback: () => void) => () => void;
+}
+
+export interface TrainingPair {
+  id: number;
+  input: string;
+  output: string;
+  edited_output?: string;
+  status: 'pending' | 'ok' | 'ng' | 'ignored' | 'correction';
+  source?: string;
+  created_at: string;
 }
 
 declare global {

@@ -22,10 +22,14 @@ class InteractionController:
             self.avatar.apply_runtime_config()
             logger.info("Config hot-reloaded automatically during recognition.")
 
-        # Check if AI is occupied with high-priority Twitch response
+        # Check if AI is occupied with high-priority Twitch response or Training
         if self.avatar.is_busy(source="twitch"):
             logger.info(f"Dropping user input because AI is busy with Twitch: {text}")
-            # Ensure the user session busy flag is cleared so UI/State can reset
+            self.avatar.set_busy(session_id, False)
+            return
+            
+        if self.avatar.is_busy(source="training"):
+            logger.info(f"Dropping user input because AI is busy with Training: {text}")
             self.avatar.set_busy(session_id, False)
             return
 

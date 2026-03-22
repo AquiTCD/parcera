@@ -10,6 +10,7 @@ from core.config import ParceraConfig
 from core.stt import KotobaWhisperRecognizer, NoOpRecognizer, MoonshineRecognizer
 from core.tts import FineTunedVoicevoxTTS
 from core.gemini import FixedGeminiService
+from core.local_llm import LocalLLMService
 from core.wrappers import ParceraLLMWrapper, ParceraSTTWrapper
 from core.filters import ResponseWeightFilter
 
@@ -61,6 +62,25 @@ class ParceraComponentFactory:
                 model=openai_cfg.get("model", "gpt-4o"),
                 temperature=float(openai_cfg.get("temperature", 1.0)),
                 system_prompt=self.config.full_system_prompt,
+            )
+            return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
+
+        elif provider == "local":
+            local_cfg = providers.get("local", {})
+            model_name = local_cfg.get("model", "mlx-community/gemma-2-9b-it-4bit")
+            adapter_path = local_cfg.get("adapter_path")
+
+            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+            context_manager = SQLiteContextManager(db_path=db_path)
+
+            service_instance = LocalLLMService(
+                model=model_name,
+                adapter_path=adapter_path,
+                context_manager=context_manager,
+                system_prompt=self.config.full_system_prompt,
+                temperature=float(local_cfg.get("temperature", 0.8)),
+                max_tokens=int(local_cfg.get("max_tokens", 150)),
+                debug=self.config.verbose
             )
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
 

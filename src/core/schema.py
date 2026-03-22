@@ -17,10 +17,19 @@ class OpenAIConfig(BaseModel):
     temperature: float = Field(default=1.0)
     persist_history: bool = Field(default=False)
 
+class LocalLLMConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    model: str = Field(default="mlx-community/gemma-2-9b-it-4bit")
+    temperature: float = Field(default=0.8)
+    max_tokens: int = Field(default=100)
+    adapter_path: Optional[str] = Field(default=None)
+    persist_history: bool = Field(default=False)
+
 class LLMProviders(BaseModel):
     model_config = ConfigDict(extra="allow")
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    local: LocalLLMConfig = Field(default_factory=LocalLLMConfig)
 
 class LLMSettings(BaseModel):
     model_config = ConfigDict(extra="allow")
