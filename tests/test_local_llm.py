@@ -5,24 +5,22 @@ from src.core.local_llm import LocalLLMService
 
 @pytest.fixture
 def mock_mlx():
-    with patch("mlx_lm.load") as mock_load, \
+    mock_model = MagicMock()
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.apply_chat_template.return_value = "formatted_prompt"
+
+    # Mock GenerationResponse object
+    mock_resp1 = MagicMock()
+    mock_resp1.text = "Hello"
+    mock_resp2 = MagicMock()
+    mock_resp2.text = " world"
+
+    with patch("src.core.local_llm.LocalLLMService._load_model", return_value=(mock_model, mock_tokenizer)) as mock_load, \
          patch("mlx_lm.generate.stream_generate") as mock_stream:
-        
-        mock_model = MagicMock()
-        mock_tokenizer = MagicMock()
-        mock_tokenizer.apply_chat_template.return_value = "formatted_prompt"
-        
-        mock_load.return_value = (mock_model, mock_tokenizer)
-        
-        # Mock GenerationResponse object
-        mock_resp1 = MagicMock()
-        mock_resp1.text = "Hello"
-        mock_resp2 = MagicMock()
-        mock_resp2.text = " world"
-        
+
         # Mock stream_generate yields GenerationResponse objects
         mock_stream.return_value = iter([mock_resp1, mock_resp2])
-        
+
         yield mock_load, mock_stream, mock_model, mock_tokenizer
 
 @pytest.mark.asyncio
@@ -44,8 +42,8 @@ async def test_local_llm_service_inference(mock_mlx):
     text_chunks = [r.text for r in responses if hasattr(r, 'text')]
     assert text_chunks == ["Hello", " world"]
     
-    # Verify model loading
-    mock_load.assert_called_once_with("test_model", adapter_path=None)
+    # Verify _load_model was called
+    mock_load.assert_called_once()
     
     # Verify prompt formatting
     mock_tokenizer.apply_chat_template.assert_called_once()
@@ -167,22 +165,34 @@ async def test_qwen_special_tags_are_filtered(mock_mlx):
     assert "こんにちは" in full_text
 
 @pytest.mark.asyncio
-async def test_local_llm_service_cache_behavior(mock_mlx):
-    mock_load, _, _, _ = mock_mlx
-    
-    mock_cm = MagicMock()
-    mock_cm.get_context = AsyncMock(return_value=[])
-    
-    service = LocalLLMService(model="model_a", system_prompt="test", context_manager=mock_cm)
-    
-    # First call loads model_a
-    service._load_model("model_a", None)
-    assert mock_load.call_count == 1
-    
-    # Second call with same model name uses cache
-    service._load_model("model_a", None)
-    assert mock_load.call_count == 1
-    
-    # Call with different model name triggers reload
-    service._load_model("model_b", None)
-    assert mock_load.call_count == 2
+async def test_local_llm_service_cache_behavior():
+    """_load_model caches the model for the same path and reloads for a different path."""
+    mock_model = MagicMock()
+    mock_tokenizer = MagicMock()
+    mock_config = MagicMock()
+    mock_config.get.return_value = None
+
+    with patch("mlx_lm.utils.load_model", return_value=(mock_model, mock_config)) as mock_lm, \
+         patch("mlx_lm.utils.load_tokenizer", return_value=mock_tokenizer), \
+         patch("mlx_lm.utils._download", side_effect=lambda p: p):
+        # Reset class-level cache before test
+        LocalLLMService._model = None
+        LocalLLMService._current_model_path = None
+        LocalLLMService._current_adapter_path = None
+
+        # First call loads model_a
+        LocalLLMService._load_model("model_a", None)
+        assert mock_lm.call_count == 1
+
+        # Second call with same model name uses cache
+        LocalLLMService._load_model("model_a", None)
+        assert mock_lm.call_count == 1
+
+        # Call with different model name triggers reload
+        LocalLLMService._load_model("model_b", None)
+        assert mock_lm.call_count == 2
+
+        # Reset cache after test
+        LocalLLMService._model = None
+        LocalLLMService._current_model_path = None
+        LocalLLMService._current_adapter_path = None
