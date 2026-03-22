@@ -13,6 +13,10 @@ class LocalLLMService(LLMService):
     _current_model_path = None
     _current_adapter_path = None
 
+    _GEMMA_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
+    _QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
+    SPECIAL_TAGS: List[str] = list(set(_GEMMA_TAGS + _QWEN_TAGS))
+
     @staticmethod
     def _detect_model_family(model_path: str) -> str:
         """Detect model family from model path string."""
@@ -43,6 +47,7 @@ class LocalLLMService(LLMService):
         )
         self.max_tokens = max_tokens
         self.adapter_path = adapter_path
+        self._model_family = self._detect_model_family(model)
 
     @property
     def dynamic_tool_name(self) -> str:
@@ -76,7 +81,6 @@ class LocalLLMService(LLMService):
 
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: List[Dict[str, str]] = None, system_prompt_params: Dict[str, Any] = None) -> List[Dict]:
         messages = []
-        family = self._detect_model_family(self.model)
         system_content = await self._get_system_prompt(context_id, user_id, system_prompt_params)
 
         if self.initial_messages:
@@ -86,7 +90,7 @@ class LocalLLMService(LLMService):
             context_id=[context_id] + self.shared_context_ids if self.shared_context_ids else [context_id]
         )
 
-        if family == "gemma":
+        if self._model_family == "gemma":
             # Gemma 2: system role unsupported — force histories to start with user
             while histories and histories[0]["role"] != "user":
                 histories.pop(0)
@@ -96,7 +100,7 @@ class LocalLLMService(LLMService):
         if text:
             messages.append({"role": "user", "content": text})
 
-        if family == "gemma":
+        if self._model_family == "gemma":
             # Embed system_content into first user message
             if messages and messages[0]["role"] == "user":
                 messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
@@ -111,8 +115,7 @@ class LocalLLMService(LLMService):
         return messages
 
     async def update_context(self, context_id: str, user_id: str, messages: List[Dict], response_text: str):
-        family = self._detect_model_family(self.model)
-        assistant_role = "model" if family == "gemma" else "assistant"
+        assistant_role = "model" if self._model_family == "gemma" else "assistant"
 
         current_messages = list(messages)
         current_messages.append({"role": assistant_role, "content": response_text})
@@ -146,9 +149,7 @@ class LocalLLMService(LLMService):
 
         def producer():
             try:
-                # Use max_tokens from kwargs if provided, otherwise fallback to default
                 m_tokens = kwargs.get("max_tokens", self.max_tokens)
-                count = 0
                 for response in stream_generate(
                     model=model,
                     tokenizer=tokenizer,
@@ -157,9 +158,6 @@ class LocalLLMService(LLMService):
                     sampler=sampler
                 ):
                     q.put(response.text)
-                    count += 1
-                    if count >= m_tokens:
-                        break
                 q.put(None)  # Sentinel for end
             except Exception as e:
                 logger.error(f"Error in MLX generation thread: {e}")
@@ -168,21 +166,17 @@ class LocalLLMService(LLMService):
         # Run inference in a separate thread
         threading.Thread(target=producer, daemon=True).start()
 
-        GEMMA_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
-        QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
-        SPECIAL_TAGS = list(set(GEMMA_TAGS + QWEN_TAGS))
-
         while True:
             # Yield control back to event loop while waiting for the next word
             word = await asyncio.to_thread(q.get)
-            
+
             if word is None:
                 break
             if isinstance(word, Exception):
                 raise word
 
             clean_text = word
-            for tag in SPECIAL_TAGS:
+            for tag in self.SPECIAL_TAGS:
                 clean_text = clean_text.replace(tag, "")
             
             if clean_text.strip() or clean_text == " ":
