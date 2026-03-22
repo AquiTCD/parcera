@@ -58,9 +58,16 @@ class LocalLLMService(LLMService):
         if not adapter_path:
             adapter_path = None
         if cls._model is None or cls._current_model_path != model_path or cls._current_adapter_path != adapter_path:
-            from mlx_lm import load
+            from mlx_lm.utils import load_model, load_tokenizer, load_adapters, _download
             logger.info(f"Loading MLX model: {model_path} (adapter: {adapter_path})...")
-            cls._model, cls._tokenizer = load(model_path, adapter_path=adapter_path)
+            # strict=False to allow VL models (e.g. Qwen3.5) to load without vision tower weights
+            resolved_path = _download(model_path)
+            model, config = load_model(resolved_path, lazy=False, strict=False)
+            if adapter_path:
+                model = load_adapters(model, adapter_path)
+                model.eval()
+            tokenizer = load_tokenizer(resolved_path, eos_token_ids=config.get("eos_token_id"))
+            cls._model, cls._tokenizer = model, tokenizer
             cls._current_model_path = model_path
             cls._current_adapter_path = adapter_path
             logger.info("MLX model loaded.")
@@ -140,7 +147,10 @@ class LocalLLMService(LLMService):
         import queue
 
         model, tokenizer = self._load_model(self.model, self.adapter_path)
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        template_kwargs = {"tokenize": False, "add_generation_prompt": True}
+        if self._model_family == "qwen":
+            template_kwargs["enable_thinking"] = False
+        prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
         sampler = make_sampler(self.temperature)
 
         logger.debug(f"Local LLM: Starting threaded generation for context {context_id}")
