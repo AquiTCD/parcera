@@ -1,6 +1,9 @@
 import asyncio
 import logging
 import os
+
+# Suppress transformers "PyTorch was not found" warning (we use MLX, not PyTorch)
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from typing import Optional
