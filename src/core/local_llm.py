@@ -111,10 +111,11 @@ class LocalLLMService(LLMService):
         return messages
 
     async def update_context(self, context_id: str, user_id: str, messages: List[Dict], response_text: str):
-        # Store in context manager. Gemma roles are user/model.
-        # We append the assistant response.
+        family = self._detect_model_family(self.model)
+        assistant_role = "model" if family == "gemma" else "assistant"
+
         current_messages = list(messages)
-        current_messages.append({"role": "model", "content": response_text})
+        current_messages.append({"role": assistant_role, "content": response_text})
         
         if self._update_context_filter:
             if current_messages and "content" in current_messages[-1]:

@@ -100,6 +100,44 @@ async def test_compose_messages_gemma_embeds_system_in_user():
     assert "こんにちは" in messages[0]["content"]
 
 @pytest.mark.asyncio
+async def test_update_context_qwen_uses_assistant_role():
+    """Qwen では context に "assistant" ロールで保存されること。"""
+    mock_cm = MagicMock()
+    mock_cm.add_histories = AsyncMock()
+    mock_cm.get_histories = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/Qwen3.5-9B-MLX-4bit",
+        system_prompt="test",
+        context_manager=mock_cm
+    )
+    messages = [{"role": "user", "content": "hi"}]
+    await service.update_context("ctx", "user1", messages, "hello!")
+
+    call_args = mock_cm.add_histories.call_args
+    saved_messages = call_args[0][1]
+    assert saved_messages[-1]["role"] == "assistant"
+
+@pytest.mark.asyncio
+async def test_update_context_gemma_uses_model_role():
+    """Gemma では context に "model" ロールで保存されること。"""
+    mock_cm = MagicMock()
+    mock_cm.add_histories = AsyncMock()
+    mock_cm.get_histories = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/gemma-2-9b-it-4bit",
+        system_prompt="test",
+        context_manager=mock_cm
+    )
+    messages = [{"role": "user", "content": "hi"}]
+    await service.update_context("ctx", "user1", messages, "hello!")
+
+    call_args = mock_cm.add_histories.call_args
+    saved_messages = call_args[0][1]
+    assert saved_messages[-1]["role"] == "model"
+
+@pytest.mark.asyncio
 async def test_local_llm_service_cache_behavior(mock_mlx):
     mock_load, _, _, _ = mock_mlx
     
