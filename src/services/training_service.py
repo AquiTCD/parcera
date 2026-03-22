@@ -450,11 +450,22 @@ JSON形式のリストのみを出力してください。説明文等は一切�
             result = []
             for name in all_names:
                 stats = self._get_stats_sync(name)
+                # Read base_model from adapter_config.json if available
+                base_model = None
+                adapter_config_path = os.path.join(adapters_dir, name, "adapter_config.json")
+                if os.path.exists(adapter_config_path):
+                    try:
+                        with open(adapter_config_path) as f:
+                            adapter_cfg = json.load(f)
+                        base_model = adapter_cfg.get("model")
+                    except Exception:
+                        pass
                 result.append({
                     "name": name,
                     "status_message": stats["status_message"],
                     "total": stats["total"],
-                    "needs_train": stats["needs_train"]
+                    "needs_train": stats["needs_train"],
+                    "base_model": base_model,
                 })
             return result
 

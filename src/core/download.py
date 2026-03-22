@@ -79,11 +79,20 @@ def check_model_cached(model_name: str) -> bool:
             return False
     elif "/" in model_name:
         # Assume HuggingFace model (e.g. mlx-community/gemma-2-9b-it-4bit)
-        from huggingface_hub import try_to_load_from_cache
+        from huggingface_hub import scan_cache_dir
         try:
-            # Check for a specific file that should exist (e.g., config.json)
-            path = try_to_load_from_cache(model_name, filename="config.json")
-            return isinstance(path, str)
+            # Check for actual weight files, not just metadata (config.json can exist without weights)
+            cache_info = scan_cache_dir()
+            for repo in cache_info.repos:
+                if repo.repo_id == model_name:
+                    for revision in repo.revisions:
+                        has_weights = any(
+                            f.file_name.endswith(".safetensors")
+                            for f in revision.files
+                        )
+                        if has_weights:
+                            return True
+            return False
         except Exception:
             return False
     else:
