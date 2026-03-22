@@ -11,7 +11,10 @@ run = "cd electron && pnpm build"
 
 [tasks.package]
 description = "Package as macOS DMG (unsigned)"
-run = "cd electron && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null"
+run = """
+bash scripts/prepare_sidecar.sh
+cd electron && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null
+"""
 
 [tasks.server]
 description = "Start Python server standalone (for debugging)"

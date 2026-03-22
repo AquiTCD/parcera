@@ -354,10 +354,11 @@ JSON形式のリストのみを出力してください。説明文等は一切�
                 content = p["edited_output"]
             
             if content:
-                # MLX / Llama-3 / Gemma-2 format
-                # Using Gemma-2 format as requested in TRD
                 formatted = {
-                    "text": f"<start_of_turn>user\n{p['input']}<end_of_turn>\n<start_of_turn>model\n{content}<end_of_turn>"
+                    "messages": [
+                        {"role": "user", "content": p["input"]},
+                        {"role": "assistant", "content": content}
+                    ]
                 }
                 train_data.append(formatted)
         
@@ -449,11 +450,22 @@ JSON形式のリストのみを出力してください。説明文等は一切�
             result = []
             for name in all_names:
                 stats = self._get_stats_sync(name)
+                # Read base_model from adapter_config.json if available
+                base_model = None
+                adapter_config_path = os.path.join(adapters_dir, name, "adapter_config.json")
+                if os.path.exists(adapter_config_path):
+                    try:
+                        with open(adapter_config_path) as f:
+                            adapter_cfg = json.load(f)
+                        base_model = adapter_cfg.get("model")
+                    except Exception:
+                        pass
                 result.append({
                     "name": name,
                     "status_message": stats["status_message"],
                     "total": stats["total"],
-                    "needs_train": stats["needs_train"]
+                    "needs_train": stats["needs_train"],
+                    "base_model": base_model,
                 })
             return result
 

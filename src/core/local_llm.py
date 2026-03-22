@@ -13,6 +13,20 @@ class LocalLLMService(LLMService):
     _current_model_path = None
     _current_adapter_path = None
 
+    _GEMMA_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
+    _QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
+    SPECIAL_TAGS: List[str] = list(set(_GEMMA_TAGS + _QWEN_TAGS))
+
+    @staticmethod
+    def _detect_model_family(model_path: str) -> str:
+        """Detect model family from model path string."""
+        path_lower = model_path.lower()
+        if "qwen" in path_lower:
+            return "qwen"
+        if "gemma" in path_lower:
+            return "gemma"
+        return "unknown"
+
     def __init__(
         self,
         *,
@@ -33,6 +47,7 @@ class LocalLLMService(LLMService):
         )
         self.max_tokens = max_tokens
         self.adapter_path = adapter_path
+        self._model_family = self._detect_model_family(model)
 
     @property
     def dynamic_tool_name(self) -> str:
@@ -43,9 +58,16 @@ class LocalLLMService(LLMService):
         if not adapter_path:
             adapter_path = None
         if cls._model is None or cls._current_model_path != model_path or cls._current_adapter_path != adapter_path:
-            from mlx_lm import load
+            from mlx_lm.utils import load_model, load_tokenizer, load_adapters, _download
             logger.info(f"Loading MLX model: {model_path} (adapter: {adapter_path})...")
-            cls._model, cls._tokenizer = load(model_path, adapter_path=adapter_path)
+            # strict=False to allow VL models (e.g. Qwen3.5) to load without vision tower weights
+            resolved_path = _download(model_path)
+            model, config = load_model(resolved_path, lazy=False, strict=False)
+            if adapter_path:
+                model = load_adapters(model, adapter_path)
+                model.eval()
+            tokenizer = load_tokenizer(resolved_path, eos_token_ids=config.get("eos_token_id"))
+            cls._model, cls._tokenizer = model, tokenizer
             cls._current_model_path = model_path
             cls._current_adapter_path = adapter_path
             logger.info("MLX model loaded.")
@@ -66,45 +88,44 @@ class LocalLLMService(LLMService):
 
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: List[Dict[str, str]] = None, system_prompt_params: Dict[str, Any] = None) -> List[Dict]:
         messages = []
-        
-        # Add system prompt as a user message since Gemma 2 Instruct doesn't strictly have a system role in MLX template usually
-        # Or we can just prepend it to the first user message.
         system_content = await self._get_system_prompt(context_id, user_id, system_prompt_params)
-        
-        # Add initial messages
+
         if self.initial_messages:
             messages.extend(self.initial_messages)
 
-        # Get history
-        # histories are returned as list of dicts with role and content
         histories = await self.context_manager.get_histories(
             context_id=[context_id] + self.shared_context_ids if self.shared_context_ids else [context_id]
         )
-        
-        # Filter histories to start with a user message if necessary (Gemma requirement)
-        while histories and histories[0]["role"] != "user":
-            histories.pop(0)
-            
+
+        if self._model_family == "gemma":
+            # Gemma 2: system role unsupported — force histories to start with user
+            while histories and histories[0]["role"] != "user":
+                histories.pop(0)
+
         messages.extend(histories)
-        
-        # Add current message
+
         if text:
             messages.append({"role": "user", "content": text})
-            
-        # Re-insert system prompt if it's the first message or prepend it to the first user message
-        if messages and messages[0]["role"] == "user":
-            messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
-        elif system_content:
-            messages.insert(0, {"role": "user", "content": system_content})
-            messages.insert(1, {"role": "model", "content": "了解したわ！よろしくね。"})
+
+        if self._model_family == "gemma":
+            # Embed system_content into first user message
+            if messages and messages[0]["role"] == "user":
+                messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
+            elif system_content:
+                messages.insert(0, {"role": "user", "content": system_content})
+                messages.insert(1, {"role": "model", "content": "了解したわ！よろしくね。"})
+        else:
+            # Qwen / unknown: system role is natively supported
+            if system_content:
+                messages.insert(0, {"role": "system", "content": system_content})
 
         return messages
 
     async def update_context(self, context_id: str, user_id: str, messages: List[Dict], response_text: str):
-        # Store in context manager. Gemma roles are user/model.
-        # We append the assistant response.
+        assistant_role = "model" if self._model_family == "gemma" else "assistant"
+
         current_messages = list(messages)
-        current_messages.append({"role": "model", "content": response_text})
+        current_messages.append({"role": assistant_role, "content": response_text})
         
         if self._update_context_filter:
             if current_messages and "content" in current_messages[-1]:
@@ -126,7 +147,10 @@ class LocalLLMService(LLMService):
         import queue
 
         model, tokenizer = self._load_model(self.model, self.adapter_path)
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        template_kwargs = {"tokenize": False, "add_generation_prompt": True}
+        if self._model_family == "qwen":
+            template_kwargs["enable_thinking"] = False
+        prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
         sampler = make_sampler(self.temperature)
 
         logger.debug(f"Local LLM: Starting threaded generation for context {context_id}")
@@ -135,9 +159,7 @@ class LocalLLMService(LLMService):
 
         def producer():
             try:
-                # Use max_tokens from kwargs if provided, otherwise fallback to default
                 m_tokens = kwargs.get("max_tokens", self.max_tokens)
-                count = 0
                 for response in stream_generate(
                     model=model,
                     tokenizer=tokenizer,
@@ -146,9 +168,6 @@ class LocalLLMService(LLMService):
                     sampler=sampler
                 ):
                     q.put(response.text)
-                    count += 1
-                    if count >= m_tokens:
-                        break
                 q.put(None)  # Sentinel for end
             except Exception as e:
                 logger.error(f"Error in MLX generation thread: {e}")
@@ -157,20 +176,17 @@ class LocalLLMService(LLMService):
         # Run inference in a separate thread
         threading.Thread(target=producer, daemon=True).start()
 
-        # Gemma 2 specific tags to filter
-        SPECIAL_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
-
         while True:
             # Yield control back to event loop while waiting for the next word
             word = await asyncio.to_thread(q.get)
-            
+
             if word is None:
                 break
             if isinstance(word, Exception):
                 raise word
 
             clean_text = word
-            for tag in SPECIAL_TAGS:
+            for tag in self.SPECIAL_TAGS:
                 clean_text = clean_text.replace(tag, "")
             
             if clean_text.strip() or clean_text == " ":

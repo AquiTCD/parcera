@@ -1,6 +1,13 @@
 import React from 'react';
 import { InputSetting } from './controls/InputSetting';
+import { SelectSetting } from './controls/SelectSetting';
 import { ModelDownloaderUI, useModelDownloader } from './controls/ModelDownloader';
+
+const MODEL_PRESETS = [
+  { label: 'Gemma 2 9B (MLX)', value: 'mlx-community/gemma-2-9b-it-4bit' },
+  { label: 'Qwen3.5 9B (MLX)', value: 'mlx-community/Qwen3.5-9B-MLX-4bit' },
+  { label: 'Qwen3.5 4B (MLX) - 軽量', value: 'mlx-community/Qwen3.5-4B-MLX-4bit' },
+] as const;
 
 interface LocalLLMSettingsProps {
   settings: any;
@@ -187,12 +194,16 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
       <div className="setting-card">
         <h3 className="setting-card-title">Local Brain (MLX) の詳細設定</h3>
 
-        <InputSetting
-          label="1. 使用するモデル (HuggingFace Repo)"
-          description="mlx-community/ から始まるリポジトリ名を指定してください。"
-          placeholder="mlx-community/gemma-2-9b-it-4bit"
-          value={settings.llm?.providers?.local?.model ?? ''}
-          onChange={(val) => updateProvider('llm', 'local', 'model', val)}
+        <SelectSetting
+          label="1. 使用するモデル"
+          description="ローカル推論に使用するモデルを選択してください。LoRAプロファイルは選択したモデルと互換性があるものだけ表示されます。"
+          value={settings.llm?.providers?.local?.model ?? MODEL_PRESETS[0].value}
+          options={MODEL_PRESETS.map(p => ({ value: p.value, label: p.label }))}
+          onChange={(val) => {
+            updateProvider('llm', 'local', 'model', val);
+            updateProvider('llm', 'local', 'adapter_path', '');
+            setBlendWeights({});
+          }}
         />
 
         <div className="setting-form-row">
@@ -243,7 +254,11 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
               プロファイルがありません。「新規作成」から始めましょう。
             </div>
           )}
-          {profileList.map(p => {
+          {profileList.filter(p => {
+            const base = typeof p === 'string' ? null : p.base_model;
+            // Show profiles with no adapter yet (not yet trained) or trained on current model
+            return base == null || base === localModelName;
+          }).map(p => {
             const name = typeof p === 'string' ? p : p.name;
             const statusMessage = typeof p === 'string' ? 'データなし' : p.status_message;
             const needsTrain = typeof p === 'string' ? false : p.needs_train;

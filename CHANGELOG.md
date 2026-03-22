@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-22 - Multi-Model Local Brain & Qwen3.5 Support
+
+### Added
+- Support for Qwen3.5 (4B / 9B) as selectable local LLM via model dropdown in settings UI
+- Model family detection (`_detect_model_family`) enabling family-aware prompt construction
+- Family-aware `compose_messages`: Gemma embeds system prompt in user message; Qwen uses native system role
+- Family-aware `update_context`: role name switches between `"model"` (Gemma) and `"assistant"` (Qwen)
+- Qwen special tokens (`<|im_end|>`, `<|im_start|>`, `<think>`, `</think>`) added to `SPECIAL_TAGS`
+- `enable_thinking=False` applied to Qwen chat template to suppress reasoning preamble in responses
+- `strict=False` model loading via low-level mlx_lm APIs, allowing VL models (Qwen3.5) to load as text-only
+- Model preset dropdown (Gemma 2 9B / Qwen3.5 9B / Qwen3.5 4B) replacing free-text input in settings UI
+- LoRA profile list now filtered by `base_model` compatibility with the selected model
+- `base_model` field added to profile API response (read from `adapter_config.json`)
+- Automatic `adapter_path` clear when switching models to prevent architecture mismatch
+
+### Changed
+- `export_to_jsonl` now uses model-agnostic `messages` format instead of Gemma-specific turn format
+- `check_model_cached` for HuggingFace models now verifies `.safetensors` weight files exist (not just `config.json`)
+
+### Fixed
+- Vision tower parameter mismatch error when loading Qwen3.5 (VL model) with mlx_lm
+- Download button not appearing after live model switch due to metadata-only cache false positive
+
 ## [0.5.0] - 2026-03-22 - LoRA Management & Multi-Adapter Blending
 
 ### Added

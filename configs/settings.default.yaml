@@ -35,7 +35,11 @@ llm:
       persist_history: false
 
     local:
-      model: "mlx-community/gemma-2-9b-it-4bit"
+      # Model options:
+      #   Gemma 2:  mlx-community/gemma-2-9b-it-4bit   (default)
+      #   Qwen3.5:  mlx-community/Qwen3.5-9B-MLX-4bit  (recommended)
+      #             mlx-community/Qwen3.5-4B-MLX-4bit   (low VRAM)
+      model: "mlx-community/Qwen3.5-9B-MLX-4bit"
       temperature: 0.8  # Creativity (0.0 - 2.0).
       max_tokens: 150    # Maximum tokens to generate per response.
       persist_history: false
