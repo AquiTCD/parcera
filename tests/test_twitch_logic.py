@@ -304,6 +304,7 @@ async def test_twitch_service_rate_limiting():
     from src.services.twitch_service import TwitchService
     server = MagicMock()
     server.config.get.return_value = {"user_cooldown": 60.0, "global_cooldown": 10.0}
+    server.is_busy.return_value = False
     twitch = TwitchService(server)
     
     # Mock asyncio get_event_loop().time() inside the module
