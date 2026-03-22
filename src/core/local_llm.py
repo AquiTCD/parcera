@@ -76,37 +76,37 @@ class LocalLLMService(LLMService):
 
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: List[Dict[str, str]] = None, system_prompt_params: Dict[str, Any] = None) -> List[Dict]:
         messages = []
-        
-        # Add system prompt as a user message since Gemma 2 Instruct doesn't strictly have a system role in MLX template usually
-        # Or we can just prepend it to the first user message.
+        family = self._detect_model_family(self.model)
         system_content = await self._get_system_prompt(context_id, user_id, system_prompt_params)
-        
-        # Add initial messages
+
         if self.initial_messages:
             messages.extend(self.initial_messages)
 
-        # Get history
-        # histories are returned as list of dicts with role and content
         histories = await self.context_manager.get_histories(
             context_id=[context_id] + self.shared_context_ids if self.shared_context_ids else [context_id]
         )
-        
-        # Filter histories to start with a user message if necessary (Gemma requirement)
-        while histories and histories[0]["role"] != "user":
-            histories.pop(0)
-            
+
+        if family == "gemma":
+            # Gemma 2: system role unsupported — force histories to start with user
+            while histories and histories[0]["role"] != "user":
+                histories.pop(0)
+
         messages.extend(histories)
-        
-        # Add current message
+
         if text:
             messages.append({"role": "user", "content": text})
-            
-        # Re-insert system prompt if it's the first message or prepend it to the first user message
-        if messages and messages[0]["role"] == "user":
-            messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
-        elif system_content:
-            messages.insert(0, {"role": "user", "content": system_content})
-            messages.insert(1, {"role": "model", "content": "了解したわ！よろしくね。"})
+
+        if family == "gemma":
+            # Embed system_content into first user message
+            if messages and messages[0]["role"] == "user":
+                messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
+            elif system_content:
+                messages.insert(0, {"role": "user", "content": system_content})
+                messages.insert(1, {"role": "model", "content": "了解したわ！よろしくね。"})
+        else:
+            # Qwen / unknown: system role is natively supported
+            if system_content:
+                messages.insert(0, {"role": "system", "content": system_content})
 
         return messages
 

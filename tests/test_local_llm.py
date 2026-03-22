@@ -65,6 +65,41 @@ def test_detect_model_family_unknown():
     assert LocalLLMService._detect_model_family("some-other-model/llama-3") == "unknown"
 
 @pytest.mark.asyncio
+async def test_compose_messages_qwen_uses_system_role():
+    """Qwen は system role を正式サポート。system_content が {"role": "system"} として先頭に入ること。"""
+    mock_cm = MagicMock()
+    mock_cm.get_histories = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/Qwen3.5-9B-MLX-4bit",
+        system_prompt="You are a helpful AI.",
+        context_manager=mock_cm
+    )
+    messages = await service.compose_messages("ctx", "user1", "こんにちは")
+
+    assert messages[0]["role"] == "system"
+    assert "You are a helpful AI." in messages[0]["content"]
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "こんにちは"
+
+@pytest.mark.asyncio
+async def test_compose_messages_gemma_embeds_system_in_user():
+    """Gemma は system role 非サポート。system_content が user メッセージに埋め込まれること。"""
+    mock_cm = MagicMock()
+    mock_cm.get_histories = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/gemma-2-9b-it-4bit",
+        system_prompt="You are a helpful AI.",
+        context_manager=mock_cm
+    )
+    messages = await service.compose_messages("ctx", "user1", "こんにちは")
+
+    assert messages[0]["role"] == "user"
+    assert "You are a helpful AI." in messages[0]["content"]
+    assert "こんにちは" in messages[0]["content"]
+
+@pytest.mark.asyncio
 async def test_local_llm_service_cache_behavior(mock_mlx):
     mock_load, _, _, _ = mock_mlx
     
