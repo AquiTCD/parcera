@@ -354,10 +354,11 @@ JSON形式のリストのみを出力してください。説明文等は一切�
                 content = p["edited_output"]
             
             if content:
-                # MLX / Llama-3 / Gemma-2 format
-                # Using Gemma-2 format as requested in TRD
                 formatted = {
-                    "text": f"<start_of_turn>user\n{p['input']}<end_of_turn>\n<start_of_turn>model\n{content}<end_of_turn>"
+                    "messages": [
+                        {"role": "user", "content": p["input"]},
+                        {"role": "assistant", "content": content}
+                    ]
                 }
                 train_data.append(formatted)
         

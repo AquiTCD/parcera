@@ -143,3 +143,33 @@ async def test_calculate_merge_weights(mock_config):
     weights = service._calculate_merge_weights(configs)
     assert weights["Main"] == 0.5
     assert weights["Exp1"] == 0.3
+
+@pytest.mark.asyncio
+async def test_export_to_jsonl_uses_messages_format(mock_config, mock_gemini, tmp_path):
+    """export_to_jsonl が messages 形式を出力すること（Gemma 固定フォーマットではない）。"""
+    import json
+    mock_config.app_data_dir = str(tmp_path)
+    service = TrainingService(mock_config, teacher_llm=mock_gemini)
+    await service.add_knowledge_from_text("test knowledge")
+
+    pairs = await service.get_pairs()
+    await service.update_pair(pairs[0]["id"], status="ok")
+
+    export_path = str(tmp_path / "test_export.jsonl")
+    count = await service.export_to_jsonl(export_path)
+
+    assert count == 1
+
+    with open(export_path, "r") as f:
+        line = json.loads(f.readline())
+
+    # messages 形式であること
+    assert "messages" in line
+    assert isinstance(line["messages"], list)
+    assert line["messages"][0]["role"] == "user"
+    assert line["messages"][1]["role"] == "assistant"
+
+    # Gemma 固定フォーマットの残骸がないこと
+    assert "text" not in line
+    assert "<start_of_turn>" not in str(line)
+    assert "<end_of_turn>" not in str(line)
