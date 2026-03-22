@@ -168,8 +168,9 @@ class LocalLLMService(LLMService):
         # Run inference in a separate thread
         threading.Thread(target=producer, daemon=True).start()
 
-        # Gemma 2 specific tags to filter
-        SPECIAL_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
+        GEMMA_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
+        QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
+        SPECIAL_TAGS = list(set(GEMMA_TAGS + QWEN_TAGS))
 
         while True:
             # Yield control back to event loop while waiting for the next word

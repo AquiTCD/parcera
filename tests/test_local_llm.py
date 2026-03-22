@@ -138,6 +138,35 @@ async def test_update_context_gemma_uses_model_role():
     assert saved_messages[-1]["role"] == "model"
 
 @pytest.mark.asyncio
+async def test_qwen_special_tags_are_filtered(mock_mlx):
+    """Qwen の特殊タグ (<|im_end|>, <think> 等) がストリームから除去されること。"""
+    mock_load, mock_stream, mock_model, mock_tokenizer = mock_mlx
+
+    mock_resp1 = MagicMock(); mock_resp1.text = "こんにちは"
+    mock_resp2 = MagicMock(); mock_resp2.text = "<|im_end|>"
+    mock_resp3 = MagicMock(); mock_resp3.text = "<think>考え中</think>"
+    mock_stream.return_value = iter([mock_resp1, mock_resp2, mock_resp3])
+
+    mock_cm = MagicMock()
+    mock_cm.get_context = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/Qwen3.5-9B-MLX-4bit",
+        system_prompt="test",
+        context_manager=mock_cm
+    )
+
+    responses = []
+    async for chunk in service.get_llm_stream_response("ctx", "user", [{"role": "user", "content": "hi"}], None, None):
+        responses.append(chunk.text)
+
+    full_text = "".join(responses)
+    assert "<|im_end|>" not in full_text
+    assert "<think>" not in full_text
+    assert "</think>" not in full_text
+    assert "こんにちは" in full_text
+
+@pytest.mark.asyncio
 async def test_local_llm_service_cache_behavior(mock_mlx):
     mock_load, _, _, _ = mock_mlx
     
