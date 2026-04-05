@@ -139,6 +139,9 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# pnpm local store (created by electron/.npmrc store-dir setting)
+.pnpm-store/
+
 # Editors
 .idea/
 .vscode/
