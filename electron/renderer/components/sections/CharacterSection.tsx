@@ -1,10 +1,9 @@
 import React from 'react';
 import { SectionProps } from './types';
+import { FieldRow, SliderRow } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Slider } from '../ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 import { useLocalSpeakers } from '../../hooks/useTTSSpeakers';
@@ -387,38 +386,3 @@ export const CharacterSection: React.FC<SectionProps> = ({
   );
 };
 
-// ─── Local helper components ───────────────────────────────────────────────
-
-const FieldRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="space-y-1.5">
-    <Label className="text-sm font-medium text-foreground">{label}</Label>
-    {children}
-  </div>
-);
-
-interface SliderRowProps {
-  label: string;
-  description?: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (val: number) => void;
-}
-
-const SliderRow: React.FC<SliderRowProps> = ({ label, description, value, min, max, step, onChange }) => (
-  <div className="space-y-1.5">
-    <div className="flex items-center justify-between">
-      <Label className="text-sm font-medium">{label}</Label>
-      <span className="text-sm text-muted-foreground tabular-nums w-10 text-right">{Number(value).toFixed(2)}</span>
-    </div>
-    {description && <p className="text-xs text-muted-foreground">{description}</p>}
-    <Slider
-      value={[value]}
-      min={min}
-      max={max}
-      step={step}
-      onValueChange={([val]) => onChange(val)}
-    />
-  </div>
-);

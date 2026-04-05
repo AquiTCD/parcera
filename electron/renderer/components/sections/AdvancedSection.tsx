@@ -1,5 +1,6 @@
 import React from 'react';
 import { SectionProps } from './types';
+import { FieldRow, PasswordField } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -233,35 +234,3 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   );
 };
 
-// ─── Local helpers ──────────────────────────────────────────────────────────
-
-const FieldRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="space-y-1.5">
-    <Label className="text-sm font-medium">{label}</Label>
-    {children}
-  </div>
-);
-
-const PasswordField: React.FC<{
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  actionButton?: React.ReactNode;
-}> = ({ value, onChange, placeholder, actionButton }) => {
-  const [show, setShow] = React.useState(false);
-  return (
-    <div className="flex gap-2">
-      <Input
-        type={show ? 'text' : 'password'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="flex-1"
-      />
-      <Button variant="outline" size="sm" onClick={() => setShow((s) => !s)} type="button">
-        {show ? '隠す' : '表示'}
-      </Button>
-      {actionButton}
-    </div>
-  );
-};

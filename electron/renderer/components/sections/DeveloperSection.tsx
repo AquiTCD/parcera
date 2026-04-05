@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SectionProps } from './types';
+import { FieldRow } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -179,9 +180,3 @@ export const DeveloperSection: React.FC<SectionProps> = ({
   );
 };
 
-const FieldRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="space-y-1.5">
-    <Label className="text-sm font-medium">{label}</Label>
-    {children}
-  </div>
-);
