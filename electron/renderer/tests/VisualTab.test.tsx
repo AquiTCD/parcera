@@ -51,11 +51,11 @@ describe('VisualTab', () => {
   it('calls updateNested when flipping/chromakey checkboxes change', () => {
     render(<VisualTab {...props} />);
 
-    // Scoped query for User section
-    const userCol = screen.getByLabelText('USERアバター パス').closest('div')!.parentElement!.parentElement!;
-    const flipCheck = within(userCol).getByLabelText('左右反転する');
+    // Scoped query for User section via data-testid
+    const userCol = screen.getByTestId('avatar-column-user');
+    const flipSwitch = within(userCol).getByRole('switch', { name: '左右反転する' });
 
-    fireEvent.click(flipCheck);
+    fireEvent.click(flipSwitch);
     expect(mockUpdateNested).toHaveBeenCalledWith('avatars', 'user', expect.objectContaining({ flip_horizontal: true }));
   });
 
@@ -73,4 +73,5 @@ describe('VisualTab', () => {
     fireEvent.change(scaleInput, { target: { value: '1.5' } });
     expect(mockUpdateNested).toHaveBeenCalledWith('avatars', 'breathe_scale', 1.5);
   });
+
 });

@@ -102,8 +102,13 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                   onChange={(e) => updateProvider('llm', currentLLMProvider, 'option_split_threshold', Number(e.target.value))}
                 />
               </FieldRow>
-              <div className="flex items-center justify-between pt-6">
-                <Label>会話履歴を保持</Label>
+              <div className="flex items-start justify-between pt-6 gap-4">
+                <div>
+                  <Label>会話履歴を保持</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    有効にすると文脈精度が上がりますが、トークン消費・コスト・応答速度に影響します。長時間使用では定期的なリセットを推奨。
+                  </p>
+                </div>
                 <Switch
                   checked={settings.llm?.providers?.[currentLLMProvider]?.persist_history ?? false}
                   onCheckedChange={(v) => updateProvider('llm', currentLLMProvider, 'persist_history', v)}

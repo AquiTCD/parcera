@@ -95,7 +95,7 @@ export const Settings: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex flex-col h-screen w-full bg-background text-foreground overflow-hidden">
       {/* Main content with sidebar */}
       <div className="flex-1 overflow-hidden">
         <SidebarLayout
