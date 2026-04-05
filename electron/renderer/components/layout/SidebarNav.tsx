@@ -26,10 +26,10 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ items, activeId, onSelec
           onClick={() => onSelect(item.id)}
           aria-current={activeId === item.id ? 'page' : undefined}
           className={cn(
-            'w-full text-left rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            'w-full text-left rounded-md px-3 py-2 text-sm transition-colors',
             activeId === item.id
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              ? 'bg-primary/20 text-primary font-semibold'
+              : 'font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground'
           )}
         >
           {item.label}
@@ -49,10 +49,10 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ items, activeId, onSelec
               onClick={() => onSelect(item.id)}
               aria-current={activeId === item.id ? 'page' : undefined}
               className={cn(
-                'w-full text-left rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'w-full text-left rounded-md px-3 py-2 text-sm transition-colors',
                 activeId === item.id
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                  ? 'bg-primary/20 text-primary font-semibold'
+                  : 'font-medium text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
               )}
             >
               {item.label}

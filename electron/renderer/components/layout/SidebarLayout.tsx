@@ -7,10 +7,10 @@ interface SidebarLayoutProps {
 
 export const SidebarLayout: React.FC<SidebarLayoutProps> = ({ sidebar, children }) => {
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* Sidebar: fixed 200px width */}
+    <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
+      {/* Sidebar: fixed width */}
       <aside
-        className="w-[200px] shrink-0 border-r border-border overflow-y-auto"
+        className="w-[160px] shrink-0 border-r border-border overflow-y-auto"
       >
         {sidebar}
       </aside>
