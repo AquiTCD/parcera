@@ -246,8 +246,8 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
   return (
     <div className="flex flex-col gap-3">
       {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm text-muted-foreground">追加学習 /</span>
+      <div className="flex items-center gap-3 flex-wrap pb-3 border-b border-border">
+        <span className="text-sm text-muted-foreground">プロファイル:</span>
         {isRenaming ? (
           <div className="flex items-center gap-2">
             <Input

@@ -9,6 +9,7 @@ import { IntegrationSection } from './sections/IntegrationSection';
 import { AdvancedSection } from './sections/AdvancedSection';
 import { DeveloperSection } from './sections/DeveloperSection';
 import { Button } from './ui/button';
+import { getDefaultsForTab } from './settings/restoreDefaults';
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'character', label: 'キャラクター' },
@@ -39,6 +40,22 @@ export const Settings: React.FC = () => {
     window.electronAPI.getSettings().then(setSettings);
     window.electronAPI.getDefaultSettings().then(setDefaultSettings);
   }, [setSettings]);
+
+  const handleRestoreDefaults = useCallback(() => {
+    const label = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? activeSection;
+    if (!window.confirm(`「${label}」セクションの設定を初期値に戻しますか？\n（「保存する」を押すまで確定しません）`)) return;
+    if (!defaultSettings) {
+      setStatus({ message: 'エラー: 初期値を取得できませんでした', type: 'error' });
+      return;
+    }
+    setSettings((prev: ParceraSettings | null) => {
+      if (!prev) return prev;
+      const patch = getDefaultsForTab(activeSection, defaultSettings, prev);
+      return patch ? { ...prev, ...patch } : prev;
+    });
+    setStatus({ message: '初期値をロードしました（保存で確定）', type: 'success' });
+    setTimeout(() => setStatus({ message: '', type: '' }), 5000);
+  }, [activeSection, defaultSettings, setSettings]);
 
   const handleSave = useCallback(async () => {
     if (!settings) return;
@@ -112,7 +129,16 @@ export const Settings: React.FC = () => {
       </div>
 
       {/* Footer action bar */}
-      <div className="flex items-center justify-end gap-3 px-6 py-3 border-t border-border bg-card shrink-0">
+      <div className="flex items-center gap-3 px-6 py-3 border-t border-border bg-card shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={handleRestoreDefaults}
+        >
+          このセクションをリセット
+        </Button>
+        <div className="flex-1" />
         {status.message && (
           <span
             className={
