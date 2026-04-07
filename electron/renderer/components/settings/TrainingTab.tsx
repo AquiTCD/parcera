@@ -292,10 +292,10 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
               key={id}
               onClick={() => setActiveSubTab(id)}
               className={cn(
-                'w-full text-left px-3 py-2.5 transition-colors border-l-2',
+                'w-full text-left px-3 py-2.5 rounded-r-md transition-colors border-l-2',
                 activeSubTab === id
-                  ? 'rounded-r-md border-primary bg-primary/20'
-                  : 'rounded-md border-transparent hover:bg-accent'
+                  ? 'border-primary bg-primary/20'
+                  : 'border-transparent hover:bg-accent'
               )}
             >
               <div className={cn('text-[10px] font-semibold uppercase tracking-wider mb-0.5', activeSubTab === id ? 'text-primary' : 'text-muted-foreground/60')}>
