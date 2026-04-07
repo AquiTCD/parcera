@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { TrainingPair, ParceraSettings } from '../../../shared/types';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Badge } from '../ui/badge';
+import { Progress } from '../ui/progress';
+import { Card, CardContent } from '../ui/card';
+import { cn } from '../../lib/utils';
 
 interface TrainingTabProps {
   settings: ParceraSettings;
@@ -17,6 +24,14 @@ interface TrainingStats {
   status_message: string;
   is_training: boolean;
 }
+
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'success' | 'warning'> = {
+  ok: 'success',
+  correction: 'warning',
+  ng: 'destructive',
+  ignored: 'secondary',
+  pending: 'secondary',
+};
 
 export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: initialProfile = 'default' }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('knowledge');
@@ -36,9 +51,7 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
   const port = settings.electron?.port || 8676;
   const baseUrl = `http://127.0.0.1:${port}/training`;
 
-  const fetchProfiles = useCallback(async () => {
-    // Left for potential sidebar use, but currentProfile is set from outside
-  }, []);
+  const fetchProfiles = useCallback(async () => {}, []);
 
   const fetchPairs = useCallback(async () => {
     try {
@@ -46,12 +59,9 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
       const res = await fetch(`${baseUrl}/pairs?profile=${currentProfile}`);
       const data = await res.json();
       setPairs(data);
-
       const statsRes = await fetch(`${baseUrl}/stats?profile=${currentProfile}`);
       const statsData = await statsRes.json();
       setStats(statsData);
-
-      // Refresh profiles list
       fetchProfiles();
     } catch (e) {
       console.error('Failed to fetch data:', e);
@@ -60,16 +70,13 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
     }
   }, [baseUrl, currentProfile, fetchProfiles]);
 
-  useEffect(() => {
-    fetchPairs();
-  }, [fetchPairs]);
+  useEffect(() => { fetchPairs(); }, [fetchPairs]);
 
   useEffect(() => {
     if (window.electronAPI.onTrainingProfileChanged) {
-      const cleanup = window.electronAPI.onTrainingProfileChanged((profile: string) => {
+      return window.electronAPI.onTrainingProfileChanged((profile: string) => {
         setCurrentProfile(profile);
       });
-      return cleanup;
     }
   }, []);
 
@@ -83,14 +90,12 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
         if (data.status === 'running' || data.status === 'starting') {
           timer = setTimeout(checkStatus, 3000);
         } else if (data.status === 'completed' || data.status === 'failed') {
-          // Refresh stats when finished
           fetchPairs();
         }
       } catch (e) {
         console.error('Failed to fetch training status:', e);
       }
     };
-
     checkStatus();
     return () => clearTimeout(timer);
   }, [baseUrl, currentProfile, lastActionTime, fetchPairs]);
@@ -103,13 +108,11 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
       const body = isUrl
         ? { url: input.trim(), profile: currentProfile }
         : { text: input.trim(), profile: currentProfile };
-
       const res = await fetch(`${baseUrl}/add-knowledge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-
       if (res.ok) {
         setInput('');
         await fetchPairs();
@@ -146,19 +149,17 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
 
   const handleRunTraining = async () => {
     if (!currentProfile) return;
-
     const ok = window.confirm(
       `現在のプロファイル「${currentProfile}」で追加学習を開始しますか？\n\n` +
       `※学習中はリソース確保のため、パルセラの反応（音声・返答）は一時的に停止（ミュート）されます。\n` +
       `※完了後、自動的に復帰します。`
     );
     if (!ok) return;
-
     try {
       const res = await fetch(`${baseUrl}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: currentProfile, iters: 100 })
+        body: JSON.stringify({ profile: currentProfile, iters: 100 }),
       });
       await res.json();
       setLastActionTime(Date.now());
@@ -172,11 +173,11 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
       setIsRenaming(false);
       return;
     }
-
     try {
-      const res = await fetch(`${baseUrl}/rename-profile?old_name=${encodeURIComponent(currentProfile)}&new_name=${encodeURIComponent(tempProfileName.trim())}`, {
-        method: 'POST'
-      });
+      const res = await fetch(
+        `${baseUrl}/rename-profile?old_name=${encodeURIComponent(currentProfile)}&new_name=${encodeURIComponent(tempProfileName.trim())}`,
+        { method: 'POST' }
+      );
       if (res.ok) {
         setCurrentProfile(tempProfileName.trim());
         if (window.electronAPI.broadcastProfilesUpdated) {
@@ -193,238 +194,222 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
     }
   };
 
+  const STEPS: { id: SubTab; label: string; step: string }[] = [
+    { id: 'knowledge', step: 'STEP 1', label: '知識の入力' },
+    { id: 'edit', step: 'STEP 2', label: 'データの編集' },
+    { id: 'adapters', step: 'STEP 3', label: '学習の実行' },
+  ];
+
   const renderNotebookEntry = (pair: TrainingPair) => {
     const isEditing = editingId === pair.id;
     return (
-      <div key={pair.id} className={`notebook-entry priority-${pair.status}`}>
-        <div className="entry-question">
-          <span className="user-icon">👤</span> {pair.input}
-        </div>
-        <div className="entry-response">
-          <span className="ai-icon">💙</span>
-          {isEditing ? (
-            <div className="edit-container">
-              <textarea
-                className="edit-textarea"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-              />
-              <div className="edit-actions">
-                <button onClick={() => handleUpdateStatus(pair.id, 'correction', editValue)} className="btn btn-primary btn-small">保存</button>
-                <button onClick={() => setEditingId(null)} className="btn btn-secondary btn-small">取消</button>
-              </div>
-            </div>
-          ) : (
-            <span className="response-text">{pair.edited_output || pair.output}</span>
-          )}
-        </div>
-        <div className="entry-footer">
-          <div className="status-badge" data-status={pair.status}>{pair.status}</div>
-          <div className="entry-actions">
-            <button className="act-btn ok" title="OK" onClick={() => handleUpdateStatus(pair.id, 'ok')}>✅</button>
-            <button className="act-btn correction" title="修正" onClick={() => startEditing(pair)}>📝</button>
-            <button className="act-btn ng" title="除外" onClick={() => handleUpdateStatus(pair.id, 'ng')}>❌</button>
-            <button className="act-btn ignore" title="保持" onClick={() => handleUpdateStatus(pair.id, 'ignored')}>➖</button>
+      <Card key={pair.id} className="mb-2">
+        <CardContent className="pt-3 pb-2 px-3 space-y-2">
+          <div className="text-xs text-muted-foreground">
+            <span className="mr-1">👤</span>{pair.input}
           </div>
-        </div>
-      </div>
+          <div className="text-sm">
+            <span className="mr-1 text-muted-foreground">💙</span>
+            {isEditing ? (
+              <div className="space-y-2 mt-1">
+                <Textarea
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="text-sm min-h-[80px]"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => handleUpdateStatus(pair.id, 'correction', editValue)}>保存</Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>取消</Button>
+                </div>
+              </div>
+            ) : (
+              <span className="text-sm">{pair.edited_output || pair.output}</span>
+            )}
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <Badge variant={STATUS_VARIANT[pair.status] ?? 'secondary'}>{pair.status}</Badge>
+            <div className="flex gap-1">
+              <button title="OK" className="text-base hover:scale-110 transition-transform" onClick={() => handleUpdateStatus(pair.id, 'ok')}>✅</button>
+              <button title="修正" className="text-base hover:scale-110 transition-transform" onClick={() => startEditing(pair)}>📝</button>
+              <button title="除外" className="text-base hover:scale-110 transition-transform" onClick={() => handleUpdateStatus(pair.id, 'ng')}>❌</button>
+              <button title="保持" className="text-base hover:scale-110 transition-transform" onClick={() => handleUpdateStatus(pair.id, 'ignored')}>➖</button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     );
   };
 
+  const isTrainingActive = trainingStatus?.status === 'running' || trainingStatus?.status === 'starting';
+  const hasTrainableData = pairs.some((p) => p.status === 'ok' || p.status === 'correction');
+
   return (
-    <div className="settings-window training-tab">
-      <div className="settings-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <span style={{ fontSize: '14px', color: '#888' }}>追加学習 / </span>
-          {isRenaming ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="text"
-                autoFocus
-                className="settings-input"
-                style={{ width: '120px', marginBottom: 0, padding: '2px 8px', fontSize: '12px' }}
-                value={tempProfileName}
-                onChange={(e) => setTempProfileName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleRenameProfile();
-                  if (e.key === 'Escape') setIsRenaming(false);
-                }}
-              />
-              <button
-                className="btn btn-primary btn-small"
-                style={{ padding: '2px 6px', fontSize: '10px' }}
-                onClick={handleRenameProfile}
-              >
-                保存
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontWeight: 600 }}>{currentProfile}</span>
-              <button
-                className="btn btn-secondary btn-small"
-                style={{ padding: '2px 6px', fontSize: '10px' }}
-                onClick={() => {
-                  setTempProfileName(currentProfile);
-                  setIsRenaming(true);
-                }}
-              >
-                名前を変更
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div style={{ flex: 1 }} />
-
-        {stats && (
-          <div className="training-stats-minimal">
-            <span className={stats.needs_train ? 'text-warning' : ''}>
-              OK {stats.trainable} / 全 {stats.total} 件 [{stats.status_message}]
-            </span>
+    <div className="flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm text-muted-foreground">追加学習 /</span>
+        {isRenaming ? (
+          <div className="flex items-center gap-2">
+            <Input
+              autoFocus
+              className="h-7 w-32 text-sm px-2"
+              value={tempProfileName}
+              onChange={(e) => setTempProfileName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameProfile();
+                if (e.key === 'Escape') setIsRenaming(false);
+              }}
+            />
+            <Button size="sm" className="h-7 text-xs px-2" onClick={handleRenameProfile}>保存</Button>
           </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{currentProfile}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2"
+              onClick={() => { setTempProfileName(currentProfile); setIsRenaming(true); }}
+            >
+              名前を変更
+            </Button>
+          </div>
+        )}
+        <div className="flex-1" />
+        {stats && (
+          <span className={cn('text-sm', stats.needs_train ? 'text-yellow-500' : 'text-muted-foreground')}>
+            OK {stats.trainable} / 全 {stats.total} 件 [{stats.status_message}]
+          </span>
         )}
       </div>
 
-      <div className="settings-layout">
-        <aside className="training-sidebar-mini">
-          <div className="step-menu">
+      {/* Two-column layout */}
+      <div className="flex gap-4 min-h-[420px]">
+        {/* Step sidebar */}
+        <nav className="w-[140px] shrink-0 flex flex-col gap-0.5">
+          {STEPS.map(({ id, step, label }) => (
             <button
-              className={`menu-item ${activeSubTab === 'knowledge' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('knowledge')}
+              key={id}
+              onClick={() => setActiveSubTab(id)}
+              className={cn(
+                'w-full text-left px-3 py-2.5 rounded-md transition-colors border-l-2',
+                activeSubTab === id
+                  ? 'border-primary bg-primary/10'
+                  : 'border-transparent hover:bg-accent'
+              )}
             >
-              <span className="step-num">Step 1</span>
-              <span className="step-label">知識の入力</span>
+              <div className={cn('text-[10px] font-semibold uppercase tracking-wider mb-0.5', activeSubTab === id ? 'text-primary' : 'text-muted-foreground/60')}>
+                {step}
+              </div>
+              <div className={cn('text-sm font-medium', activeSubTab === id ? 'text-primary' : 'text-muted-foreground')}>
+                {label}
+                {id === 'adapters' && stats?.needs_train && (
+                  <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-yellow-500 align-middle" />
+                )}
+              </div>
             </button>
-            <button
-              className={`menu-item ${activeSubTab === 'edit' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('edit')}
-            >
-              <span className="step-num">Step 2</span>
-              <span className="step-label">データの編集</span>
-            </button>
-            <button
-              className={`menu-item ${activeSubTab === 'adapters' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('adapters')}
-            >
-              <span className="step-num">Step 3</span>
-              <span className="step-label">学習の実行</span>
-              {stats?.needs_train && <span className="dot-blink-update" />}
-            </button>
-          </div>
-        </aside>
+          ))}
+        </nav>
 
-        <main className="training-main-content">
-          <div className="settings-section-desc">
+        {/* Main content */}
+        <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+          <p className="text-sm text-muted-foreground">
             {activeSubTab === 'knowledge' && '新しい知識をテキストまたはURLから入力し、学習用データを生成します。'}
             {activeSubTab === 'edit' && '生成されたデータを編集・確認します。「OK」または「修正」済みのデータが学習に使用されます。'}
             {activeSubTab === 'adapters' && '準備されたデータを元に、AIモデルの追加学習（LoRA）を実行します。'}
-          </div>
+          </p>
 
           {activeSubTab === 'knowledge' && (
-            <div className="knowledge-input-area">
-              <textarea
-                className="setting-input knowledge-textarea"
+            <div className="space-y-2">
+              <Textarea
                 placeholder="新しい知識やウェブサイトのURLを入力してください..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 disabled={isGenerating}
+                className="min-h-[200px] text-sm resize-none"
               />
-              <button
-                className="btn btn-primary add-knowledge-btn"
-                onClick={handleAddKnowledge}
-                disabled={isGenerating || !input.trim()}
-              >
-                {isGenerating ? 'AIが解析中...' : 'データを解析して追加'}
-              </button>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleAddKnowledge}
+                  disabled={isGenerating || !input.trim()}
+                >
+                  {isGenerating ? 'AIが解析中...' : 'データを解析して追加'}
+                </Button>
+              </div>
             </div>
           )}
 
-          <div className="notebook-paper">
-            {loading && <div className="loading-overlay">データを読み込み中...</div>}
+          {activeSubTab === 'adapters' && (
+            <div className="space-y-4">
+              {stats?.needs_train ? (
+                <div className="rounded-md bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 text-sm text-yellow-500">
+                  未学習のデータが <strong>{stats.trainable}件</strong> あります。学習を開始してモデルに反映しましょう。
+                </div>
+              ) : (
+                <div className="rounded-md bg-green-700/10 border border-green-700/30 px-3 py-2 text-sm text-green-500">
+                  すべての有効なデータは学習済みです。
+                </div>
+              )}
 
-            {activeSubTab === 'adapters' ? (
-              <div className="adapter-management-panel">
-                <h3>学習の実行</h3>
-
-                {stats?.needs_train ? (
-                  <div className="training-alert-info">
-                    未学習のデータが <strong>{stats.trainable}件</strong> あります。学習を開始してモデルに反映しましょう。
-                  </div>
-                ) : (
-                  <div className="training-alert-success">
-                    すべての有効なデータは学習済みです。
-                  </div>
-                )}
-
-                {trainingStatus && (trainingStatus.status === 'running' || trainingStatus.status === 'starting' || trainingStatus.status === 'completed' || trainingStatus.status === 'failed') && (
-                  <div className="training-progress-card">
-                    <div className="progress-header">
-                      <span className="status-label">
+              {trainingStatus && ['running', 'starting', 'completed', 'failed'].includes(trainingStatus.status) && (
+                <Card>
+                  <CardContent className="pt-4 pb-3 px-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
                         {trainingStatus.status === 'starting' && '処理準備中...'}
                         {trainingStatus.status === 'running' && '追加学習を実行中'}
                         {trainingStatus.status === 'completed' && '学習が正常に完了しました'}
                         {trainingStatus.status === 'failed' && 'エラーが発生しました'}
                       </span>
-                      <span className="percent-label">{trainingStatus.progress}%</span>
+                      <span className="text-sm tabular-nums">{trainingStatus.progress}%</span>
                     </div>
-                    <div className="progress-bar-bg">
-                      <div className="progress-bar-fill" style={{ width: `${trainingStatus.progress}%` }}></div>
-                    </div>
-                    {(trainingStatus.status === 'running' || trainingStatus.status === 'starting') && (
-                      <div className="progress-stats">
+                    <Progress value={trainingStatus.progress} className="h-2" />
+                    {isTrainingActive && (
+                      <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Iteration: {trainingStatus.current_iter} / {trainingStatus.total_iters}</span>
                         <span>Loss: {trainingStatus.loss?.toFixed(4) || '---'}</span>
                       </div>
                     )}
                     {trainingStatus.status === 'running' && (
-                      <div className="inactive-warning-msg">
-                        ⚡️ 学習中：パルセラは一時的にオフラインになります
-                      </div>
+                      <p className="text-xs text-yellow-500">⚡️ 学習中：パルセラは一時的にオフラインになります</p>
                     )}
                     {trainingStatus.status === 'completed' && (
-                      <p style={{ fontSize: '12px', color: '#51cf66', marginTop: '10px', textAlign: 'left' }}>
-                        学習が正常に完了しました！設定を反映するには、LLM設定で該当のプロファイルを選択し直してください。
-                      </p>
+                      <p className="text-xs text-green-500">学習が正常に完了しました！LLM設定で該当プロファイルを選択し直してください。</p>
                     )}
                     {trainingStatus.error && (
-                      <div className="training-error-msg">
-                        <strong>エラー詳細:</strong><br />
-                        {trainingStatus.error}
-                      </div>
+                      <p className="text-xs text-destructive"><strong>エラー詳細:</strong> {trainingStatus.error}</p>
                     )}
-                  </div>
-                )}
+                  </CardContent>
+                </Card>
+              )}
 
-                <div style={{ marginTop: '20px', textAlign: 'center' }}>
-                  <button
-                    className="btn btn-primary training-run-btn"
-                    onClick={handleRunTraining}
-                    disabled={(!pairs.some(p => p.status === 'ok' || p.status === 'correction')) || (trainingStatus?.status === 'running' || trainingStatus?.status === 'starting')}
-                  >
-                    {trainingStatus?.status === 'running' || trainingStatus?.status === 'starting'
-                      ? '⚡️ 学習を実行しています...'
-                      : '🚀 追加学習を開始する'}
-                  </button>
-                  {!pairs.some(p => p.status === 'ok' || p.status === 'correction') && (
-                    <p style={{ color: '#ff6b6b', fontSize: '12px', marginTop: '10px' }}>
-                      ※学習可能なデータ（OK/修正済み）が1つ以上必要です。
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="pairs-list">
-                {pairs.length === 0 && !loading && (
-                  <p style={{ textAlign: 'center', color: '#555', marginTop: '40px' }}>
-                    データが登録されていません。Step 1 で知識を入力してください。
-                  </p>
+              <div className="flex flex-col items-center gap-2 pt-2">
+                <Button
+                  className="w-full"
+                  onClick={handleRunTraining}
+                  disabled={!hasTrainableData || isTrainingActive}
+                >
+                  {isTrainingActive ? '⚡️ 学習を実行しています...' : '追加学習を開始する'}
+                </Button>
+                {!hasTrainableData && (
+                  <p className="text-xs text-destructive">※学習可能なデータ（OK/修正済み）が1つ以上必要です。</p>
                 )}
-                {pairs.map(renderNotebookEntry)}
               </div>
-            )}
-          </div>
-        </main>
+            </div>
+          )}
+
+          {activeSubTab !== 'adapters' && (
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {loading && <p className="text-sm text-muted-foreground text-center py-4">データを読み込み中...</p>}
+              {!loading && pairs.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  データが登録されていません。Step 1 で知識を入力してください。
+                </p>
+              )}
+              {pairs.map(renderNotebookEntry)}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
