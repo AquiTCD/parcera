@@ -142,7 +142,11 @@ export function useAvatar() {
       const volumeDb = settings.vad?.volume_db_threshold ?? -20;
       state.threshold_db = volumeDb;
       state.threshold = Math.pow(10, volumeDb / 20) * 100;
-      setNoiseGateDb(volumeDb);
+      // Noise gate only applies to the user window (mic input).
+      // AI window plays clean TTS audio — no ambient noise to gate out.
+      if (state.avatarType !== 'ai') {
+        setNoiseGateDb(volumeDb);
+      }
 
       const bScale = settings.avatars?.breathe_scale || 1.005;
       const bAmp = settings.avatars?.breathe_amplitude || 2;
