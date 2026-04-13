@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-04-14 - AI Lip-Sync Fix & Type Safety Refactor
+
+### Fixed
+- **AI lip-sync**: Noise gate threshold (`vad.volume_db_threshold`) was incorrectly applied to AI window audio analysis, silencing clean TTS audio and preventing mouth animation. Fixed by skipping noise gate in `getEnvelope()` and `setNoiseGateDb()` for the AI avatar window
+- **DevTools in production**: DevTools auto-opened in packaged builds. Re-commented `openDevTools()` call and added `devtools-opened` event handler to immediately close DevTools in non-dev builds (both avatar and settings windows)
+
+### Changed
+- **Type safety**: Replaced `settings: any` / `twitchSettings: any` / callback `any` props with proper `ParceraSettings` / `TwitchSettings` types across 15 settings components
+- **TTSTab**: Added local `RawSpeaker`, `SpeakerOption`, `GoogleVoiceOption` interfaces; removed `spk: any` / `v: any` annotations
+- **alert() → setStatus**: Replaced 10 browser `alert()` calls with `setStatus?.()` in TrainingTab (4), LocalLLMSettings (5), WindowSettingsSection (1); wired `setStatus` prop from parent components
+
 ## [0.7.0] - 2026-04-13 - Settings UI Redesign with shadcn/ui
 
 ### Added
