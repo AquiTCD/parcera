@@ -4,9 +4,9 @@ import { InputSetting } from '../controls/InputSetting';
 import { ParceraSettings } from '../../../../shared/types';
 
 interface AICharacterEditorProps {
-  settings: any;
-  defaultSettings?: any;
-  updateNested: (category: keyof ParceraSettings, key: string, value: any) => void;
+  settings: ParceraSettings;
+  defaultSettings?: ParceraSettings;
+  updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
 }
 
 export const AICharacterEditor: React.FC<AICharacterEditorProps> = ({

@@ -233,7 +233,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
             <p className="text-xs text-muted-foreground mb-4">
               Mac / Apple Silicon 専用。LoRAファインチューニングによる追加学習。
             </p>
-            <TrainingTab settings={settings} />
+            <TrainingTab settings={settings} setStatus={setStatus} />
           </CardContent>
         </Card>
       )}

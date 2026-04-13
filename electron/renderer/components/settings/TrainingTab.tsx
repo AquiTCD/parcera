@@ -8,9 +8,12 @@ import { Progress } from '../ui/progress';
 import { Card, CardContent } from '../ui/card';
 import { cn } from '../../lib/utils';
 
+type StatusMessage = { message: string; type: 'success' | 'error' | '' };
+
 interface TrainingTabProps {
   settings: ParceraSettings;
   profile?: string;
+  setStatus?: (status: StatusMessage) => void;
 }
 
 type SubTab = 'knowledge' | 'edit' | 'adapters';
@@ -48,7 +51,7 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
   pending: 'secondary',
 };
 
-export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: initialProfile = 'default' }) => {
+export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: initialProfile = 'default', setStatus }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('knowledge');
   const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [pairs, setPairs] = useState<TrainingPair[]>([]);
@@ -131,10 +134,10 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
         setActiveSubTab('edit');
       } else {
         const err = await res.json();
-        alert(`エラー: ${err.detail}`);
+        setStatus?.({ message: `エラー: ${err.detail}`, type: 'error' });
       }
     } catch (e) {
-      alert(`通信エラー: ${e}`);
+      setStatus?.({ message: `通信エラー: ${e}`, type: 'error' });
     } finally {
       setIsGenerating(false);
     }
@@ -176,7 +179,7 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
       await res.json();
       setLastActionTime(Date.now());
     } catch (e) {
-      alert(`エラー: ${e}`);
+      setStatus?.({ message: `エラー: ${e}`, type: 'error' });
     }
   };
 
@@ -196,11 +199,11 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
           window.electronAPI.broadcastProfilesUpdated();
         }
       } else {
-        alert('名前の変更に失敗しました。');
+        setStatus?.({ message: '名前の変更に失敗しました', type: 'error' });
       }
     } catch (e) {
       console.error('Rename failed:', e);
-      alert('エラーが発生しました。');
+      setStatus?.({ message: '名前変更中にエラーが発生しました', type: 'error' });
     } finally {
       setIsRenaming(false);
     }

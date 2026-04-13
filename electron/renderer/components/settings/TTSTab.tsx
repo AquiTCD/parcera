@@ -5,6 +5,10 @@ import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { useLocalSpeakers, useGoogleVoices } from '../../hooks/useTTSSpeakers';
 
+interface RawSpeaker { name: string; styles: Array<{ id: number; name: string }> }
+interface SpeakerOption { id: number; name: string; styleName: string }
+interface GoogleVoiceOption { id: string; gender: string }
+
 export const TTSTab: React.FC<TabProps> = ({
   settings,
   defaultSettings,
@@ -46,8 +50,8 @@ export const TTSTab: React.FC<TabProps> = ({
         throw new Error(data.message);
       }
 
-      const processed = data.flatMap((speaker: any) =>
-        speaker.styles.map((style: any) => ({
+      const processed: SpeakerOption[] = data.flatMap((speaker: RawSpeaker) =>
+        speaker.styles.map((style) => ({
           id: style.id,
           name: speaker.name,
           styleName: style.name
@@ -119,7 +123,7 @@ export const TTSTab: React.FC<TabProps> = ({
             disabled={isFetchingTTS || !speakersInfo || speakersInfo.length === 0}
             options={isFetchingTTS ? [{ value: '', label: 'キャラクターを取得中...' }] : (speakersInfo && speakersInfo.length > 0 ? [
               { value: '', label: '-- 指定なし (デフォルト) --' },
-              ...speakersInfo.map((spk: any) => ({ value: spk.id, label: `${spk.name} (${spk.styleName}) - ID:${spk.id}` }))
+              ...(speakersInfo as SpeakerOption[]).map((spk) => ({ value: spk.id, label: `${spk.name} (${spk.styleName}) - ID:${spk.id}` }))
             ] : [{ value: '', label: '(取得失敗: エンジンの起動を確認してください)' }])}
           />
         </div >
@@ -148,7 +152,7 @@ export const TTSTab: React.FC<TabProps> = ({
             disabled={isFetchingGoogleVoice || !googleVoices || googleVoices.length === 0}
             options={isFetchingGoogleVoice ? [{ value: '', label: '音声を取得中...' }] : (googleVoices && googleVoices.length > 0 ? [
               { value: '', label: '-- 指定なし (デフォルト) --' },
-              ...googleVoices.map((v: any) => ({ value: v.id, label: `${v.id} (${v.gender})` }))
+              ...(googleVoices as GoogleVoiceOption[]).map((v) => ({ value: v.id, label: `${v.id} (${v.gender})` }))
             ] : [{ value: '', label: '(取得失敗: APIキーを確認してください)' }])}
           />
         </div>

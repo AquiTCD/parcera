@@ -6,7 +6,7 @@ import { WindowSettingsSection } from './WindowSettingsSection';
 import { AvatarColumn } from './visuals/AvatarColumn';
 import { BreatheAnimationSettings } from './visuals/BreatheAnimationSettings';
 
-export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, renderTabHeader, handleSelectDir }) => {
+export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updateNested, renderTabHeader, handleSelectDir, setStatus }) => {
   return (
     <section className="tab-content-section">
       {renderTabHeader?.('アバター設定')}
@@ -42,12 +42,14 @@ export const VisualTab: React.FC<TabProps> = ({ settings, defaultSettings, updat
             settings={settings}
             defaultSettings={defaultSettings}
             updateNested={updateNested}
+            setStatus={setStatus}
           />
           <WindowSettingsSection
             type="ai"
             settings={settings}
             defaultSettings={defaultSettings}
             updateNested={updateNested}
+            setStatus={setStatus}
           />
         </div>
       </div>

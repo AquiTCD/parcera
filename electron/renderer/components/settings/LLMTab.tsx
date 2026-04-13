@@ -54,6 +54,7 @@ export const LLMTab: React.FC<TabProps> = ({
           defaultSettings={defaultSettings}
           updateProvider={updateProvider}
           port={settings.electron?.port || 10101}
+          setStatus={setStatus}
         />
       ) : (
         <div className="setting-card">

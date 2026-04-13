@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ParceraSettings } from '../../../shared/types';
 import { InputSetting } from './controls/InputSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { ModelDownloaderUI, useModelDownloader } from './controls/ModelDownloader';
@@ -9,18 +10,22 @@ const MODEL_PRESETS = [
   { label: 'Qwen3.5 4B (MLX) - 軽量', value: 'mlx-community/Qwen3.5-4B-MLX-4bit' },
 ] as const;
 
+type StatusMessage = { message: string; type: 'success' | 'error' | '' };
+
 interface LocalLLMSettingsProps {
-  settings: any;
-  defaultSettings: any;
-  updateProvider: (category: 'llm' | 'stt' | 'tts', provider: string, key: string, value: any) => void;
+  settings: ParceraSettings;
+  defaultSettings?: ParceraSettings;
+  updateProvider: (category: 'llm' | 'stt' | 'tts', provider: string, key: string, value: unknown) => void;
   port: number;
+  setStatus?: (status: StatusMessage) => void;
 }
 
 export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
   settings,
   defaultSettings,
   updateProvider,
-  port
+  port,
+  setStatus,
 }) => {
   const localModelName = settings.llm?.providers?.local?.model || 'mlx-community/gemma-2-9b-it-4bit';
   const downloader = useModelDownloader(localModelName, port);
@@ -82,12 +87,13 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
       const data = await res.json();
       if (data.status === 'success') {
         updateProvider('llm', 'local', 'adapter_path', data.adapter_path);
+        setStatus?.({ message: 'ブレンドを適用しました', type: 'success' });
       } else {
-        alert(`適用に失敗したよ: ${data.detail || 'Unknown error'}`);
+        setStatus?.({ message: `適用に失敗しました: ${data.detail || 'Unknown error'}`, type: 'error' });
       }
     } catch (e) {
       console.error('Apply blends failed:', e);
-      alert('適用中にエラーが発生しちゃった。');
+      setStatus?.({ message: '適用中にエラーが発生しました', type: 'error' });
     } finally {
       setIsApplying(false);
     }
@@ -129,9 +135,10 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
       
       if (res.ok) {
         fetchProfiles();
+        setStatus?.({ message: 'プロファイルをインポートしました', type: 'success' });
       } else {
         const data = await res.json();
-        alert(`インポートに失敗したよ: ${data.detail}`);
+        setStatus?.({ message: `インポートに失敗しました: ${data.detail}`, type: 'error' });
       }
     } catch (e) {
       console.error('Import failed:', e);
@@ -150,10 +157,10 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
       });
 
       if (res.ok) {
-        alert(`${profileName} をエクスポートしたよ！`);
+        setStatus?.({ message: `${profileName} をエクスポートしました`, type: 'success' });
       } else {
         const data = await res.json();
-        alert(`エクスポートに失敗したよ: ${data.detail}`);
+        setStatus?.({ message: `エクスポートに失敗しました: ${data.detail}`, type: 'error' });
       }
     } catch (e) {
       console.error('Export failed:', e);
@@ -174,7 +181,7 @@ export const LocalLLMSettings: React.FC<LocalLLMSettingsProps> = ({
         updateProvider('llm', 'local', 'adapter_path', '');
       }
     } catch (e) {
-      alert(`削除に失敗しました: ${e}`);
+      setStatus?.({ message: `削除に失敗しました: ${e}`, type: 'error' });
     }
   };
 

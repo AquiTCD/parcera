@@ -1,11 +1,12 @@
 import React from 'react';
+import type { ParceraSettings, TwitchSettings } from '../../../../shared/types';
 import { InputSetting } from '../controls/InputSetting';
 import { SelectSetting } from '../controls/SelectSetting';
 
 interface Props {
-  twitchSettings: any;
-  defaultSettings?: any;
-  updateNested: any;
+  twitchSettings: TwitchSettings;
+  defaultSettings?: ParceraSettings;
+  updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
 }
 
 export const TwitchResponseLogicCard: React.FC<Props> = ({
