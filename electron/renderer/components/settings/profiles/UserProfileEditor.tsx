@@ -5,9 +5,9 @@ import { SelectSetting } from '../controls/SelectSetting';
 import { ParceraSettings } from '../../../../shared/types';
 
 interface UserProfileEditorProps {
-  settings: any;
-  defaultSettings?: any;
-  updateNested: (category: keyof ParceraSettings, key: string, value: any) => void;
+  settings: ParceraSettings;
+  defaultSettings?: ParceraSettings;
+  updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
 }
 
 export const UserProfileEditor: React.FC<UserProfileEditorProps> = ({

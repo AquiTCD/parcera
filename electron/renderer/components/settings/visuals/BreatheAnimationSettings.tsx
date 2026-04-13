@@ -4,9 +4,9 @@ import { Label } from '../../ui/label';
 import { Input } from '../../ui/input';
 
 interface BreatheAnimationSettingsProps {
-  settings: any;
-  defaultSettings?: any;
-  updateNested: (category: keyof ParceraSettings, key: string, value: any) => void;
+  settings: ParceraSettings;
+  defaultSettings?: ParceraSettings;
+  updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
 }
 
 export const BreatheAnimationSettings: React.FC<BreatheAnimationSettingsProps> = ({

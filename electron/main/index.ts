@@ -190,6 +190,11 @@ function createAvatarWindow(type: string): BrowserWindow {
 
   // win.webContents.openDevTools({ mode: 'detach' });
 
+  // Block DevTools in production builds
+  if (!VITE_DEV_SERVER_URL) {
+    win.webContents.on('devtools-opened', () => win.webContents.closeDevTools());
+  }
+
   if (process.platform === 'darwin') {
     win.setWindowButtonVisibility(false);
   }
@@ -469,6 +474,11 @@ function createSettingsWindow() {
   });
 
   // win.webContents.openDevTools({ mode: 'detach' });
+
+  // Block DevTools in production builds
+  if (!VITE_DEV_SERVER_URL) {
+    win.webContents.on('devtools-opened', () => win.webContents.closeDevTools());
+  }
 
   const url = VITE_DEV_SERVER_URL
     ? `${VITE_DEV_SERVER_URL}?type=settings`

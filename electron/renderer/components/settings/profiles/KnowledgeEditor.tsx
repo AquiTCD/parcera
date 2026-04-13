@@ -3,8 +3,8 @@ import React from 'react';
 import { ParceraSettings } from '../../../../shared/types';
 
 interface KnowledgeEditorProps {
-  settings: any;
-  updateRoot: (key: keyof ParceraSettings, value: any) => void;
+  settings: ParceraSettings;
+  updateRoot: (key: keyof ParceraSettings, value: unknown) => void;
 }
 
 export const KnowledgeEditor: React.FC<KnowledgeEditorProps> = ({

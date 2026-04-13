@@ -151,7 +151,8 @@ export function getEnvelope(): number {
   // --- Stage 0: Hard Noise Gate ---
   // Below this absolute level, nothing passes. Prevents adaptive normalization
   // from amplifying ambient noise (fans, AC) into false lip-sync triggers.
-  if (rmsRaw < noiseGateLinear) {
+  // Skipped for AI window: TTS audio is clean speech with no ambient noise to gate out.
+  if (state.avatarType !== 'ai' && rmsRaw < noiseGateLinear) {
     // Still update smoothing state to avoid a "pop" when gate opens
     smoothing.rmsQueue.push(0);
     if (smoothing.rmsQueue.length > RMS_QUEUE_MAX) smoothing.rmsQueue.shift();

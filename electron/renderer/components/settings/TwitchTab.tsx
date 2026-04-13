@@ -20,7 +20,7 @@ export const TwitchTab: React.FC<TabProps> = ({
     if (isAuthorized && !sessionId) {
       const fetchStatus = async () => {
         try {
-          const status = await (window.electronAPI as any).getTwitchStatus();
+          const status = await window.electronAPI.getTwitchStatus();
           if (status.session_id) {
             setSessionId(status.session_id);
           }

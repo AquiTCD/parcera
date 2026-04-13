@@ -1,12 +1,13 @@
 import React from 'react';
+import type { ParceraSettings, TwitchSettings } from '../../../../shared/types';
 import { CheckboxSetting } from '../controls/CheckboxSetting';
 
 interface Props {
-  twitchSettings: any;
-  updateNested: any;
+  twitchSettings: TwitchSettings;
+  updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
   isAuthorized: boolean;
   sessionId: string | null;
-  settings: any;
+  settings: ParceraSettings;
 }
 
 export const TwitchEventsCard: React.FC<Props> = ({

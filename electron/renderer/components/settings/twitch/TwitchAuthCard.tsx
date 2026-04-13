@@ -1,10 +1,11 @@
 import React from 'react';
+import type { ParceraSettings, TwitchSettings } from '../../../../shared/types';
 import { InputSetting } from '../controls/InputSetting';
 import { PasswordSetting } from '../controls/PasswordSetting';
 
 interface Props {
-  twitchSettings: any;
-  updateNested: any;
+  twitchSettings: TwitchSettings;
+  updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
   isAuthorized: boolean;
   handleStartAuth: () => void;
   handleClearAuth: () => void;

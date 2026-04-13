@@ -6,11 +6,14 @@ import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
+type StatusMessage = { message: string; type: 'success' | 'error' | '' };
+
 interface WindowSettingsSectionProps {
   type: 'user' | 'ai';
   settings: ParceraSettings;
   defaultSettings?: ParceraSettings;
   updateNested: (category: keyof ParceraSettings, key: string, value: unknown) => void;
+  setStatus?: (status: StatusMessage) => void;
 }
 
 export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
@@ -18,6 +21,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
   settings,
   defaultSettings,
   updateNested,
+  setStatus,
 }) => {
   const winParams = settings.electron?.windows?.[type] || {};
   const defaultWinParams = defaultSettings?.electron?.windows?.[type] || {};
@@ -62,7 +66,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
               [type]: { ...winParams, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
             });
           } else {
-            alert(`${labelPrefix}ウィンドウが見つかりません`);
+            setStatus?.({ message: `${labelPrefix}ウィンドウが見つかりません`, type: 'error' });
           }
         }}
       >
