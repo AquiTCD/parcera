@@ -34,6 +34,12 @@ interface TrainingStatus {
   error: string | null;
 }
 
+const STEPS: { id: SubTab; label: string; step: string }[] = [
+  { id: 'knowledge', step: 'STEP 1', label: '知識の入力' },
+  { id: 'edit', step: 'STEP 2', label: 'データの編集' },
+  { id: 'adapters', step: 'STEP 3', label: '学習の実行' },
+];
+
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'success' | 'warning'> = {
   ok: 'success',
   correction: 'warning',
@@ -199,12 +205,6 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
       setIsRenaming(false);
     }
   };
-
-  const STEPS: { id: SubTab; label: string; step: string }[] = [
-    { id: 'knowledge', step: 'STEP 1', label: '知識の入力' },
-    { id: 'edit', step: 'STEP 2', label: 'データの編集' },
-    { id: 'adapters', step: 'STEP 3', label: '学習の実行' },
-  ];
 
   const renderNotebookEntry = (pair: TrainingPair) => {
     const isEditing = editingId === pair.id;

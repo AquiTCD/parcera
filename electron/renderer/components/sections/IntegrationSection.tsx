@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { TwitchSettings } from '../../../shared/types';
 import { SectionProps } from './types';
 import { FieldRow, PasswordField } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -24,7 +25,7 @@ export const IntegrationSection: React.FC<SectionProps> = ({
     if (!isAuthorized) return;
     const fetchStatus = async () => {
       try {
-        const status = await (window.electronAPI as any).getTwitchStatus();
+        const status = await window.electronAPI.getTwitchStatus();
         if (status?.session_id) setSessionId(status.session_id);
       } catch {
         // ignore
@@ -113,11 +114,13 @@ export const IntegrationSection: React.FC<SectionProps> = ({
           {/* 反応するイベント */}
           <div className="space-y-3">
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">反応するイベント</h4>
-            {[
-              { key: 'react_to_follow', label: 'フォローに反応する', eventType: 'follow' },
-              { key: 'react_to_subscribe', label: 'サブスクライブに反応する', eventType: 'subscribe' },
-              { key: 'react_to_raid', label: 'レイドに反応する', eventType: 'raid' },
-            ].map(({ key, label, eventType }) => (
+            {(
+              [
+                { key: 'react_to_follow', label: 'フォローに反応する', eventType: 'follow' },
+                { key: 'react_to_subscribe', label: 'サブスクライブに反応する', eventType: 'subscribe' },
+                { key: 'react_to_raid', label: 'レイドに反応する', eventType: 'raid' },
+              ] as Array<{ key: 'react_to_follow' | 'react_to_subscribe' | 'react_to_raid'; label: string; eventType: string }>
+            ).map(({ key, label, eventType }) => (
               <div key={key} className="flex items-center justify-between">
                 <Label>{label}</Label>
                 <div className="flex items-center gap-2">
@@ -132,7 +135,7 @@ export const IntegrationSection: React.FC<SectionProps> = ({
                     </Button>
                   )}
                   <Switch
-                    checked={(tw as any)[key] !== false}
+                    checked={tw[key] !== false}
                     onCheckedChange={(v) => updateNested('twitch', key, v)}
                   />
                 </div>
