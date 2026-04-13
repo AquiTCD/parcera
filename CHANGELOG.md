@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-13 - Settings UI Redesign with shadcn/ui
+
+### Added
+- Full Settings UI redesign: replaced legacy tab-based layout with a responsive sidebar + section layout using shadcn/ui components
+- New Information Architecture (IA) with 5 sidebar sections: キャラクター / マイク・入力 / 連携 / 詳細設定 / 開発者
+- Tailwind CSS v4 + shadcn/ui component library (Button, Card, Select, Switch, Slider, Badge, Progress, Input, Textarea, Separator)
+- Sidebar layout components: `SidebarLayout` and `SidebarNav` with "高度な設定" separator group and `aria-current` accessibility
+- "このセクションをリセット" per-section restore-defaults button in footer
+- `TrainingStatus` interface for type-safe training progress state
+- Shared test mock helper `createBaseMockElectron()` for DRY test setup
+- Specs: `docs/specs/ui-redesign/` (PRD + IA) and `docs/specs/optional-runtime-packages/` (PRD + TRD)
+
+### Changed
+- TrainingTab: shadcn UI rewrite with step sidebar (STEP 1–3), profile rename inline, `STEPS` constant hoisted to module scope
+- TrainingTab: now visible only when LLM provider is set to `local` (LoRA fine-tuning is local-only)
+- AvatarColumn: replaced legacy `CheckboxSetting` / inline styles with `Switch`, `Select`, `FieldRow`; `settings: any` → `settings: ParceraSettings`
+- WindowSettingsSection: replaced `btn btn-primary` (cyan) with `Button variant="outline"`
+- BreatheAnimationSettings: replaced `InputSetting`/`SettingGroup` with `Input` + `Label`; restored full label text
+- `FieldRow` extended with optional `htmlFor` prop for label-input accessibility association
+- `IntegrationSection`: removed `as any` casts — `getTwitchStatus()` now typed directly; event key array cast with explicit union type
+- All 7 section test files migrated to use `createBaseMockElectron()` shared helper
+
+### Fixed
+- Right-side white space: added `w-full` to Settings root div (`#app` is flex container)
+- Footer overlap: `SidebarLayout` changed from `h-screen` to `h-full`
+- Select dropdown transparency: added missing `--color-popover` / `--color-popover-foreground` to `@theme inline` in Tailwind v4 config
+- Sidebar active state contrast: `bg-primary/10` → `bg-primary/20` + `font-semibold`
+- Step nav visual flash: always apply `rounded-r-md` regardless of active state (border-left flush)
+- `persist_history` toggle: added description and cost warning text
+
 ## [0.6.0] - 2026-03-22 - Multi-Model Local Brain & Qwen3.5 Support
 
 ### Added
