@@ -106,9 +106,18 @@ describe('AdvancedSection', () => {
   });
 
   describe('追加学習', () => {
-    it('renders 追加学習 heading', () => {
-      render(<AdvancedSection {...mockProps} />);
+    it('renders 追加学習 heading when local LLM is selected', () => {
+      const localProps = {
+        ...mockProps,
+        settings: { ...dummySettings, llm: { ...dummySettings.llm, provider: 'local' } } as any,
+      };
+      render(<AdvancedSection {...localProps} />);
       expect(screen.getByText('追加学習')).toBeInTheDocument();
+    });
+
+    it('hides 追加学習 when non-local LLM is selected', () => {
+      render(<AdvancedSection {...mockProps} />);
+      expect(screen.queryByText('追加学習')).not.toBeInTheDocument();
     });
   });
 });

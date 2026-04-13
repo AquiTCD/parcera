@@ -223,18 +223,20 @@ export const AdvancedSection: React.FC<SectionProps> = ({
         </CardContent>
       </Card>
 
-      {/* 追加学習 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>追加学習</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-4">
-            Mac / Apple Silicon 専用。LoRAファインチューニングによる追加学習。
-          </p>
-          <TrainingTab settings={settings} />
-        </CardContent>
-      </Card>
+      {/* 追加学習 — Local LLM 選択時のみ表示 */}
+      {currentLLMProvider === 'local' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>追加学習</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-4">
+              Mac / Apple Silicon 専用。LoRAファインチューニングによる追加学習。
+            </p>
+            <TrainingTab settings={settings} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
