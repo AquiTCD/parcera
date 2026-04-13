@@ -59,7 +59,7 @@ describe('LLMTab', () => {
     render(<LLMTab {...props} />, { wrapper: Wrapper });
 
     expect(screen.getByText('使用するプロバイダ')).toBeInTheDocument();
-    expect(screen.getByText('gemini の設定')).toBeInTheDocument();
+    expect(screen.getByText('GEMINI の設定')).toBeInTheDocument();
     expect(screen.getByLabelText('1. APIキー (必須)')).toBeInTheDocument();
   });
 

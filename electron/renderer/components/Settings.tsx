@@ -1,26 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { ParceraSettings } from '../../shared/types';
-import { STTTab } from './settings/STTTab';
-import { LLMTab } from './settings/LLMTab';
-import { TTSTab } from './settings/TTSTab';
-import { VisualTab } from './settings/VisualTab';
-import { SystemTab } from './settings/SystemTab';
-import { AIProfileTab } from './settings/AIProfileTab';
-import { LogTab } from './settings/LogTab';
-import { TwitchTab } from './settings/TwitchTab';
-import { TabHeader } from './settings/TabHeader';
 import { useSettingsState } from '../lib/hooks/useSettingsState';
+import { SidebarLayout } from './layout/SidebarLayout';
+import { SidebarNav, type NavItem } from './layout/SidebarNav';
+import { CharacterSection } from './sections/CharacterSection';
+import { MicInputSection } from './sections/MicInputSection';
+import { IntegrationSection } from './sections/IntegrationSection';
+import { AdvancedSection } from './sections/AdvancedSection';
+import { DeveloperSection } from './sections/DeveloperSection';
+import { Button } from './ui/button';
 import { getDefaultsForTab } from './settings/restoreDefaults';
 
-const TABS = [
-  { id: 'profile', label: 'キャラクター設定' },
-  { id: 'stt', label: '音声認識（耳）' },
-  { id: 'llm', label: '思考・返答（頭脳）' },
-  { id: 'tts', label: '音声出力（口）' },
-  { id: 'visual', label: 'アバター設定' },
-  { id: 'twitch', label: 'Twitch連携' },
-  { id: 'system', label: 'システム' },
-  { id: 'logs', label: 'ログ' },
+const NAV_ITEMS: NavItem[] = [
+  { id: 'character', label: 'キャラクター' },
+  { id: 'mic', label: 'マイク・入力' },
+  { id: 'integration', label: '連携' },
+  { id: 'advanced', label: '詳細設定', advanced: true },
+  { id: 'developer', label: '開発者', advanced: true },
 ];
 
 export const Settings: React.FC = () => {
@@ -34,13 +30,32 @@ export const Settings: React.FC = () => {
   } = useSettingsState(null);
 
   const [defaultSettings, setDefaultSettings] = useState<ParceraSettings | null>(null);
-  const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({ message: '', type: '' });
-  const [activeTab, setActiveTab] = useState('profile');
+  const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | '' }>({
+    message: '',
+    type: '',
+  });
+  const [activeSection, setActiveSection] = useState('character');
 
   useEffect(() => {
     window.electronAPI.getSettings().then(setSettings);
     window.electronAPI.getDefaultSettings().then(setDefaultSettings);
   }, [setSettings]);
+
+  const handleRestoreDefaults = useCallback(() => {
+    const label = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? activeSection;
+    if (!window.confirm(`「${label}」セクションの設定を初期値に戻しますか？\n（「保存する」を押すまで確定しません）`)) return;
+    if (!defaultSettings) {
+      setStatus({ message: 'エラー: 初期値を取得できませんでした', type: 'error' });
+      return;
+    }
+    setSettings((prev: ParceraSettings | null) => {
+      if (!prev) return prev;
+      const patch = getDefaultsForTab(activeSection, defaultSettings, prev);
+      return patch ? { ...prev, ...patch } : prev;
+    });
+    setStatus({ message: '初期値をロードしました（保存で確定）', type: 'success' });
+    setTimeout(() => setStatus({ message: '', type: '' }), 5000);
+  }, [activeSection, defaultSettings, setSettings]);
 
   const handleSave = useCallback(async () => {
     if (!settings) return;
@@ -54,36 +69,9 @@ export const Settings: React.FC = () => {
     }
   }, [settings]);
 
-  const handleRestoreDefaults = useCallback(() => {
-    const tabLabel = TABS.find((t) => t.id === activeTab)?.label;
-    if (!window.confirm(`「${tabLabel}」のタブ設定を初期値に戻しますか？\n(「保存する」を押すまで確定しません)`)) return;
-
-    if (!defaultSettings) {
-      setStatus({ message: 'エラー: 初期値を取得できませんでした', type: 'error' });
-      return;
-    }
-
-    setSettings((prev: ParceraSettings | null) => {
-      if (!prev) return prev;
-      const patch = getDefaultsForTab(activeTab, defaultSettings, prev);
-      return patch ? { ...prev, ...patch } : prev;
-    });
-
-    setStatus({ message: '初期値をロードしました。(保存を押すと確定します)', type: 'success' });
-    setTimeout(() => setStatus({ message: '', type: '' }), 5000);
-  }, [activeTab, defaultSettings, setSettings]);
-
-  const renderTabHeader = useCallback(
-    (title: string) => <TabHeader title={title} onRestoreDefaults={handleRestoreDefaults} />,
-    [handleRestoreDefaults]
-  );
-
   const handleSelectDir = useCallback(
     async (key: 'user' | 'ai') => {
       if (!settings) return;
-      // The type of `key` is already 'user' | 'ai', so the `typeof key === 'string' && (key === 'user' || key === 'ai')` check is redundant.
-      // The casting `as import('../../../shared/types').AvatarConfig` is also removed as per instruction to remove casting logic.
-      // Assuming `settings.avatars` is typed correctly to allow direct access via `key`.
       const current = settings.avatars?.[key]?.assets_dir;
       const result = await window.electronAPI.selectDirectory(current);
       if (result) {
@@ -93,68 +81,81 @@ export const Settings: React.FC = () => {
     [settings, updateNested]
   );
 
-  if (!settings) return <div style={{ color: 'white', padding: 20 }}>ローディング中...</div>;
+  if (!settings) return <div className="text-foreground p-5">ローディング中...</div>;
 
-  const tabProps = {
+  const sectionProps = {
     settings,
     defaultSettings: defaultSettings || undefined,
     updateRoot,
     updateNested,
     updateProvider,
+    updateTTSSettings,
     setStatus,
-    renderTabHeader,
+    handleSelectDir,
+  };
+
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'character':
+        return <CharacterSection {...sectionProps} />;
+      case 'mic':
+        return <MicInputSection {...sectionProps} />;
+      case 'integration':
+        return <IntegrationSection {...sectionProps} />;
+      case 'advanced':
+        return <AdvancedSection {...sectionProps} />;
+      case 'developer':
+        return <DeveloperSection {...sectionProps} />;
+      default:
+        return <CharacterSection {...sectionProps} />;
+    }
   };
 
   return (
-    <div className="settings-window">
-      <h1 className="settings-header">Parcera 設定</h1>
-
-      <div className="settings-layout">
-        {/* Sidebar Tabs */}
-        <div className="settings-sidebar">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`settings-tab-button ${activeTab === tab.id ? 'active' : ''}`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content Area */}
-        <div className="settings-content">
-          {activeTab === 'profile' && <AIProfileTab {...tabProps} />}
-          {activeTab === 'llm' && <LLMTab {...tabProps} />}
-          {activeTab === 'stt' && <STTTab {...tabProps} />}
-          {activeTab === 'tts' && <TTSTab {...tabProps} updateTTSSettings={updateTTSSettings} />}
-          {activeTab === 'visual' && <VisualTab {...tabProps} handleSelectDir={handleSelectDir} />}
-          {activeTab === 'twitch' && <TwitchTab {...tabProps} />}
-          {activeTab === 'system' && <SystemTab {...tabProps} />}
-          {activeTab === 'logs' && <LogTab />}
-        </div>
+    <div className="flex flex-col h-screen w-full bg-background text-foreground overflow-hidden">
+      {/* Main content with sidebar */}
+      <div className="flex-1 overflow-hidden">
+        <SidebarLayout
+          sidebar={
+            <SidebarNav
+              items={NAV_ITEMS}
+              activeId={activeSection}
+              onSelect={setActiveSection}
+            />
+          }
+        >
+          {renderSection()}
+        </SidebarLayout>
       </div>
 
-      {/* Action Bar */}
-      <div className="settings-footer">
+      {/* Footer action bar */}
+      <div className="flex items-center gap-3 px-6 py-3 border-t border-border bg-card shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={handleRestoreDefaults}
+        >
+          このセクションをリセット
+        </Button>
+        <div className="flex-1" />
         {status.message && (
-          <span className={`settings-status ${status.type}`}>
+          <span
+            className={
+              status.type === 'success'
+                ? 'text-sm text-green-400'
+                : status.type === 'error'
+                ? 'text-sm text-red-400'
+                : 'text-sm text-muted-foreground'
+            }
+          >
             {status.message}
           </span>
         )}
-        <button
-          onClick={() => window.electronAPI.closeWindow()}
-          className="btn btn-secondary"
-        >
+        <Button variant="outline" onClick={() => window.electronAPI.closeWindow()}>
           閉じる
-        </button>
-        <button
-          onClick={handleSave}
-          className="btn btn-primary"
-        >
-          保存する
-        </button>
+        </Button>
+        <Button onClick={handleSave}>保存する</Button>
       </div>
     </div>
   );

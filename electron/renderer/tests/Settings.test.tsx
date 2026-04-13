@@ -1,34 +1,49 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Settings } from '../components/Settings';
+import { createBaseMockElectron } from './helpers/mockElectron';
 
-// Setup Electron Mock BEFORE any imports that might use it
 const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  saveSettings: vi.fn(),
-  selectDirectory: vi.fn(),
-  resolveLocalPath: vi.fn((p) => `file://${p}`),
-  getDefaultSettings: vi.fn(),
-  getAvatarWindowBounds: vi.fn(),
-  getLogHistory: vi.fn().mockResolvedValue([]),
+  ...createBaseMockElectron(),
+  twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
+  twitchStartAuth: vi.fn().mockResolvedValue({}),
+  twitchClearAuth: vi.fn().mockResolvedValue({}),
+  onTwitchAuthStatus: vi.fn(() => vi.fn()),
 };
 (window as any).electronAPI = mockElectron;
-vi.stubGlobal('electronAPI', mockElectron);
 
-// Mock fetch
+Object.defineProperty(global.navigator, 'mediaDevices', {
+  value: {
+    enumerateDevices: vi.fn().mockResolvedValue([]),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  },
+  configurable: true,
+});
+
 global.fetch = vi.fn().mockResolvedValue({
-  json: async () => ({ success: true })
+  ok: true,
+  json: async () => [],
 } as any);
 
 const dummySettings = {
   verbose: false,
-  avatars: { user: { assets_dir: '' }, ai: { assets_dir: '' } },
-  llm: { provider: 'gemini', providers: { gemini: {} } },
-  stt: { provider: 'faster_whisper', providers: { faster_whisper: {} } },
-  tts: { provider: 'voicevox', providers: { voicevox: {} } },
-  electron: { port: 8676, windows: { user: {}, ai: {} } }
+  log_level: 'INFO',
+  simple_log: false,
+  profile_mode: false,
+  avatars: { user: { assets_dir: '' }, ai: { assets_dir: '' }, show_debug: false },
+  llm: { provider: 'gemini', providers: { gemini: { temperature: 0.7 }, openai: {}, local: {} } },
+  stt: { provider: 'faster_whisper', ignore_sentences: [], providers: { faster_whisper: {}, google: {}, azure: {} } },
+  tts: {
+    provider: 'aivisspeech',
+    settings: { speedScale: 1.0, intonationScale: 1.0, pitchScale: 0, volumeScale: 1.0 },
+    providers: { aivisspeech: { api_url: 'http://127.0.0.1:10101' }, voicevox: {}, google: {} },
+  },
+  vad: { volume_db_threshold: -20, silence_duration_threshold: 0.8, max_duration: 30, start_muted: false },
+  electron: { port: 8676, windows: { user: {}, ai: {} }, ai_audio_sample_rate: 16000, gpu_acceleration: true },
+  twitch: { enabled: false },
+  knowledge: '',
 };
 
 describe('Settings Integration Test', () => {
@@ -40,40 +55,28 @@ describe('Settings Integration Test', () => {
 
   it('renders settings after loading', async () => {
     render(<Settings />);
-
-    // Wait for loading to finish and check for the title
     await waitFor(() => {
       expect(screen.queryByText(/ローディング/)).not.toBeInTheDocument();
-      expect(screen.getByText(/Parcera 設定/)).toBeInTheDocument();
+      expect(screen.getByText('キャラクター')).toBeInTheDocument();
     }, { timeout: 4000 });
   });
 
-  it('can click a tab and see content', async () => {
+  it('can click sidebar nav and see content', async () => {
     render(<Settings />);
+    await waitFor(() => expect(screen.queryByText(/ローディング/)).not.toBeInTheDocument());
 
+    fireEvent.click(screen.getByText('マイク・入力'));
     await waitFor(() => {
-      expect(screen.queryByText(/ローディング/)).not.toBeInTheDocument();
-    });
-
-    const tab = screen.getByText(/アバター設定/);
-    fireEvent.click(tab);
-
-    await waitFor(() => {
-      expect(screen.getByText(/アバター画像・透過設定/)).toBeInTheDocument();
+      expect(screen.getByText('感度')).toBeInTheDocument();
     });
   });
 
   it('calls saveSettings when save button is clicked', async () => {
     mockElectron.saveSettings.mockResolvedValue({ success: true });
     render(<Settings />);
+    await waitFor(() => expect(screen.queryByText(/ローディング/)).not.toBeInTheDocument());
 
-    await waitFor(() => {
-      expect(screen.queryByText(/ローディング/)).not.toBeInTheDocument();
-    });
-
-    const saveButton = screen.getByText(/保存する/);
-    fireEvent.click(saveButton);
-
+    fireEvent.click(screen.getByText('保存する'));
     await waitFor(() => {
       expect(mockElectron.saveSettings).toHaveBeenCalled();
       expect(screen.getByText(/設定を保存しました/)).toBeInTheDocument();

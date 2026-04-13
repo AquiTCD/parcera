@@ -458,7 +458,7 @@ function createSettingsWindow() {
 
   const settings = loadSettings();
   const win = new BrowserWindow({
-    width: 600,
+    width: 880,
     height: 800,
     title: 'Parcera Settings',
     webPreferences: {
