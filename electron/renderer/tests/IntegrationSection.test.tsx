@@ -3,11 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { IntegrationSection } from '../components/sections/IntegrationSection';
+import { createBaseMockElectron } from './helpers/mockElectron';
 
 const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  saveSettings: vi.fn(),
+  ...createBaseMockElectron(),
   getTwitchStatus: vi.fn().mockResolvedValue({ session_id: null }),
   twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
   twitchStartAuth: vi.fn().mockResolvedValue({}),

@@ -3,17 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { CharacterSection } from '../components/sections/CharacterSection';
+import { createBaseMockElectron } from './helpers/mockElectron';
 
-const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  saveSettings: vi.fn(),
-  selectDirectory: vi.fn(),
-  resolveLocalPath: vi.fn((p: string) => `file://${p}`),
-  getDefaultSettings: vi.fn(),
-  getAvatarWindowBounds: vi.fn(),
-  getLogHistory: vi.fn().mockResolvedValue([]),
-};
+const mockElectron = { ...createBaseMockElectron() };
 (window as any).electronAPI = mockElectron;
 
 global.fetch = vi.fn().mockResolvedValue({

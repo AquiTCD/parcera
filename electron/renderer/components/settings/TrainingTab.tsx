@@ -25,6 +25,15 @@ interface TrainingStats {
   is_training: boolean;
 }
 
+interface TrainingStatus {
+  status: 'idle' | 'starting' | 'running' | 'completed' | 'failed';
+  progress: number;
+  current_iter: number;
+  total_iters: number;
+  loss: number | null;
+  error: string | null;
+}
+
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'success' | 'warning'> = {
   ok: 'success',
   correction: 'warning',
@@ -43,15 +52,13 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [trainingStatus, setTrainingStatus] = useState<any>(null);
+  const [trainingStatus, setTrainingStatus] = useState<TrainingStatus | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
   const [tempProfileName, setTempProfileName] = useState('');
   const [lastActionTime, setLastActionTime] = useState(0);
 
   const port = settings.electron?.port || 8676;
   const baseUrl = `http://127.0.0.1:${port}/training`;
-
-  const fetchProfiles = useCallback(async () => {}, []);
 
   const fetchPairs = useCallback(async () => {
     try {
@@ -62,13 +69,12 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
       const statsRes = await fetch(`${baseUrl}/stats?profile=${currentProfile}`);
       const statsData = await statsRes.json();
       setStats(statsData);
-      fetchProfiles();
     } catch (e) {
       console.error('Failed to fetch data:', e);
     } finally {
       setLoading(false);
     }
-  }, [baseUrl, currentProfile, fetchProfiles]);
+  }, [baseUrl, currentProfile]);
 
   useEffect(() => { fetchPairs(); }, [fetchPairs]);
 

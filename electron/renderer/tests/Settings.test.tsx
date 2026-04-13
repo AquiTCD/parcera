@@ -2,22 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Settings } from '../components/Settings';
+import { createBaseMockElectron } from './helpers/mockElectron';
 
 const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  saveSettings: vi.fn(),
-  selectDirectory: vi.fn(),
-  resolveLocalPath: vi.fn((p: string) => `file://${p}`),
-  getDefaultSettings: vi.fn(),
-  getAvatarWindowBounds: vi.fn(),
-  getLogHistory: vi.fn().mockResolvedValue([]),
-  onLogMessage: vi.fn(() => vi.fn()),
+  ...createBaseMockElectron(),
   twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
   twitchStartAuth: vi.fn().mockResolvedValue({}),
   twitchClearAuth: vi.fn().mockResolvedValue({}),
   onTwitchAuthStatus: vi.fn(() => vi.fn()),
-  closeWindow: vi.fn(),
 };
 (window as any).electronAPI = mockElectron;
 

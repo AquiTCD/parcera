@@ -3,14 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { DeveloperSection } from '../components/sections/DeveloperSection';
+import { createBaseMockElectron } from './helpers/mockElectron';
 
-const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  saveSettings: vi.fn(),
-  getLogHistory: vi.fn().mockResolvedValue([]),
-  onLogMessage: vi.fn(() => vi.fn()),
-};
+const mockElectron = { ...createBaseMockElectron() };
 (window as any).electronAPI = mockElectron;
 
 const dummySettings = {

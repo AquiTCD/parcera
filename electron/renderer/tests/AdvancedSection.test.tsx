@@ -3,12 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { AdvancedSection } from '../components/sections/AdvancedSection';
+import { createBaseMockElectron } from './helpers/mockElectron';
 
-const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  saveSettings: vi.fn(),
-};
+const mockElectron = { ...createBaseMockElectron() };
 (window as any).electronAPI = mockElectron;
 
 global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] } as any);

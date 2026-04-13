@@ -4,9 +4,13 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Slider } from '../ui/slider';
 
-export const FieldRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+export const FieldRow: React.FC<{
+  label: string;
+  htmlFor?: string;
+  children: React.ReactNode;
+}> = ({ label, htmlFor, children }) => (
   <div className="space-y-1.5">
-    <Label className="text-sm font-medium">{label}</Label>
+    <Label htmlFor={htmlFor} className="text-sm font-medium">{label}</Label>
     {children}
   </div>
 );

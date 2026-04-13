@@ -4,16 +4,9 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { MicInputSection } from '../components/sections/MicInputSection';
 
-const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  saveSettings: vi.fn(),
-  selectDirectory: vi.fn(),
-  resolveLocalPath: vi.fn((p: string) => `file://${p}`),
-  getDefaultSettings: vi.fn(),
-  getAvatarWindowBounds: vi.fn(),
-  getLogHistory: vi.fn().mockResolvedValue([]),
-};
+import { createBaseMockElectron } from './helpers/mockElectron';
+
+const mockElectron = { ...createBaseMockElectron() };
 (window as any).electronAPI = mockElectron;
 
 // jsdom doesn't have mediaDevices — mock it
