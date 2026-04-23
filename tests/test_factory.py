@@ -18,11 +18,12 @@ def test_build_stt_faster_whisper_default():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
-        factory.build_stt()
-        _, kwargs = mock_recognizer.call_args
-        assert kwargs["device"] == "cpu"
-        assert kwargs["compute_type"] == "int8"
+    with patch("src.core.factory.is_installed", return_value=True):
+        with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
+            factory.build_stt()
+            _, kwargs = mock_recognizer.call_args
+            assert kwargs["device"] == "cpu"
+            assert kwargs["compute_type"] == "int8"
 
 def test_build_stt_mps_safety_check():
     config = MagicMock()
@@ -40,11 +41,12 @@ def test_build_stt_mps_safety_check():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
-        factory.build_stt()
-        _, kwargs = mock_recognizer.call_args
-        assert kwargs["device"] == "cpu"
-        assert kwargs["compute_type"] == "int8"
+    with patch("src.core.factory.is_installed", return_value=True):
+        with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
+            factory.build_stt()
+            _, kwargs = mock_recognizer.call_args
+            assert kwargs["device"] == "cpu"
+            assert kwargs["compute_type"] == "int8"
 
 def test_build_stt_mps_fallback():
     config = MagicMock()
@@ -62,11 +64,12 @@ def test_build_stt_mps_fallback():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
-        # First call fails, should NOT retry now because we already forced CPU in build_stt
-        mock_recognizer.side_effect = Exception("Model Error")
-        factory.build_stt()
-        assert mock_recognizer.call_count == 1
+    with patch("src.core.factory.is_installed", return_value=True):
+        with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
+            # First call fails, should NOT retry now because we already forced CPU in build_stt
+            mock_recognizer.side_effect = Exception("Model Error")
+            factory.build_stt()
+            assert mock_recognizer.call_count == 1
 
 def test_build_llm_gemini():
     config = MagicMock()
@@ -109,11 +112,12 @@ def test_build_stt_moonshine():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("core.stt.MoonshineRecognizer") as MockMoon:
-        factory.build_stt()
-        _, kwargs = MockMoon.call_args
-        assert kwargs["model_name"] == "base-ja"
-        assert kwargs["flags"] == 3
+    with patch("src.core.factory.is_installed", return_value=True):
+        with patch("core.stt.MoonshineRecognizer") as MockMoon:
+            factory.build_stt()
+            _, kwargs = MockMoon.call_args
+            assert kwargs["model_name"] == "base-ja"
+            assert kwargs["flags"] == 3
 
 def test_build_stt_google():
     config = MagicMock()
@@ -132,6 +136,43 @@ def test_build_tts_voicevox():
     with patch("src.core.factory.FineTunedVoicevoxTTS") as MockVV:
         factory.build_tts()
         MockVV.assert_called_once()
+
+def test_build_stt_faster_whisper_falls_back_when_not_installed():
+    config = MagicMock()
+    config.verbose = False
+    settings = {
+        "response_sensitivity": "medium",
+        "stt": {
+            "provider": "faster_whisper",
+            "providers": {"faster_whisper": {"device": "cpu", "compute_type": "int8"}}
+        },
+    }
+    config.get.side_effect = lambda k, d=None: settings.get(k, d)
+
+    factory = ParceraComponentFactory(config)
+    with patch("src.core.factory.is_installed", return_value=False):
+        from core.stt import NoOpRecognizer
+        from core.wrappers import ParceraSTTWrapper
+        result = factory.build_stt()
+        assert isinstance(result.wrapped, NoOpRecognizer)
+
+
+def test_build_stt_moonshine_falls_back_when_not_installed():
+    config = MagicMock()
+    settings = {
+        "stt": {
+            "provider": "moonshine",
+            "providers": {"moonshine": {"model": "base-ja", "flags": 0}}
+        },
+    }
+    config.get.side_effect = lambda k, d=None: settings.get(k, d)
+
+    factory = ParceraComponentFactory(config)
+    with patch("src.core.factory.is_installed", return_value=False):
+        from core.stt import NoOpRecognizer
+        result = factory.build_stt()
+        assert isinstance(result.wrapped, NoOpRecognizer)
+
 
 def test_build_vad():
     config = MagicMock()
