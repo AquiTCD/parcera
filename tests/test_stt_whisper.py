@@ -6,7 +6,7 @@ from src.core.stt import KotobaWhisperRecognizer
 
 @pytest.fixture
 def mock_whisper():
-    with patch("src.core.stt.WhisperModel") as MockModel:
+    with patch("faster_whisper.WhisperModel") as MockModel:
         model_instance = MockModel.return_value
         # Mock transcribe to return an iterator of segments
         segment = MagicMock()

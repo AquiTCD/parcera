@@ -3,10 +3,7 @@ import asyncio
 import numpy as np
 import logging
 import abc
-from faster_whisper import WhisperModel
-import moonshine_voice
 from typing import Optional
-from moonshine_voice.moonshine_api import ModelArch
 from aiavatar.sts.stt import SpeechRecognizer
 from aiavatar.sts.stt.base import SpeechRecognitionResult
 
@@ -99,6 +96,7 @@ class KotobaWhisperRecognizer(LocalSpeechRecognizer):
         debug=False
     ):
         super().__init__(debug=debug)
+        from faster_whisper import WhisperModel  # lazy: only loaded when faster_whisper is selected
         self.on_recognized_callback = on_recognized_callback
         self.model_name = model_name
         self.whisper_vad_filter = whisper_vad_filter
@@ -136,25 +134,21 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         debug=False
     ):
         super().__init__(debug=debug)
+        import moonshine_voice                                  # lazy: only loaded when moonshine is selected
+        from moonshine_voice.moonshine_api import ModelArch    # lazy
         self.on_recognized_callback = on_recognized_callback
         self.model_name = model_name
-        
-        # Map string model name to enum if available
+
         arch = ModelArch.TINY
         if "base" in model_name.lower():
             arch = ModelArch.BASE
-        
+
         logger.info(f"Loading Moonshine model: {arch.name}...")
 
-        # In Parcera, we strictly separate download and load.
-        # But for Moonshine, get_model_for_language is fast if files exist.
         model_path, model_arch = moonshine_voice.get_model_for_language("ja", wanted_model_arch=arch)
-        
-        # Verify it actually exists (avoiding automatic download if not intended,
-        # though get_model_for_language might trigger it if not careful.
-        # Let's check it manually like in check_model_cached)
+
         if not os.path.exists(model_path):
-             raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
+            raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
 
         self.transcriber = moonshine_voice.Transcriber(model_path, model_arch)
         self.flags = flags
