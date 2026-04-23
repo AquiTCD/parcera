@@ -6,31 +6,47 @@ import { PasswordSetting } from './controls/PasswordSetting';
 import { SelectSetting } from './controls/SelectSetting';
 import { SettingGroup } from './controls/SettingGroup';
 import { useModelDownloader, ModelDownloaderUI } from './controls/ModelDownloader';
+import { useOptionalPackageInstaller, OptionalPackageInstallerUI } from './controls/OptionalPackageInstaller';
 
 type FasterWhisperProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
 type MoonshineProps = Pick<TabProps, 'settings' | 'defaultSettings' | 'updateProvider' | 'updateNested'>;
 
 const MoonshineSection: React.FC<MoonshineProps> = ({ settings, defaultSettings, updateProvider, updateNested }) => {
   const port = settings.electron?.port || 8676;
+  const { status: pkgStatus, progress: pkgProgress, errorMsg: pkgErrorMsg, handleInstall } =
+    useOptionalPackageInstaller('moonshine', port);
   const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader('base-ja', port);
 
   return (
     <div className="setting-card">
       <h3 className="setting-card-title">Moonshine 設定</h3>
 
-      <div style={{ marginBottom: '15px', padding: '12px', background: '#1e1e1e', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#888' }}>モデルサイズ</span>
-        <span style={{ fontWeight: 600, color: '#4fc1ff' }}>Base-ja</span>
-      </div>
+      {pkgStatus !== 'installed' ? (
+        <OptionalPackageInstallerUI
+          status={pkgStatus}
+          progress={pkgProgress}
+          errorMsg={pkgErrorMsg}
+          onInstall={handleInstall}
+          sizeMb={120}
+          description="Moonshine を使用するには追加ライブラリが必要です"
+        />
+      ) : (
+        <>
+          <div style={{ marginBottom: '15px', padding: '12px', background: '#1e1e1e', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#888' }}>モデルサイズ</span>
+            <span style={{ fontWeight: 600, color: '#4fc1ff' }}>Base-ja</span>
+          </div>
 
-      <ModelDownloaderUI
-        status={modelStatus}
-        progress={progress}
-        progressDetail={progressDetail}
-        errorMsg={errorMsg}
-        onDownload={handleDownload}
-        notCachedDescription="Moonshine を使用するにはモデルのダウンロードが必要です"
-      />
+          <ModelDownloaderUI
+            status={modelStatus}
+            progress={progress}
+            progressDetail={progressDetail}
+            errorMsg={errorMsg}
+            onDownload={handleDownload}
+            notCachedDescription="Moonshine を使用するにはモデルのダウンロードが必要です"
+          />
+        </>
+      )}
 
       {/* Flags input hidden based on user request to simplify UI */}
     </div>
@@ -43,85 +59,100 @@ const FasterWhisperSection: React.FC<FasterWhisperProps> = ({ settings, defaultS
     || 'longisland3/kotoba-whisper-v2.2-faster';
   const port = settings.electron?.port || 8676;
 
+  const { status: pkgStatus, progress: pkgProgress, errorMsg: pkgErrorMsg, handleInstall } =
+    useOptionalPackageInstaller('faster_whisper', port);
   const { modelStatus, progress, progressDetail, errorMsg, handleDownload } = useModelDownloader(modelName, port);
 
   return (
     <div className="setting-card">
       <h3 className="setting-card-title">Faster Whisper 設定</h3>
 
-      <InputSetting
-        label="モデル (HuggingFace形式)"
-        defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.model}
-        value={(settings.stt?.providers?.faster_whisper )?.model}
-        onChange={(val) => {
-          updateProvider('stt', 'faster_whisper', 'model', val);
-        }}
-      />
-
-      {/* Model download status */}
-      <ModelDownloaderUI
-        status={modelStatus}
-        progress={progress}
-        progressDetail={progressDetail}
-        errorMsg={errorMsg}
-        onDownload={handleDownload}
-        notCachedDescription="Faster Whisper を使用するにはモデルのダウンロードが必要です（約1.5GB）"
-      />
-
-      {/* Settings only shown when model is ready */}
-      {modelStatus === 'ready' && (
+      {pkgStatus !== 'installed' ? (
+        <OptionalPackageInstallerUI
+          status={pkgStatus}
+          progress={pkgProgress}
+          errorMsg={pkgErrorMsg}
+          onInstall={handleInstall}
+          sizeMb={200}
+          description="Faster Whisper を使用するには追加ライブラリが必要です"
+        />
+      ) : (
         <>
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
-            <div style={{ flex: 1 }}>
-              <SelectSetting
-                label="演算デバイス"
-                value={(settings.stt?.providers?.faster_whisper )?.device ?? (defaultSettings?.stt?.providers?.faster_whisper )?.device ?? 'auto'}
-                onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
-                options={[
-                  { value: 'auto', label: 'Auto' },
-                  { value: 'cpu', label: 'CPU' },
-                  { value: 'cuda', label: 'CUDA (NVIDIA GPU)' }
-                ]}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <SelectSetting
-                label="量子化"
-                value={(settings.stt?.providers?.faster_whisper )?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper )?.compute_type ?? 'default'}
-                onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
-                options={[
-                  { value: 'default', label: 'デフォルト' },
-                  { value: 'int8', label: 'int8 (推奨 / 軽量)' },
-                  { value: 'float16', label: 'float16 (高精度GPU用)' }
-                ]}
-              />
-            </div>
-          </div>
-          <CheckboxSetting
-            label="Whisper内蔵VADを使用"
-            description="長文向けの設定（短文が無視されるリスクがあります）"
-            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.whisper_vad_filter}
-            checked={(settings.stt?.providers?.faster_whisper )?.whisper_vad_filter}
-            onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
+          <InputSetting
+            label="モデル (HuggingFace形式)"
+            defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.model}
+            value={(settings.stt?.providers?.faster_whisper )?.model}
+            onChange={(val) => {
+              updateProvider('stt', 'faster_whisper', 'model', val);
+            }}
           />
 
-          <div style={{ marginTop: '15px' }}>
-            <InputSetting
-              label="Whisper 認識強化辞書"
-              description="認識させたいテクニカルワードをカンマ区切りで入力します。AI名や強制応答キーワードと自動的に統合されます。"
-              type="text"
-              defaultValue={defaultSettings?.stt?.dictionary?.specific_keywords?.join(', ')}
-              value={settings.stt?.dictionary?.specific_keywords?.join(', ')}
-              onChange={(val) => {
-                const words = typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [];
-                if (!settings.stt?.dictionary) {
-                  updateNested('stt', 'dictionary', { specific_keywords: words });
-                } else {
-                  updateNested('stt', 'dictionary', { ...settings.stt.dictionary, specific_keywords: words });
-                }
-              }}
-            />
-          </div>
+          {/* Model download status */}
+          <ModelDownloaderUI
+            status={modelStatus}
+            progress={progress}
+            progressDetail={progressDetail}
+            errorMsg={errorMsg}
+            onDownload={handleDownload}
+            notCachedDescription="Faster Whisper を使用するにはモデルのダウンロードが必要です（約1.5GB）"
+          />
+
+          {/* Settings only shown when model is ready */}
+          {modelStatus === 'ready' && (
+            <>
+              <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                <div style={{ flex: 1 }}>
+                  <SelectSetting
+                    label="演算デバイス"
+                    value={(settings.stt?.providers?.faster_whisper )?.device ?? (defaultSettings?.stt?.providers?.faster_whisper )?.device ?? 'auto'}
+                    onChange={(val) => updateProvider('stt', 'faster_whisper', 'device', val)}
+                    options={[
+                      { value: 'auto', label: 'Auto' },
+                      { value: 'cpu', label: 'CPU' },
+                      { value: 'cuda', label: 'CUDA (NVIDIA GPU)' }
+                    ]}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <SelectSetting
+                    label="量子化"
+                    value={(settings.stt?.providers?.faster_whisper )?.compute_type ?? (defaultSettings?.stt?.providers?.faster_whisper )?.compute_type ?? 'default'}
+                    onChange={(val) => updateProvider('stt', 'faster_whisper', 'compute_type', val)}
+                    options={[
+                      { value: 'default', label: 'デフォルト' },
+                      { value: 'int8', label: 'int8 (推奨 / 軽量)' },
+                      { value: 'float16', label: 'float16 (高精度GPU用)' }
+                    ]}
+                  />
+                </div>
+              </div>
+              <CheckboxSetting
+                label="Whisper内蔵VADを使用"
+                description="長文向けの設定（短文が無視されるリスクがあります）"
+                defaultValue={(defaultSettings?.stt?.providers?.faster_whisper )?.whisper_vad_filter}
+                checked={(settings.stt?.providers?.faster_whisper )?.whisper_vad_filter}
+                onChange={(checked) => updateProvider('stt', 'faster_whisper', 'whisper_vad_filter', checked)}
+              />
+
+              <div style={{ marginTop: '15px' }}>
+                <InputSetting
+                  label="Whisper 認識強化辞書"
+                  description="認識させたいテクニカルワードをカンマ区切りで入力します。AI名や強制応答キーワードと自動的に統合されます。"
+                  type="text"
+                  defaultValue={defaultSettings?.stt?.dictionary?.specific_keywords?.join(', ')}
+                  value={settings.stt?.dictionary?.specific_keywords?.join(', ')}
+                  onChange={(val) => {
+                    const words = typeof val === 'string' ? val.split(',').map(s => s.trim()).filter(s => s) : [];
+                    if (!settings.stt?.dictionary) {
+                      updateNested('stt', 'dictionary', { specific_keywords: words });
+                    } else {
+                      updateNested('stt', 'dictionary', { ...settings.stt.dictionary, specific_keywords: words });
+                    }
+                  }}
+                />
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

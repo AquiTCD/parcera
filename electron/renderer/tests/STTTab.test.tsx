@@ -4,13 +4,24 @@ import React from 'react';
 import { STTTab } from '../components/settings/STTTab';
 import type { ParceraSettings } from '../../shared/types';
 
-// Mock fetch for model check
-global.fetch = vi.fn().mockResolvedValue({
-  ok: true,
-  json: () => Promise.resolve({ cached: true })
+// Mock fetch — handles both /optional-packages/status and /health
+const mockPackageStatus = (installed: boolean) => ({
+  faster_whisper: { installed, size_mb: 200, install_dir: '/fake/fw' },
+  moonshine: { installed, size_mb: 120, install_dir: '/fake/ms' },
 });
 
-// Mock electronAPI.checkModelCached
+global.fetch = vi.fn().mockImplementation((url: string) => {
+  if ((url as string).includes('/optional-packages/status')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockPackageStatus(true)),
+    });
+  }
+  // /health for model downloader
+  return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+});
+
+// Mock electronAPI
 (window as any).electronAPI = {
   checkModelCached: vi.fn().mockResolvedValue(true),
   downloadModel: vi.fn(),
@@ -88,7 +99,6 @@ describe('STTTab', () => {
 
     expect(screen.getByText('使用するマイク')).toBeInTheDocument();
 
-    // Wait for devices to be fetched
     await waitFor(() => {
       const select = screen.getByLabelText('使用するマイク');
       expect(select).toBeInTheDocument();
@@ -145,5 +155,43 @@ describe('STTTab', () => {
 
     rerender(<STTTab {...props} settings={azureSettings} />);
     expect(screen.getByText('Azure STT 設定')).toBeInTheDocument();
+  });
+
+  it('shows install button when optional packages are not installed', async () => {
+    vi.mocked(global.fetch).mockImplementation((url: string) => {
+      if ((url as string).includes('/optional-packages/status')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockPackageStatus(false)),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+
+    render(<STTTab {...props} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('ライブラリをインストール')).toBeInTheDocument();
+    });
+
+    // Restore default mock
+    vi.mocked(global.fetch).mockImplementation((url: string) => {
+      if ((url as string).includes('/optional-packages/status')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockPackageStatus(true)) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+  });
+
+  it('shows model downloader when optional packages are installed', async () => {
+    render(<STTTab {...props} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Faster Whisper 設定')).toBeInTheDocument();
+    });
+
+    // With packages installed + model cached, ModelDownloaderUI renders nothing (ready state)
+    // But the section card itself should be visible
+    expect(screen.getByText('Faster Whisper 設定')).toBeInTheDocument();
   });
 });
