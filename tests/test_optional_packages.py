@@ -1,13 +1,15 @@
 import pytest
 import os
 import sys
-from unittest.mock import patch
+import subprocess
+from unittest.mock import patch, MagicMock
 
 from src.core.optional_packages import (
     OPTIONAL_PACKAGE_SETS,
     is_installed,
     get_install_dir,
     patch_sys_path,
+    install,
 )
 
 
@@ -85,3 +87,20 @@ def test_patch_sys_path_does_not_add_nonexistent_dirs(tmp_path):
         assert str(tmp_path / "nonexistent") not in sys.path
     finally:
         sys.path[:] = original_path
+
+
+def test_get_install_dir_unknown_provider_raises_value_error():
+    with pytest.raises(ValueError, match="Unknown provider"):
+        get_install_dir("nonexistent_provider")
+
+
+def test_install_unknown_provider_raises_value_error():
+    with pytest.raises(ValueError, match="Unknown provider"):
+        install("nonexistent_provider")
+
+
+def test_install_raises_runtime_error_on_timeout(tmp_path):
+    with patch("src.core.optional_packages.get_install_dir", return_value=str(tmp_path / "moonshine")):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=["pip"], timeout=300)):
+            with pytest.raises(RuntimeError, match="timed out"):
+                install("moonshine")

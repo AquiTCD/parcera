@@ -28,7 +28,12 @@ OPTIONAL_PACKAGE_SETS: dict = {
 }
 
 
+_INSTALL_TIMEOUT_SEC = 300
+
+
 def get_install_dir(provider: str) -> str:
+    if provider not in OPTIONAL_PACKAGE_SETS:
+        raise ValueError(f"Unknown provider: {provider!r}. Valid providers: {list(OPTIONAL_PACKAGE_SETS)}")
     pkg_set = OPTIONAL_PACKAGE_SETS[provider]
     return os.path.join(_APP_SUPPORT_BASE, pkg_set["install_dir"])
 
@@ -53,6 +58,8 @@ def install(
     provider: str,
     progress_callback: Optional[Callable[[dict], None]] = None,
 ) -> None:
+    if provider not in OPTIONAL_PACKAGE_SETS:
+        raise ValueError(f"Unknown provider: {provider!r}. Valid providers: {list(OPTIONAL_PACKAGE_SETS)}")
     pkg_set = OPTIONAL_PACKAGE_SETS[provider]
     install_dir = get_install_dir(provider)
     os.makedirs(install_dir, exist_ok=True)
@@ -72,7 +79,10 @@ def install(
     if progress_callback:
         progress_callback({"status": "installing", "progress": 0, "provider": provider})
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=_INSTALL_TIMEOUT_SEC)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"pip install timed out after {_INSTALL_TIMEOUT_SEC}s for {provider!r}")
 
     if result.returncode != 0:
         logger.error(f"optional-packages: install failed:\n{result.stderr}")
