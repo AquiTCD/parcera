@@ -21,6 +21,7 @@ from routers.tts_router import create_tts_router
 from routers.twitch_router import create_twitch_router
 from routers.model_router import create_model_router
 from routers.training_router import create_training_router
+from routers.optional_packages_router import create_optional_packages_router
 from services.twitch_service import TwitchService
 from services.training_service import TrainingService
 
@@ -218,6 +219,10 @@ class ParceraServer(ParceraAvatarBase):
 
 load_dotenv()
 load_dotenv(".env.config_path", override=True)
+
+from core.optional_packages import patch_sys_path
+patch_sys_path()  # Prepend optional-package dirs to sys.path before components are built
+
 parcera_server = ParceraServer()
 
 
@@ -316,6 +321,7 @@ app.include_router(create_tts_router(_get_server))
 app.include_router(create_twitch_router(_get_server))
 app.include_router(create_model_router(_get_server))
 app.include_router(create_training_router(_get_server))
+app.include_router(create_optional_packages_router())
 app.include_router(parcera_server.aiavatar_server.get_websocket_router())
 
 
