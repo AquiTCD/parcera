@@ -9,6 +9,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../ui/switch';
 import { TrainingTab } from '../settings/TrainingTab';
 import { useLLMModels } from '../../hooks/useLLMModels';
+import { useOptionalPackageInstaller, OptionalPackageInstallerUI } from '../settings/controls/OptionalPackageInstaller';
+
+const OPTIONAL_STT_PROVIDERS = ['moonshine', 'faster_whisper'] as const;
+type OptionalSTTProvider = typeof OPTIONAL_STT_PROVIDERS[number];
+
+const OPTIONAL_PACKAGE_META: Record<OptionalSTTProvider, { sizeMb: number; description: string }> = {
+  moonshine: { sizeMb: 120, description: 'Moonshine を使用するには追加ライブラリが必要です' },
+  faster_whisper: { sizeMb: 200, description: 'Faster Whisper を使用するには追加ライブラリが必要です' },
+};
+
+const OptionalPackageCheck: React.FC<{ provider: OptionalSTTProvider; port: number }> = ({ provider, port }) => {
+  const { status, progress, errorMsg, handleInstall } = useOptionalPackageInstaller(provider, port);
+  const { sizeMb, description } = OPTIONAL_PACKAGE_META[provider];
+  if (status === 'installed') return null;
+  return (
+    <OptionalPackageInstallerUI
+      status={status}
+      progress={progress}
+      errorMsg={errorMsg}
+      onInstall={handleInstall}
+      sizeMb={sizeMb}
+      description={description}
+    />
+  );
+};
 
 export const AdvancedSection: React.FC<SectionProps> = ({
   settings,
@@ -31,6 +56,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
 
   const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
+  const port = settings.electron?.port || 8676;
 
   return (
     <div className="space-y-6">
@@ -137,6 +163,13 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                 </SelectContent>
               </Select>
             </FieldRow>
+
+            {OPTIONAL_STT_PROVIDERS.includes(currentSTTProvider as OptionalSTTProvider) && (
+              <OptionalPackageCheck
+                provider={currentSTTProvider as OptionalSTTProvider}
+                port={port}
+              />
+            )}
 
             {currentSTTProvider === 'faster_whisper' && (
               <>
