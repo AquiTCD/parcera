@@ -1,27 +1,49 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Button } from '../../ui/button';
 
 export type PackageStatus = 'checking' | 'not_installed' | 'installing' | 'installed' | 'error';
+
+const MAX_STATUS_RETRIES = 10;
 
 export function useOptionalPackageInstaller(provider: string, port: number) {
   const [status, setStatus] = useState<PackageStatus>('checking');
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
+  const isMounted = useRef(true);
+  const retryCount = useRef(0);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   const checkInstalled = useCallback(async () => {
+    if (!isMounted.current) return;
     setStatus('checking');
     try {
       const res = await fetch(`http://127.0.0.1:${port}/optional-packages/status`);
       if (!res.ok) throw new Error('Server not ready');
       const data = await res.json();
-      setStatus(data[provider]?.installed ? 'installed' : 'not_installed');
+      retryCount.current = 0;
+      if (isMounted.current) {
+        setStatus(data[provider]?.installed ? 'installed' : 'not_installed');
+      }
     } catch {
-      setTimeout(() => checkInstalled(), 2000);
+      if (!isMounted.current) return;
+      retryCount.current += 1;
+      if (retryCount.current < MAX_STATUS_RETRIES) {
+        setTimeout(() => checkInstalled(), 2000);
+      } else {
+        setStatus('error');
+        setErrorMsg('サーバーに接続できません');
+      }
     }
   }, [provider, port]);
 
   useEffect(() => { checkInstalled(); }, [checkInstalled]);
 
   const handleInstall = useCallback(async () => {
+    if (!isMounted.current) return;
     setStatus('installing');
     setProgress(0);
     setErrorMsg('');
@@ -39,6 +61,7 @@ export function useOptionalPackageInstaller(provider: string, port: number) {
         for (const line of decoder.decode(value).split('\n')) {
           if (!line.startsWith('data: ')) continue;
           const event = JSON.parse(line.slice(6));
+          if (!isMounted.current) return;
           if (event.status === 'complete') {
             setStatus('installed');
             setProgress(100);
@@ -51,6 +74,7 @@ export function useOptionalPackageInstaller(provider: string, port: number) {
         }
       }
     } catch (err) {
+      if (!isMounted.current) return;
       setStatus('error');
       setErrorMsg(String(err));
     }
@@ -76,19 +100,9 @@ export const OptionalPackageInstallerUI: React.FC<OptionalPackageInstallerUIProp
   sizeMb,
   description,
 }) => {
-  const actionButtonStyle: React.CSSProperties = {
-    padding: '8px 20px',
-    background: '#0e639c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  };
-
   if (status === 'checking') {
     return (
-      <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px', color: '#888' }}>
+      <div className="rounded-md bg-muted p-3 mb-4 text-muted-foreground text-sm">
         ⏳ ライブラリの状態を確認中...
       </div>
     );
@@ -96,34 +110,31 @@ export const OptionalPackageInstallerUI: React.FC<OptionalPackageInstallerUIProp
 
   if (status === 'not_installed') {
     return (
-      <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-        <div style={{ color: '#e8a838', marginBottom: '10px' }}>
+      <div className="rounded-md bg-muted p-3 mb-4 space-y-2">
+        <div className="text-yellow-500 text-sm font-medium">
           ⚠️ ライブラリがインストールされていません
         </div>
-        <div style={{ color: '#888', fontSize: '12px', marginBottom: '10px' }}>
+        <div className="text-muted-foreground text-xs">
           {description}（約{sizeMb}MB）
         </div>
-        <button onClick={onInstall} style={actionButtonStyle}>
+        <Button variant="outline" size="sm" onClick={onInstall}>
           ライブラリをインストール
-        </button>
+        </Button>
       </div>
     );
   }
 
   if (status === 'installing') {
     return (
-      <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-        <div style={{ color: '#4fc1ff', marginBottom: '8px' }}>
+      <div className="rounded-md bg-muted p-3 mb-4 space-y-2">
+        <div className="text-blue-400 text-sm">
           📥 インストール中... {progress}%
         </div>
-        <div style={{ width: '100%', height: '8px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{
-            width: `${progress}%`,
-            height: '100%',
-            background: 'linear-gradient(90deg, #0e639c, #4fc1ff)',
-            borderRadius: '4px',
-            transition: 'width 0.3s ease',
-          }} />
+        <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500 rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
     );
@@ -131,9 +142,9 @@ export const OptionalPackageInstallerUI: React.FC<OptionalPackageInstallerUIProp
 
   if (status === 'error') {
     return (
-      <div style={{ padding: '12px', background: '#1e1e1e', borderRadius: '6px', marginBottom: '15px' }}>
-        <div style={{ color: '#f44747', marginBottom: '10px' }}>❌ {errorMsg}</div>
-        <button onClick={onInstall} style={actionButtonStyle}>リトライ</button>
+      <div className="rounded-md bg-muted p-3 mb-4 space-y-2">
+        <div className="text-destructive text-sm">❌ {errorMsg}</div>
+        <Button variant="outline" size="sm" onClick={onInstall}>リトライ</Button>
       </div>
     );
   }

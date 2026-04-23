@@ -163,7 +163,7 @@ class ParceraComponentFactory:
                         debug=self.config.verbose
                     )
                 except Exception as e:
-                    logger.error(f"STT: Failed to load Moonshine model: {e}")
+                    logger.warning(f"STT: Failed to load Moonshine model: {e}")
                     recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
 
         elif provider == "google":
