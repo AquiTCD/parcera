@@ -18,7 +18,7 @@ def test_build_stt_faster_whisper_default():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("src.core.factory.KotobaWhisperRecognizer") as mock_recognizer:
+    with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
         factory.build_stt()
         _, kwargs = mock_recognizer.call_args
         assert kwargs["device"] == "cpu"
@@ -40,7 +40,7 @@ def test_build_stt_mps_safety_check():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("src.core.factory.KotobaWhisperRecognizer") as mock_recognizer:
+    with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
         factory.build_stt()
         _, kwargs = mock_recognizer.call_args
         assert kwargs["device"] == "cpu"
@@ -62,7 +62,7 @@ def test_build_stt_mps_fallback():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("src.core.factory.KotobaWhisperRecognizer") as mock_recognizer:
+    with patch("core.stt.KotobaWhisperRecognizer") as mock_recognizer:
         # First call fails, should NOT retry now because we already forced CPU in build_stt
         mock_recognizer.side_effect = Exception("Model Error")
         factory.build_stt()
@@ -109,7 +109,7 @@ def test_build_stt_moonshine():
     config.get.side_effect = lambda k, d=None: settings.get(k, d)
 
     factory = ParceraComponentFactory(config)
-    with patch("src.core.factory.MoonshineRecognizer") as MockMoon:
+    with patch("core.stt.MoonshineRecognizer") as MockMoon:
         factory.build_stt()
         _, kwargs = MockMoon.call_args
         assert kwargs["model_name"] == "base-ja"

@@ -7,10 +7,9 @@ from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
 from core.config import ParceraConfig
-from core.stt import KotobaWhisperRecognizer, NoOpRecognizer, MoonshineRecognizer
+from core.stt import NoOpRecognizer
 from core.tts import FineTunedVoicevoxTTS
 from core.gemini import FixedGeminiService
-from core.local_llm import LocalLLMService
 from core.wrappers import ParceraLLMWrapper, ParceraSTTWrapper
 from core.filters import ResponseWeightFilter
 
@@ -66,6 +65,7 @@ class ParceraComponentFactory:
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
 
         elif provider == "local":
+            from core.local_llm import LocalLLMService  # lazy: only when local LLM is selected
             local_cfg = providers.get("local", {})
             model_name = local_cfg.get("model", "mlx-community/gemma-2-9b-it-4bit")
             adapter_path = local_cfg.get("adapter_path")
@@ -108,6 +108,7 @@ class ParceraComponentFactory:
         recognizer_instance = None
 
         if provider == "faster_whisper":
+            from core.stt import KotobaWhisperRecognizer  # lazy: only when faster_whisper is selected
             fw_cfg = providers.get("faster_whisper", {})
             vad_cfg = self.config.get("vad", {})
             whisper_vad_filter = fw_cfg.get("whisper_vad_filter", False)
@@ -137,6 +138,7 @@ class ParceraComponentFactory:
                 recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
 
         elif provider == "moonshine":
+            from core.stt import MoonshineRecognizer  # lazy: only when moonshine is selected
             ms_cfg = providers.get("moonshine", {})
             try:
                 recognizer_instance = MoonshineRecognizer(
