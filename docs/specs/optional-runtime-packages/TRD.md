@@ -59,15 +59,23 @@ OPTIONAL_PACKAGE_SETS = {
     "moonshine": {
         "packages": ["moonshine-voice"],
         "install_dir": "moonshine",
-        "size_mb": 114,
+        "install_with_deps": True,   # onnxruntime 等の C 拡張依存を含む
+        "size_mb": 120,
     },
     "faster_whisper": {
-        "packages": ["faster-whisper", "av", "transformers", "ctranslate2"],
+        # --no-deps でインストールする 4 パッケージを明示列挙
+        # huggingface-hub / tokenizers / tqdm はバンドル済みのため除外
+        # transformers は inference 不要（conversion extra のみ）
+        # onnxruntime は Requires-Dist に記載のある VAD (Silero) 用 C 拡張（TRD 初版から追加）
+        "packages": ["faster-whisper", "ctranslate2", "av", "onnxruntime"],
         "install_dir": "faster_whisper",
-        "size_mb": 170,
+        "install_with_deps": False,  # 純粋 Python 依存はバンドル済み
+        "size_mb": 200,
     },
 }
 ```
+
+> **Note:** `faster_whisper` の `Requires-Dist` を実測した結果、`transformers` は `[conversion]` extra にのみ含まれ推論時には不要。代わりに `onnxruntime>=1.14`（VAD 用 Silero ONNX ランタイム）が必須依存として存在するため追加。
 
 ## 3. 変更対象ファイル
 

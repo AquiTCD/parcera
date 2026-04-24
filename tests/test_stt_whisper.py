@@ -6,7 +6,7 @@ from src.core.stt import KotobaWhisperRecognizer
 
 @pytest.fixture
 def mock_whisper():
-    with patch("src.core.stt.WhisperModel") as MockModel:
+    with patch("faster_whisper.WhisperModel") as MockModel:
         model_instance = MockModel.return_value
         # Mock transcribe to return an iterator of segments
         segment = MagicMock()
@@ -36,3 +36,23 @@ async def test_stt_transcribe_concatenates_segments(stt):
 
     assert text == "こんにちはパルセラさん"
     assert stt.model.transcribe.called
+
+
+@pytest.mark.asyncio
+async def test_stt_transcribe_removes_jp_spaces(stt):
+    """Japanese text with spurious spaces (common Moonshine output) is cleaned up."""
+    s1 = MagicMock(); s1.text = "こんに ちは パルセラ さん"
+    stt.model.transcribe.return_value = ([s1], None)
+    fake_audio = np.zeros(1600, dtype=np.int16).tobytes()
+    text = await stt.transcribe(fake_audio, "s1")
+    assert text == "こんにちはパルセラさん"
+
+
+@pytest.mark.asyncio
+async def test_stt_transcribe_removes_jp_latin_spaces(stt):
+    """Spaces between Japanese and Latin (e.g. 'L LM') are collapsed."""
+    s1 = MagicMock(); s1.text = "これはLLM です"
+    stt.model.transcribe.return_value = ([s1], None)
+    fake_audio = np.zeros(1600, dtype=np.int16).tobytes()
+    text = await stt.transcribe(fake_audio, "s2")
+    assert text == "これはLLMです"

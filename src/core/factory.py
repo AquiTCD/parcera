@@ -7,10 +7,10 @@ from aiavatar.sts.stt.google import GoogleSpeechRecognizer
 from aiavatar.sts.stt.azure import AzureSpeechRecognizer
 from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
 from core.config import ParceraConfig
-from core.stt import KotobaWhisperRecognizer, NoOpRecognizer, MoonshineRecognizer
+from core.stt import NoOpRecognizer
+from core.optional_packages import is_installed
 from core.tts import FineTunedVoicevoxTTS
 from core.gemini import FixedGeminiService
-from core.local_llm import LocalLLMService
 from core.wrappers import ParceraLLMWrapper, ParceraSTTWrapper
 from core.filters import ResponseWeightFilter
 
@@ -66,6 +66,7 @@ class ParceraComponentFactory:
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
 
         elif provider == "local":
+            from core.local_llm import LocalLLMService  # lazy: only when local LLM is selected
             local_cfg = providers.get("local", {})
             model_name = local_cfg.get("model", "mlx-community/gemma-2-9b-it-4bit")
             adapter_path = local_cfg.get("adapter_path")
@@ -108,46 +109,62 @@ class ParceraComponentFactory:
         recognizer_instance = None
 
         if provider == "faster_whisper":
-            fw_cfg = providers.get("faster_whisper", {})
-            vad_cfg = self.config.get("vad", {})
-            whisper_vad_filter = fw_cfg.get("whisper_vad_filter", False)
-            device = fw_cfg.get("device", "cpu")
-            compute_type = fw_cfg.get("compute_type", "int8")
-
-            # CTranslate2 (faster-whisper backend) does not support 'mps'.
-            # Force to 'cpu' if someone has it set from an older config.
-            # Also reset compute_type since float16 (often paired with mps) is not supported on CPU.
-            if device == "mps":
-                logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
-                device = "cpu"
-                compute_type = "int8"
-
-            try:
-                recognizer_instance = KotobaWhisperRecognizer(
-                    model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
-                    device=device,
-                    compute_type=compute_type,
-                    initial_prompt=self.config.full_stt_prompt,
-                    whisper_vad_filter=whisper_vad_filter,
-                    on_recognized_callback=on_recognized_callback,
-                    debug=self.config.verbose
+            if not is_installed("faster_whisper"):
+                logger.warning(
+                    "STT: faster_whisper optional packages not installed. "
+                    "Select faster_whisper in Settings and click Download."
                 )
-            except Exception as e:
-                logger.warning(f"STT: Failed to load model (not downloaded yet?). STT disabled until model is downloaded via Settings. Error: {e}")
                 recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
+            else:
+                from core.stt import KotobaWhisperRecognizer  # lazy: only when faster_whisper is selected
+                fw_cfg = providers.get("faster_whisper", {})
+                vad_cfg = self.config.get("vad", {})
+                whisper_vad_filter = fw_cfg.get("whisper_vad_filter", False)
+                device = fw_cfg.get("device", "cpu")
+                compute_type = fw_cfg.get("compute_type", "int8")
+
+                # CTranslate2 (faster-whisper backend) does not support 'mps'.
+                # Force to 'cpu' if someone has it set from an older config.
+                # Also reset compute_type since float16 (often paired with mps) is not supported on CPU.
+                if device == "mps":
+                    logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
+                    device = "cpu"
+                    compute_type = "int8"
+
+                try:
+                    recognizer_instance = KotobaWhisperRecognizer(
+                        model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
+                        device=device,
+                        compute_type=compute_type,
+                        initial_prompt=self.config.full_stt_prompt,
+                        whisper_vad_filter=whisper_vad_filter,
+                        on_recognized_callback=on_recognized_callback,
+                        debug=self.config.verbose
+                    )
+                except Exception as e:
+                    logger.warning(f"STT: Failed to load model (not downloaded yet?). STT disabled until model is downloaded via Settings. Error: {e}")
+                    recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
 
         elif provider == "moonshine":
-            ms_cfg = providers.get("moonshine", {})
-            try:
-                recognizer_instance = MoonshineRecognizer(
-                    model_name=ms_cfg.get("model", "base-ja"),
-                    flags=int(ms_cfg.get("flags", 0)),
-                    on_recognized_callback=on_recognized_callback,
-                    debug=self.config.verbose
+            if not is_installed("moonshine"):
+                logger.warning(
+                    "STT: moonshine optional packages not installed. "
+                    "Select moonshine in Settings and click Download."
                 )
-            except Exception as e:
-                logger.error(f"STT: Failed to load Moonshine model: {e}")
                 recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
+            else:
+                from core.stt import MoonshineRecognizer  # lazy: only when moonshine is selected
+                ms_cfg = providers.get("moonshine", {})
+                try:
+                    recognizer_instance = MoonshineRecognizer(
+                        model_name=ms_cfg.get("model", "base-ja"),
+                        flags=int(ms_cfg.get("flags", 0)),
+                        on_recognized_callback=on_recognized_callback,
+                        debug=self.config.verbose
+                    )
+                except Exception as e:
+                    logger.warning(f"STT: Failed to load Moonshine model: {e}")
+                    recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
 
         elif provider == "google":
             google_cfg = providers.get("google", {})

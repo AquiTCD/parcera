@@ -1,14 +1,20 @@
 import os
+import re
 import asyncio
 import numpy as np
 import logging
 import abc
-from faster_whisper import WhisperModel
-import moonshine_voice
 from typing import Optional
-from moonshine_voice.moonshine_api import ModelArch
 from aiavatar.sts.stt import SpeechRecognizer
 from aiavatar.sts.stt.base import SpeechRecognitionResult
+
+_JP = r'぀-ゟ゠-ヿ一-鿿'
+# Spaces between Japanese chars — lookbehind/lookahead so entire run collapses in one pass
+_RE_JP_JP = re.compile(rf'(?<=[{_JP}])\s+(?=[{_JP}])')
+_RE_JP_LATIN = re.compile(rf'(?<=[{_JP}])\s+(?=[a-zA-Z0-9])')
+_RE_LATIN_JP = re.compile(rf'(?<=[a-zA-Z0-9])\s+(?=[{_JP}])')
+# Single Latin chars separated by spaces (e.g. "L L M" → "LL M")
+_RE_SINGLE_LATIN = re.compile(r'(^|\s)([a-zA-Z0-9])\s+([a-zA-Z0-9])(\s|$)')
 
 logger = logging.getLogger(__name__)
 
@@ -41,26 +47,16 @@ class LocalSpeechRecognizer(SpeechRecognizer, abc.ABC):
         logger.debug(f"STT ({self.__class__.__name__}): Transcribing {duration:.2f}s of audio")
 
         async with self._transcribe_lock:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             text = await loop.run_in_executor(None, self._do_transcribe, audio_float32)
 
-        # Post-processing: Clean up spaces commonly added by models like Moonshine when outputting Japanese
+        # Post-processing: clean spaces that Moonshine/Whisper insert inside Japanese text
         if text:
-            import re
-            # 1. Remove spaces between Japanese characters (Hiragana, Katakana, CJK Ideographs)
-            jp_regex = r'([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])\s+([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])'
-            while re.search(jp_regex, text):
-                text = re.sub(jp_regex, r'\1\2', text)
-            
-            # 2. Remove spaces between Japanese and Latin characters
-            text = re.sub(r'([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])\s+([a-zA-Z0-9])', r'\1\2', text)
-            text = re.sub(r'([a-zA-Z0-9])\s+([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])', r'\1\2', text)
-
-            # 3. Remove spaces between single Latin characters (e.g. "L L M" -> "LLM")
-            single_latin_regex = r'(^|\s)([a-zA-Z0-9])\s+([a-zA-Z0-9])(\s|$)'
-            while re.search(single_latin_regex, text):
-                text = re.sub(single_latin_regex, r'\1\2\3\4', text)
-            
+            text = _RE_JP_JP.sub('', text)
+            text = _RE_JP_LATIN.sub('', text)
+            text = _RE_LATIN_JP.sub('', text)
+            while _RE_SINGLE_LATIN.search(text):
+                text = _RE_SINGLE_LATIN.sub(r'\1\2\3\4', text)
             text = text.strip()
 
         return text
@@ -99,6 +95,7 @@ class KotobaWhisperRecognizer(LocalSpeechRecognizer):
         debug=False
     ):
         super().__init__(debug=debug)
+        from faster_whisper import WhisperModel  # lazy: only loaded when faster_whisper is selected
         self.on_recognized_callback = on_recognized_callback
         self.model_name = model_name
         self.whisper_vad_filter = whisper_vad_filter
@@ -136,25 +133,21 @@ class MoonshineRecognizer(LocalSpeechRecognizer):
         debug=False
     ):
         super().__init__(debug=debug)
+        import moonshine_voice                                  # lazy: only loaded when moonshine is selected
+        from moonshine_voice.moonshine_api import ModelArch    # lazy
         self.on_recognized_callback = on_recognized_callback
         self.model_name = model_name
-        
-        # Map string model name to enum if available
+
         arch = ModelArch.TINY
         if "base" in model_name.lower():
             arch = ModelArch.BASE
-        
+
         logger.info(f"Loading Moonshine model: {arch.name}...")
 
-        # In Parcera, we strictly separate download and load.
-        # But for Moonshine, get_model_for_language is fast if files exist.
         model_path, model_arch = moonshine_voice.get_model_for_language("ja", wanted_model_arch=arch)
-        
-        # Verify it actually exists (avoiding automatic download if not intended,
-        # though get_model_for_language might trigger it if not careful.
-        # Let's check it manually like in check_model_cached)
+
         if not os.path.exists(model_path):
-             raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
+            raise FileNotFoundError(f"Moonshine model not found at {model_path}. Download it in Settings.")
 
         self.transcriber = moonshine_voice.Transcriber(model_path, model_arch)
         self.flags = flags

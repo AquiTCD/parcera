@@ -55,6 +55,16 @@ echo "🧹 Cleaning up heavy dependencies..."
 rm -rf "${SITE_PACKAGES_DIR}/torch"*
 rm -rf "${SITE_PACKAGES_DIR}/torchaudio"*
 rm -rf "${SITE_PACKAGES_DIR}/nvidia"*
+
+# Optional STT packages — not bundled; downloaded on-demand via Settings
+echo "🔌 Removing optional STT packages (installed on-demand via Settings)..."
+rm -rf "${SITE_PACKAGES_DIR}/moonshine_voice"*
+rm -rf "${SITE_PACKAGES_DIR}/ctranslate2"*
+rm -rf "${SITE_PACKAGES_DIR}/av"*
+rm -rf "${SITE_PACKAGES_DIR}/onnxruntime"*
+rm -rf "${SITE_PACKAGES_DIR}/faster_whisper"*
+rm -rf "${SITE_PACKAGES_DIR}/transformers"*
+
 find "${SITE_PACKAGES_DIR}" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # 4. Create Stub Torch to satisfy imports
