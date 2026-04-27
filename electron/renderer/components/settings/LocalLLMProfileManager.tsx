@@ -288,14 +288,6 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
           </Button>
         </div>
 
-        <div className="pt-2 border-t border-border">
-          <p className="text-xs text-muted-foreground mb-2">
-            Mac / Apple Silicon 専用。プロファイルごとに専用ウィンドウで学習できます。
-          </p>
-          <Button variant="outline" onClick={() => window.electronAPI.openTrainingWindow('default')}>
-            追加学習ウィンドウを開く
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
