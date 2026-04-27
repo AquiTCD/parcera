@@ -124,7 +124,6 @@ export class PythonSidecar {
       }
       return path.join(process.resourcesPath, 'bin', 'python-runtime', 'bin', 'python3');
     }
-    // Dev: venv layout differs between platforms
     const root = process.env['APP_ROOT']
       ? path.join(process.env['APP_ROOT'], '..')
       : path.join(app.getAppPath(), '..');

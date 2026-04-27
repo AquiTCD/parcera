@@ -3,17 +3,11 @@ import sys
 import logging
 import subprocess
 from typing import Callable, Optional
+from core.platform_utils import IS_MACOS, app_support_base
 
 logger = logging.getLogger(__name__)
 
-def _get_optional_packages_base() -> str:
-    if os.name == "nt":
-        base = os.environ.get("APPDATA", os.path.expanduser("~"))
-    else:
-        base = os.path.expanduser("~/Library/Application Support")
-    return os.path.join(base, "Parcera", "optional-packages")
-
-_APP_SUPPORT_BASE = _get_optional_packages_base()
+_APP_SUPPORT_BASE = os.path.join(app_support_base("Parcera"), "optional-packages")
 
 OPTIONAL_PACKAGE_SETS: dict = {
     "moonshine": {
@@ -96,8 +90,7 @@ def install(
     if install_dir not in sys.path:
         sys.path.insert(0, install_dir)
 
-    if sys.platform == "darwin":
-        # Remove quarantine attribute from downloaded native libraries (macOS Gatekeeper)
+    if IS_MACOS:
         subprocess.run(
             ["xattr", "-dr", "com.apple.quarantine", install_dir],
             capture_output=True

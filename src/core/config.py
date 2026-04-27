@@ -283,12 +283,8 @@ class ParceraConfig:
     @property
     def app_data_dir(self) -> str:
         """Return a writable directory for models, logs, and caches."""
-        if os.name == "nt":
-            base = os.environ.get("APPDATA", os.path.expanduser("~"))
-        else:
-            base = os.path.expanduser("~/Library/Application Support")
-
-        path = os.path.join(base, "Parcera")
+        from core.platform_utils import app_support_base
+        path = app_support_base("Parcera")
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
         return path

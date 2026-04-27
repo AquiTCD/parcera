@@ -66,8 +66,8 @@ class ParceraComponentFactory:
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
 
         elif provider == "local":
-            import sys as _sys
-            if _sys.platform == "win32":
+            import sys
+            if sys.platform == "win32":
                 raise ValueError("Local LLM (mlx-lm) is not supported on Windows. Use Gemini or OpenAI instead.")
             from core.local_llm import LocalLLMService  # lazy: only when local LLM is selected
             local_cfg = providers.get("local", {})
