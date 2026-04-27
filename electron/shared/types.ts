@@ -219,6 +219,7 @@ export interface ModelDownloadProgress {
 }
 
 export interface ElectronAPI {
+  platform: NodeJS.Platform;
   getSettings: () => Promise<ParceraSettings>;
   reloadSettings: () => Promise<ParceraSettings>;
   resizeWindow: (width: number, height: number) => void;

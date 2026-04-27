@@ -84,6 +84,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
   const port = settings.electron?.port || 8676;
+  const isWindows = window.electronAPI.platform === 'win32';
 
   return (
     <div className="space-y-6">
@@ -108,7 +109,9 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                 <SelectContent>
                   <SelectItem value="gemini">Google Gemini（推奨）</SelectItem>
                   <SelectItem value="openai">OpenAI（GPT-4o等）</SelectItem>
-                  <SelectItem value="local">Local Brain（Gemma 2 / Qwen / MLX）</SelectItem>
+                  {!isWindows && (
+                    <SelectItem value="local">Local Brain（Gemma 2 / Qwen / MLX）</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </FieldRow>
