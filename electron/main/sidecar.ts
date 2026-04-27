@@ -116,13 +116,21 @@ export class PythonSidecar {
   }
 
   private getPythonExecutable(): string {
+    const isWindows = process.platform === 'win32';
     if (app.isPackaged) {
+      // python-build-standalone: macOS has bin/python3, Windows has python.exe at root
+      if (isWindows) {
+        return path.join(process.resourcesPath, 'bin', 'python-runtime', 'python.exe');
+      }
       return path.join(process.resourcesPath, 'bin', 'python-runtime', 'bin', 'python3');
     }
-    // Dev environment
+    // Dev: venv layout differs between platforms
     const root = process.env['APP_ROOT']
       ? path.join(process.env['APP_ROOT'], '..')
       : path.join(app.getAppPath(), '..');
+    if (isWindows) {
+      return path.join(root, '.venv', 'Scripts', 'python.exe');
+    }
     return path.join(root, '.venv', 'bin', 'python');
   }
 
