@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SectionProps } from './types';
 import { FieldRow, PasswordField } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -7,9 +7,16 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Switch } from '../ui/switch';
-import { TrainingTab } from '../settings/TrainingTab';
 import { useLLMModels } from '../../hooks/useLLMModels';
 import { useOptionalPackageInstaller, OptionalPackageInstallerUI } from '../settings/controls/OptionalPackageInstaller';
+import { ModelDownloaderUI, useModelDownloader } from '../settings/controls/ModelDownloader';
+import { LocalLLMProfileManager } from '../settings/LocalLLMProfileManager';
+
+const LOCAL_MODEL_PRESETS = [
+  { label: 'Gemma 2 9B (MLX)', value: 'mlx-community/gemma-2-9b-it-4bit' },
+  { label: 'Qwen3.5 9B (MLX)', value: 'mlx-community/Qwen3.5-9B-MLX-4bit' },
+  { label: 'Qwen3.5 4B (MLX) - 軽量', value: 'mlx-community/Qwen3.5-4B-MLX-4bit' },
+] as const;
 
 const OPTIONAL_STT_PROVIDERS = ['moonshine', 'faster_whisper'] as const;
 type OptionalSTTProvider = typeof OPTIONAL_STT_PROVIDERS[number];
@@ -17,6 +24,20 @@ type OptionalSTTProvider = typeof OPTIONAL_STT_PROVIDERS[number];
 const OPTIONAL_PACKAGE_META: Record<OptionalSTTProvider, { sizeMb: number; description: string }> = {
   moonshine: { sizeMb: 120, description: 'Moonshine を使用するには追加ライブラリが必要です' },
   faster_whisper: { sizeMb: 200, description: 'Faster Whisper を使用するには追加ライブラリが必要です' },
+};
+
+const LocalModelDownloader: React.FC<{ modelName: string; port: number }> = ({ modelName, port }) => {
+  const downloader = useModelDownloader(modelName, port);
+  return (
+    <ModelDownloaderUI
+      status={downloader.modelStatus}
+      progress={downloader.progress}
+      progressDetail={downloader.progressDetail}
+      errorMsg={downloader.errorMsg}
+      onDownload={downloader.handleDownload}
+      notCachedDescription="ローカルでの推論にはモデルのダウンロードが必要です（約6GB）。安定したネット環境で実行してください。"
+    />
+  );
 };
 
 const OptionalPackageCheck: React.FC<{ provider: OptionalSTTProvider; port: number }> = ({ provider, port }) => {
@@ -44,7 +65,13 @@ export const AdvancedSection: React.FC<SectionProps> = ({
 }) => {
   const currentLLMProvider = settings.llm?.provider || 'gemini';
   const apiKey = settings.llm?.providers?.[currentLLMProvider]?.api_key;
-  const { models, isFetchingModels, retryModels } = useLLMModels(currentLLMProvider, apiKey);
+  const { models, error: llmError, isFetchingModels, retryModels } = useLLMModels(currentLLMProvider, apiKey);
+
+  useEffect(() => {
+    if (llmError) {
+      setStatus({ message: `モデル取得エラー: ${llmError.message}`, type: 'error' });
+    }
+  }, [llmError, setStatus]);
 
   const handleFetchModels = () => {
     if (!apiKey) {
@@ -81,12 +108,41 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                 <SelectContent>
                   <SelectItem value="gemini">Google Gemini（推奨）</SelectItem>
                   <SelectItem value="openai">OpenAI（GPT-4o等）</SelectItem>
-                  <SelectItem value="local">Local Brain（Gemma 2 / MLX）</SelectItem>
+                  <SelectItem value="local">Local Brain（Gemma 2 / Qwen / MLX）</SelectItem>
                 </SelectContent>
               </Select>
             </FieldRow>
 
-            {currentLLMProvider !== 'local' && (
+            {currentLLMProvider === 'local' ? (
+              <>
+                <LocalModelDownloader
+                  modelName={settings.llm?.providers?.local?.model ?? LOCAL_MODEL_PRESETS[0].value}
+                  port={port}
+                />
+                <FieldRow label="モデル">
+                  <Select
+                    value={settings.llm?.providers?.local?.model ?? LOCAL_MODEL_PRESETS[0].value}
+                    onValueChange={(val) => updateProvider('llm', 'local', 'model', val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LOCAL_MODEL_PRESETS.map(p => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldRow>
+                <FieldRow label="最大出力トークン数">
+                  <Input
+                    type="number"
+                    value={settings.llm?.providers?.local?.max_tokens ?? defaultSettings?.llm?.providers?.local?.max_tokens ?? 200}
+                    onChange={(e) => updateProvider('llm', 'local', 'max_tokens', Number(e.target.value))}
+                  />
+                </FieldRow>
+              </>
+            ) : (
               <>
                 <FieldRow label="APIキー">
                   <PasswordField
@@ -258,17 +314,12 @@ export const AdvancedSection: React.FC<SectionProps> = ({
 
       {/* 追加学習 — Local LLM 選択時のみ表示 */}
       {currentLLMProvider === 'local' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>追加学習</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground mb-4">
-              Mac / Apple Silicon 専用。LoRAファインチューニングによる追加学習。
-            </p>
-            <TrainingTab settings={settings} setStatus={setStatus} />
-          </CardContent>
-        </Card>
+        <LocalLLMProfileManager
+          settings={settings}
+          updateProvider={updateProvider}
+          port={port}
+          setStatus={setStatus}
+        />
       )}
     </div>
   );

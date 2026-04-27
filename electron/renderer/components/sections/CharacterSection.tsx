@@ -6,7 +6,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
-import { useLocalSpeakers } from '../../hooks/useTTSSpeakers';
+import { useLocalSpeakers, useGoogleVoices } from '../../hooks/useTTSSpeakers';
 import { AvatarColumn } from '../settings/visuals/AvatarColumn';
 import { WindowSettingsSection } from '../settings/WindowSettingsSection';
 import { BreatheAnimationSettings } from '../settings/visuals/BreatheAnimationSettings';
@@ -30,6 +30,8 @@ export const CharacterSection: React.FC<SectionProps> = ({
   const ttsUrl = (ttsSettingsUrl || defaultUrl).replace(/\/$/, '');
 
   const { speakersInfo, isFetchingTTS, retrySpeakers } = useLocalSpeakers(currentTTSProvider, ttsUrl);
+  const googleApiKey = settings.tts?.providers?.google?.api_key;
+  const { googleVoices, isFetchingGoogleVoice, retryGoogle } = useGoogleVoices(currentTTSProvider, googleApiKey);
 
   const handleFetchSpeakers = async () => {
     setStatus({ message: 'キャラクターリストを取得中...', type: '' });
@@ -235,6 +237,59 @@ export const CharacterSection: React.FC<SectionProps> = ({
             </Select>
           </FieldRow>
 
+          {currentTTSProvider === 'google' && (
+            <>
+              <FieldRow label="音声モデル">
+                <div className="flex gap-2">
+                  <Select
+                    value={settings.tts?.providers?.google?.voice ?? '__none__'}
+                    onValueChange={(val) => updateProvider('tts', 'google', 'voice', val === '__none__' ? undefined : val)}
+                    disabled={isFetchingGoogleVoice || !googleVoices?.length}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="-- 指定なし --" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">-- 指定なし (デフォルト) --</SelectItem>
+                      {googleVoices?.map((v: any) => (
+                        <SelectItem key={v.id} value={v.id}>{v.id} ({v.gender})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={() => retryGoogle()}>取得</Button>
+                </div>
+              </FieldRow>
+
+              <div className="grid grid-cols-2 gap-4">
+                <SliderRow
+                  label="話速 (Speaking Rate)"
+                  value={settings.tts?.providers?.google?.speaking_rate ?? defaultSettings?.tts?.providers?.google?.speaking_rate ?? 1.0}
+                  min={0.25}
+                  max={4.0}
+                  step={0.05}
+                  onChange={(val) => updateProvider('tts', 'google', 'speaking_rate', val)}
+                />
+                <SliderRow
+                  label="ピッチ (Pitch)"
+                  value={settings.tts?.providers?.google?.pitch ?? defaultSettings?.tts?.providers?.google?.pitch ?? 0}
+                  min={-20}
+                  max={20}
+                  step={0.5}
+                  onChange={(val) => updateProvider('tts', 'google', 'pitch', val)}
+                />
+              </div>
+
+              <SliderRow
+                label="音量ゲイン (Volume Gain dB)"
+                value={settings.tts?.providers?.google?.volume_gain_db ?? defaultSettings?.tts?.providers?.google?.volume_gain_db ?? 0}
+                min={-96}
+                max={16}
+                step={1}
+                onChange={(val) => updateProvider('tts', 'google', 'volume_gain_db', val)}
+              />
+            </>
+          )}
+
           {(currentTTSProvider === 'aivisspeech' || currentTTSProvider === 'voicevox') && (
             <>
               <FieldRow label="キャラクター（音声モデル）">
@@ -243,14 +298,14 @@ export const CharacterSection: React.FC<SectionProps> = ({
                     value={String(
                       settings.tts?.providers?.[currentTTSProvider as 'aivisspeech' | 'voicevox']?.style_id ??
                       settings.tts?.providers?.[currentTTSProvider as 'aivisspeech' | 'voicevox']?.speaker_id ??
-                      ''
+                      '__none__'
                     )}
                     onValueChange={(val) =>
                       updateProvider(
                         'tts',
                         currentTTSProvider,
                         currentTTSProvider === 'aivisspeech' ? 'style_id' : 'speaker_id',
-                        Number(val)
+                        val === '__none__' ? undefined : Number(val)
                       )
                     }
                     disabled={isFetchingTTS || !speakersInfo?.length}

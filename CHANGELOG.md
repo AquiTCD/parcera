@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-04-27 - UI Refresh Completion & Local LLM Feature Restoration
+
+### Added
+- **LoRA profile manager**: New `LocalLLMProfileManager` component with blend-weight sliders, main-profile toggle (⭐), per-profile training window launch (📝), export (📤), delete (🗑️), and blend apply with intensity indicator
+- **Inline import confirmation**: Replacing `window.prompt` (blocked by `contextIsolation`), import now shows an inline name field after directory selection
+- **Google TTS voice settings**: Voice model dropdown, speaking rate, pitch, and volume gain sliders restored in CharacterSection
+- **Local LLM model presets**: Gemma 2 9B, Qwen3.5 9B, Qwen3.5 4B (MLX) selectable in AdvancedSection
+
+### Changed
+- **Training UI consolidated**: Inline TrainingTab in AdvancedSection removed; all training access goes through the standalone training window
+- **Blend intensity threshold**: Yellow warning now triggers at >120% (was >100%) to match the hint text about auto-balance
+- **UI label**: "LoRA プロファイル管理" renamed to "追加学習" for clarity; create/import row moved above profile list
+
+### Fixed
+- **Local LLM model selection**: Provider branch was inverted — Gemma/Qwen presets were unreachable when `local` provider was selected
+- **Speaker select NaN**: Radix UI `SelectItem` value cannot be empty string; replaced with `__none__` sentinel and guard in `onValueChange`
+- **Training window background**: `body { background-color: transparent }` from chroma key CSS leaked into training window; wrapped in `bg-background` div
+- **`blendWeights` state sync**: Weights now update on every `profileList` change (add/delete) instead of only on first load
+- **HTTP error handling**: `handleDeleteProfile` and `handleCreateProfile` now check response status and surface errors instead of silently proceeding
+- **`handleCreateProfile` race**: Removed fragile `setTimeout` — `openTrainingWindow` is now called synchronously after broadcast
+- **Dead code removal**: 22 unused Tab-based components and their tests deleted (`LLMTab`, `TTSTab`, `VisualTab`, `TwitchTab`, `LocalLLMSettings`, and related sub-components)
+
 ## [0.7.1] - 2026-04-14 - AI Lip-Sync Fix & Type Safety Refactor
 
 ### Fixed
