@@ -191,6 +191,21 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
       </CardHeader>
       <CardContent className="space-y-4">
 
+        <div className="flex gap-2 pb-2 border-b border-border">
+          <Input
+            placeholder="新規プロファイル名"
+            value={newProfileName}
+            onChange={(e) => setNewProfileName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateProfile()}
+          />
+          <Button variant="outline" disabled={!newProfileName.trim()} onClick={handleCreateProfile}>
+            作成
+          </Button>
+          <Button variant="outline" onClick={handleImportProfile}>
+            インポート
+          </Button>
+        </div>
+
         {visibleProfiles.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
             プロファイルがありません。「新規作成」から始めましょう。
@@ -272,21 +287,6 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
             </p>
           </div>
         )}
-
-        <div className="flex gap-2 pt-2 border-t border-border">
-          <Input
-            placeholder="新規プロファイル名"
-            value={newProfileName}
-            onChange={(e) => setNewProfileName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateProfile()}
-          />
-          <Button variant="outline" disabled={!newProfileName.trim()} onClick={handleCreateProfile}>
-            作成
-          </Button>
-          <Button variant="outline" onClick={handleImportProfile}>
-            インポート
-          </Button>
-        </div>
 
       </CardContent>
     </Card>
