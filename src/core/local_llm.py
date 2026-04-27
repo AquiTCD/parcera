@@ -55,7 +55,11 @@ class LocalLLMService(LLMService):
 
     @classmethod
     def _load_model(cls, model_path: str, adapter_path: Optional[str] = None):
+        import os
         if not adapter_path:
+            adapter_path = None
+        if adapter_path and not os.path.exists(adapter_path):
+            logger.warning(f"Adapter path not found, loading base model only: {adapter_path}")
             adapter_path = None
         if cls._model is None or cls._current_model_path != model_path or cls._current_adapter_path != adapter_path:
             from mlx_lm.utils import load_model, load_tokenizer, load_adapters, _download
