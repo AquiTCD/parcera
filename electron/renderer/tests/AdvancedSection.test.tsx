@@ -119,14 +119,9 @@ describe('AdvancedSection', () => {
       expect(screen.getByText('Gemma 2 9B (MLX)')).toBeInTheDocument();
     });
 
-    it('shows model select (not API key) when local is selected', () => {
+    it('shows model select and hides API key when local is selected', () => {
       render(<AdvancedSection {...localProps} />);
       expect(screen.getByText('モデル')).toBeInTheDocument();
-      expect(screen.queryByText(/APIキー/)).not.toBeInTheDocument();
-    });
-
-    it('hides API key field when local is selected', () => {
-      render(<AdvancedSection {...localProps} />);
       expect(screen.queryByText(/APIキー/)).not.toBeInTheDocument();
     });
 
@@ -137,13 +132,20 @@ describe('AdvancedSection', () => {
   });
 
   describe('追加学習', () => {
+    const localProps = {
+      ...mockProps,
+      settings: { ...dummySettings, llm: { ...dummySettings.llm, provider: 'local' } } as any,
+    };
+
     it('renders 追加学習 heading when local LLM is selected', () => {
-      const localProps = {
-        ...mockProps,
-        settings: { ...dummySettings, llm: { ...dummySettings.llm, provider: 'local' } } as any,
-      };
       render(<AdvancedSection {...localProps} />);
       expect(screen.getByText('追加学習')).toBeInTheDocument();
+    });
+
+    it('shows profile create and import buttons when local is selected', () => {
+      render(<AdvancedSection {...localProps} />);
+      expect(screen.getByRole('button', { name: '作成' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'インポート' })).toBeInTheDocument();
     });
 
     it('hides 追加学習 when non-local LLM is selected', () => {

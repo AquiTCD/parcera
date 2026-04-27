@@ -71,7 +71,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
     if (llmError) {
       setStatus({ message: `モデル取得エラー: ${llmError.message}`, type: 'error' });
     }
-  }, [llmError]);
+  }, [llmError, setStatus]);
 
   const handleFetchModels = () => {
     if (!apiKey) {

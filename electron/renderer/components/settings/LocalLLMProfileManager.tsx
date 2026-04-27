@@ -54,14 +54,20 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
   }, [fetchProfiles]);
 
   React.useEffect(() => {
-    if (profileList.length > 0 && Object.keys(blendWeights).length === 0) {
-      const initial: Record<string, BlendConfig> = {};
+    if (profileList.length === 0) return;
+    setBlendWeights(prev => {
+      const next = { ...prev };
       profileList.forEach(p => {
-        const isCurrentlySingle = activeAdapterPath.includes(`/${p.name}`) || activeAdapterPath.endsWith(p.name);
-        initial[p.name] = { weight: isCurrentlySingle ? 1.0 : 0, isMain: isCurrentlySingle };
+        if (!(p.name in next)) {
+          const isCurrentlySingle = activeAdapterPath.includes(`/${p.name}`) || activeAdapterPath === p.name;
+          next[p.name] = { weight: isCurrentlySingle ? 1.0 : 0, isMain: isCurrentlySingle };
+        }
       });
-      setBlendWeights(initial);
-    }
+      Object.keys(next).forEach(k => {
+        if (!profileList.find(p => p.name === k)) delete next[k];
+      });
+      return next;
+    });
   }, [profileList, activeAdapterPath]);
 
   const updateWeight = (name: string, weight: number) =>
@@ -149,12 +155,15 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
   const handleDeleteProfile = async (name: string) => {
     if (!window.confirm(`プロファイル「${name}」と学習データを削除しますか？\nこの操作は取り消せません。`)) return;
     try {
-      await fetch(`http://127.0.0.1:${port}/training/profiles/${name}`, { method: 'DELETE' });
-      fetchProfiles();
-      if (window.electronAPI.broadcastProfilesUpdated) {
-        window.electronAPI.broadcastProfilesUpdated();
+      const res = await fetch(`http://127.0.0.1:${port}/training/profiles/${name}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setStatus?.({ message: `削除に失敗しました: ${data.detail ?? res.status}`, type: 'error' });
+        return;
       }
-      if (activeAdapterPath.endsWith(name)) {
+      fetchProfiles();
+      window.electronAPI.broadcastProfilesUpdated?.();
+      if (activeAdapterPath.includes(`/${name}`) || activeAdapterPath === name) {
         updateProvider('llm', 'local', 'adapter_path', '');
       }
     } catch (e) {
@@ -166,14 +175,17 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
     const name = newProfileName.trim();
     if (!name) return;
     try {
-      await fetch(`http://127.0.0.1:${port}/training/profiles/init?profile=${encodeURIComponent(name)}`, { method: 'POST' });
-      if (window.electronAPI.broadcastProfilesUpdated) {
-        window.electronAPI.broadcastProfilesUpdated();
+      const res = await fetch(`http://127.0.0.1:${port}/training/profiles/init?profile=${encodeURIComponent(name)}`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setStatus?.({ message: `作成に失敗しました: ${data.detail ?? res.status}`, type: 'error' });
+        return;
       }
-      setTimeout(() => window.electronAPI.openTrainingWindow(name), 100);
+      window.electronAPI.broadcastProfilesUpdated?.();
+      window.electronAPI.openTrainingWindow(name);
       setNewProfileName('');
     } catch {
-      window.electronAPI.openTrainingWindow(name);
+      setStatus?.({ message: '作成中にエラーが発生しました', type: 'error' });
     }
   };
 
