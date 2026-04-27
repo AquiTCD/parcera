@@ -35,6 +35,7 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
   const [blendWeights, setBlendWeights] = React.useState<Record<string, BlendConfig>>({});
   const [newProfileName, setNewProfileName] = React.useState('');
   const [isApplying, setIsApplying] = React.useState(false);
+  const [importPending, setImportPending] = React.useState<{ sourcePath: string; name: string } | null>(null);
 
   const fetchProfiles = React.useCallback(async () => {
     try {
@@ -108,17 +109,20 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
     }
   };
 
-  const handleImportProfile = async () => {
+  const handleImportSelect = async () => {
+    const sourcePath = await window.electronAPI.selectDirectory();
+    if (!sourcePath) return;
+    const defaultName = sourcePath.split(/[\\/]/).pop() || 'imported_profile';
+    setImportPending({ sourcePath, name: defaultName });
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importPending?.name.trim()) return;
     try {
-      const sourcePath = await window.electronAPI.selectDirectory();
-      if (!sourcePath) return;
-      const defaultName = sourcePath.split(/[\\/]/).pop() || 'imported_profile';
-      const name = window.prompt('プロファイル名を入力してください', defaultName);
-      if (!name) return;
       const res = await fetch(`http://127.0.0.1:${port}/training/profiles/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_path: sourcePath, name }),
+        body: JSON.stringify({ source_path: importPending.sourcePath, name: importPending.name.trim() }),
       });
       if (res.ok) {
         fetchProfiles();
@@ -129,6 +133,8 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
       }
     } catch (e) {
       console.error('Import failed:', e);
+    } finally {
+      setImportPending(null);
     }
   };
 
@@ -191,7 +197,7 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
 
   const visibleProfiles = profileList.filter(p => p.base_model == null || p.base_model === localModelName);
   const totalIntensity = Object.values(blendWeights).reduce((sum, cfg) => sum + cfg.weight, 0);
-  const intensityColor = totalIntensity <= 1.0 ? 'text-blue-400' : totalIntensity <= 1.5 ? 'text-yellow-400' : 'text-red-400';
+  const intensityColor = totalIntensity <= 1.2 ? 'text-blue-400' : totalIntensity <= 1.5 ? 'text-yellow-400' : 'text-red-400';
 
   return (
     <Card>
@@ -203,20 +209,38 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
       </CardHeader>
       <CardContent className="space-y-4">
 
-        <div className="flex gap-2 pb-2 border-b border-border">
-          <Input
-            placeholder="新規プロファイル名"
-            value={newProfileName}
-            onChange={(e) => setNewProfileName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateProfile()}
-          />
-          <Button variant="outline" disabled={!newProfileName.trim()} onClick={handleCreateProfile}>
-            作成
-          </Button>
-          <Button variant="outline" onClick={handleImportProfile}>
-            インポート
-          </Button>
-        </div>
+        {importPending ? (
+          <div className="flex gap-2 pb-2 border-b border-border">
+            <Input
+              placeholder="インポート名"
+              value={importPending.name}
+              onChange={(e) => setImportPending({ ...importPending, name: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && handleImportConfirm()}
+              autoFocus
+            />
+            <Button variant="outline" disabled={!importPending.name.trim()} onClick={handleImportConfirm}>
+              確定
+            </Button>
+            <Button variant="ghost" onClick={() => setImportPending(null)}>
+              キャンセル
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2 pb-2 border-b border-border">
+            <Input
+              placeholder="新規プロファイル名"
+              value={newProfileName}
+              onChange={(e) => setNewProfileName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateProfile()}
+            />
+            <Button variant="outline" disabled={!newProfileName.trim()} onClick={handleCreateProfile}>
+              作成
+            </Button>
+            <Button variant="outline" onClick={handleImportSelect}>
+              インポート
+            </Button>
+          </div>
+        )}
 
         {visibleProfiles.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
@@ -287,7 +311,7 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${totalIntensity <= 1.0 ? 'bg-primary' : totalIntensity <= 1.5 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                className={`h-full rounded-full transition-all ${totalIntensity <= 1.2 ? 'bg-primary' : totalIntensity <= 1.5 ? 'bg-yellow-400' : 'bg-red-400'}`}
                 style={{ width: `${Math.min(100, (totalIntensity / 2.0) * 100)}%` }}
               />
             </div>
