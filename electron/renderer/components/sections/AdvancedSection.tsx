@@ -7,7 +7,6 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Switch } from '../ui/switch';
-import { TrainingTab } from '../settings/TrainingTab';
 import { useLLMModels } from '../../hooks/useLLMModels';
 import { useOptionalPackageInstaller, OptionalPackageInstallerUI } from '../settings/controls/OptionalPackageInstaller';
 import { ModelDownloaderUI, useModelDownloader } from '../settings/controls/ModelDownloader';
@@ -326,11 +325,17 @@ export const AdvancedSection: React.FC<SectionProps> = ({
             <CardHeader>
               <CardTitle>追加学習</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground mb-4">
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
                 Mac / Apple Silicon 専用。LoRAファインチューニングによる追加学習。
+                プロファイルごとに専用ウィンドウで作業できます。
               </p>
-              <TrainingTab settings={settings} setStatus={setStatus} />
+              <Button
+                variant="outline"
+                onClick={() => window.electronAPI.openTrainingWindow('default')}
+              >
+                追加学習ウィンドウを開く
+              </Button>
             </CardContent>
           </Card>
         </>
