@@ -55,9 +55,34 @@ UI が完成し、機能追加が落ち着いたタイミングで、本体を T
 ## 移行の判断基準（Go/No-Go）
 以下の条件が揃った時が、本格的な移行のタイミングです。
 
-- [ ] 現行 Electron 版での主要機能（追加学習、Twitch連携等）が全て実装完了している。
-- [ ] UI が `shadcn/ui` ベースに刷新され、メンテナンス性が向上している。
+- [x] 現行 Electron 版での主要機能（追加学習、Twitch連携等）が全て実装完了している。
+  - `training_router.py` / `training_service.py` (930行) で追加学習が実装済み
+  - `twitch_router.py` / `twitch_service.py` / `twitch_client.py` (667行) でTwitch連携が実装済み
+  - 確認日: 2026-04-27
+- [x] UI が `shadcn/ui` ベースに刷新され、メンテナンス性が向上している。
+  - `electron/renderer/components/ui/` に badge, button, card, input, label, progress, select, separator, slider, switch, textarea の11コンポーネントが実装済み
+  - 確認日: 2026-04-27
 - [ ] 開発者の Rust に対する意欲（または必要性）が高まっている。
+
+## 残タスク（Phase 1 未完了）
+
+Go/No-Go 条件は概ね揃っているが、**IPC抽象化が未完了**。
+以下の8ファイルが `window.electron` / `ipcRenderer` を直接参照しており、Phase 2 移行前に Hooks に隠蔽する必要がある。
+
+- `electron/renderer/App.tsx`
+- `electron/renderer/components/Settings.tsx`
+- `electron/renderer/components/settings/TrainingTab.tsx`
+- `electron/renderer/components/settings/LocalLLMProfileManager.tsx`
+- `electron/renderer/components/settings/WindowSettingsSection.tsx`
+- `electron/renderer/components/sections/IntegrationSection.tsx`
+- `electron/renderer/components/sections/DeveloperSection.tsx`
+- `electron/renderer/components/settings/controls/ModelDownloader.tsx`
+
+## Windows 対応との関係
+
+Tauri移行（特にPython Sidecarの統合）の前に、**Windows対応のサイドカー構成を確定させると一度で正しく書ける**。
+Windows対応では Python standalone のダウンロードURLとプラットフォームタグが変わるため、`prepare_sidecar.sh` の設計が変わる可能性がある。
+技術的な依存ではないが、Tauri移行直前に Windows 対応を済ませておくと `tauri.conf.json` のsidecar設定を再調整するコストがゼロになる。
 
 ---
 
