@@ -184,14 +184,9 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>LoRA プロファイル管理</CardTitle>
-          <Button variant="outline" size="sm" onClick={handleImportProfile}>
-            外部から取り込む
-          </Button>
-        </div>
+        <CardTitle>追加学習</CardTitle>
         <p className="text-xs text-muted-foreground">
-          学習済みプロファイルを選択・ブレンドして適用します。学習の実行は「追加学習」セクションから行ってください。
+          学習済みプロファイルを選択・ブレンドして適用します。
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -287,6 +282,18 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
           />
           <Button variant="outline" disabled={!newProfileName.trim()} onClick={handleCreateProfile}>
             作成
+          </Button>
+          <Button variant="outline" onClick={handleImportProfile}>
+            インポート
+          </Button>
+        </div>
+
+        <div className="pt-2 border-t border-border">
+          <p className="text-xs text-muted-foreground mb-2">
+            Mac / Apple Silicon 専用。プロファイルごとに専用ウィンドウで学習できます。
+          </p>
+          <Button variant="outline" onClick={() => window.electronAPI.openTrainingWindow('default')}>
+            追加学習ウィンドウを開く
           </Button>
         </div>
       </CardContent>

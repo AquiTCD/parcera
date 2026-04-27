@@ -312,33 +312,14 @@ export const AdvancedSection: React.FC<SectionProps> = ({
         </CardContent>
       </Card>
 
-      {/* LoRA プロファイル管理 + 追加学習 — Local LLM 選択時のみ表示 */}
+      {/* 追加学習 — Local LLM 選択時のみ表示 */}
       {currentLLMProvider === 'local' && (
-        <>
-          <LocalLLMProfileManager
-            settings={settings}
-            updateProvider={updateProvider}
-            port={port}
-            setStatus={setStatus}
-          />
-          <Card>
-            <CardHeader>
-              <CardTitle>追加学習</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Mac / Apple Silicon 専用。LoRAファインチューニングによる追加学習。
-                プロファイルごとに専用ウィンドウで作業できます。
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => window.electronAPI.openTrainingWindow('default')}
-              >
-                追加学習ウィンドウを開く
-              </Button>
-            </CardContent>
-          </Card>
-        </>
+        <LocalLLMProfileManager
+          settings={settings}
+          updateProvider={updateProvider}
+          port={port}
+          setStatus={setStatus}
+        />
       )}
     </div>
   );
