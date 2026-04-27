@@ -12,6 +12,7 @@ class LocalLLMService(LLMService):
     _tokenizer = None
     _current_model_path = None
     _current_adapter_path = None
+    _warned_missing_adapters: set = set()
 
     _GEMMA_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
     _QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
@@ -59,7 +60,9 @@ class LocalLLMService(LLMService):
         if not adapter_path:
             adapter_path = None
         if adapter_path and not os.path.exists(adapter_path):
-            logger.warning(f"Adapter path not found, loading base model only: {adapter_path}")
+            if adapter_path not in cls._warned_missing_adapters:
+                logger.warning(f"Adapter path not found, loading base model only: {adapter_path}")
+                cls._warned_missing_adapters.add(adapter_path)
             adapter_path = None
         if cls._model is None or cls._current_model_path != model_path or cls._current_adapter_path != adapter_path:
             from mlx_lm.utils import load_model, load_tokenizer, load_adapters, _download
