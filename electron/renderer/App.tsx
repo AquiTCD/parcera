@@ -50,7 +50,9 @@ export const App: React.FC = () => {
       {view === 'settings' ? (
         <Settings />
       ) : view === 'training' ? (
-        <TrainingTab settings={settings} profile={profileParam} />
+        <div className="w-full h-full overflow-y-auto bg-background text-foreground p-4">
+          <TrainingTab settings={settings} profile={profileParam} />
+        </div>
       ) : (
         <Avatar />
       )}
