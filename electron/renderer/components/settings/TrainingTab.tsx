@@ -1,4 +1,4 @@
-import { api } from '../../lib/electron-bridge';
+import { api } from '../../lib/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import type { TrainingPair, ParceraSettings } from '../../../shared/types';
 import { Button } from '../ui/button';

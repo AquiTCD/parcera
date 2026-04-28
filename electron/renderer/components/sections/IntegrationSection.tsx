@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../lib/electron-bridge';
+import { api } from '../../lib/api';
 import type { TwitchSettings } from '../../../shared/types';
 import { SectionProps } from './types';
 import { FieldRow, PasswordField } from './shared';

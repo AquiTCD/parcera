@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { api } from '../lib/electron-bridge';
+import { api } from '../lib/api';
 
 export const useTwitchAuth = (setStatus: (status: { message: string; type: '' | 'success' | 'error' }) => void) => {
   const [isAuthorized, setIsAuthorized] = useState(false);

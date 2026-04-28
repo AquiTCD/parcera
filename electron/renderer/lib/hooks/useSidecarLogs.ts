@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '../electron-bridge';
+import { api } from '../api';
 import type { LogEntry } from '../bridge';
 
 export function useSidecarLogs() {

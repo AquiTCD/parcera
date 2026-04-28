@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../lib/electron-bridge';
+import { api } from '../lib/api';
 import type { ParceraSettings } from '../../shared/types';
 import { useSettingsState } from '../lib/hooks/useSettingsState';
 import { SidebarLayout } from './layout/SidebarLayout';

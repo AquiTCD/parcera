@@ -1,5 +1,5 @@
 import React from 'react';
-import { api } from '../../lib/electron-bridge';
+import { api } from '../../lib/api';
 import { ParceraSettings } from '../../../shared/types';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';

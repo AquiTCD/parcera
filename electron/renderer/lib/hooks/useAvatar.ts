@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../electron-bridge';
+import { api } from '../api';
 import { state, logStatus } from '../state';
 import type { AvatarConfig, ParceraSettings } from '../state';
 import { initAudioContext, getContext, getAnalyser, setNoiseGateDb, connectToAnalyser } from '../audio';

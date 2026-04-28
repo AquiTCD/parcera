@@ -1,5 +1,5 @@
 import React from 'react';
-import { api } from '../../lib/electron-bridge';
+import { api } from '../../lib/api';
 import type { ParceraSettings } from '../../../shared/types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';

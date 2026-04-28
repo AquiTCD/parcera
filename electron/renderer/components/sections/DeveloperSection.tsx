@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { api } from '../../lib/electron-bridge';
+import { api } from '../../lib/api';
 import { SectionProps } from './types';
 import { FieldRow } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';

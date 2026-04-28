@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { api } from '../electron-bridge';
+import { api } from '../api';
 import type { Rect, OpResult } from '../bridge';
 
 export function useWindow() {

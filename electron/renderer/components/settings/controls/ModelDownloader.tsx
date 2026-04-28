@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../../../lib/electron-bridge';
+import { api } from '../../../lib/api';
 import type { ModelDownloadProgress } from '../../../../shared/types';
 
 
