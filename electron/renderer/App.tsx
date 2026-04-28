@@ -1,6 +1,6 @@
 import React from 'react';
+import { useSettings } from './lib/hooks/useSettings';
 import { Settings } from './components/Settings';
-import type { ParceraSettings } from '../shared/types';
 import { Avatar } from './components/Avatar';
 import { ChromaKeyFilter } from './components/ChromaKeyFilter';
 import { TrainingTab } from './components/settings/TrainingTab';
@@ -24,12 +24,7 @@ if (view === 'settings') {
 }
 
 export const App: React.FC = () => {
-  const [settings, setSettings] = React.useState<ParceraSettings | null>(null);
-
-  React.useEffect(() => {
-    window.electronAPI.getSettings().then(setSettings);
-    return window.electronAPI.onSettingsChanged(setSettings);
-  }, []);
+  const { settings } = useSettings();
 
   const chroma = React.useMemo(() => {
     const avatarSettings = settings?.avatars?.[avatarType as 'user' | 'ai'];

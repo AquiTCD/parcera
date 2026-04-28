@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { api } from '../../../lib/electron-bridge';
 import type { ModelDownloadProgress } from '../../../../shared/types';
 
 
@@ -16,7 +17,7 @@ export function useModelDownloader(modelName: string, port: number) {
       const healthRes = await fetch(`http://127.0.0.1:${port}/health`);
       if (!healthRes.ok) throw new Error('Server not ready');
 
-      const cached = await window.electronAPI.checkModelCached(modelName, port);
+      const cached = await api.checkModelCached(modelName, port);
       setModelStatus(cached ? 'ready' : 'not_cached');
     } catch (err) {
       console.log('Model Check: Server not ready, retrying...', err);
@@ -34,11 +35,11 @@ export function useModelDownloader(modelName: string, port: number) {
     setProgressDetail('');
     setErrorMsg('');
 
-    window.electronAPI.downloadModel(
+    api.downloadModel(
       modelName,
       async (data: ModelDownloadProgress) => {
         if (data.status === 'complete') {
-          await window.electronAPI.reloadModel(port);
+          await api.reloadModel(port);
           setModelStatus('ready');
           setProgress(100);
         } else if (data.status === 'error') {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { api } from '../electron-bridge';
 import { state, logStatus } from '../state';
 import type { AvatarConfig, ParceraSettings } from '../state';
 import { initAudioContext, getContext, getAnalyser, setNoiseGateDb, connectToAnalyser } from '../audio';
@@ -79,13 +80,13 @@ export function useAvatar() {
         const track = stream.getAudioTracks()[0];
         micTrackRef.current = track;
 
-        const s = await window.electronAPI.getSettings();
+        const s = await api.getSettings();
         const initialMute = s.vad?.start_muted ?? false;
         const winConf = s.electron?.windows?.[state.avatarType];
 
         if (winConf?.locked) {
           setIsLocked(true);
-          window.electronAPI.setResizable(false);
+          api.setResizable(false);
         }
         if (winConf?.control_corner) setControlCorner(winConf.control_corner);
 
@@ -157,7 +158,7 @@ export function useAvatar() {
 
       const avatarConfig = settings.avatars?.[state.avatarType] as AvatarConfig | undefined;
       const rawPath = avatarConfig?.assets_dir || `assets/${state.avatarType}`;
-      const assetsDir = window.electronAPI.resolveLocalPath(rawPath);
+      const assetsDir = api.resolveLocalPath(rawPath);
 
       if (avatarImageRef.current) {
         avatarImageRef.current.src = `${assetsDir}/base.png`;
@@ -179,7 +180,7 @@ export function useAvatar() {
       if (winConf?.locked !== undefined) {
         setIsLocked(prev => {
           if (prev === !!winConf.locked) return prev;
-          window.electronAPI.setResizable(!winConf.locked);
+          api.setResizable(!winConf.locked);
           return !!winConf.locked;
         });
       }
@@ -197,7 +198,7 @@ export function useAvatar() {
       });
     };
 
-    window.electronAPI.getSettings().then((s: ParceraSettings) => {
+    api.getSettings().then((s: ParceraSettings) => {
       applySettings(s);
       updateStatus('Settings Loaded');
     }).catch((e: any) => {
@@ -205,7 +206,7 @@ export function useAvatar() {
       updateStatus('Using Defaults');
     });
 
-    return window.electronAPI.onSettingsChanged((s: ParceraSettings) => {
+    return api.onSettingsChanged((s: ParceraSettings) => {
       applySettings(s);
       updateStatus('Settings Reloaded');
       console.log('[Parcera] Settings hot-reloaded');
@@ -218,7 +219,7 @@ export function useAvatar() {
     setIsMuted(nextMuted);
     if (micTrackRef.current) micTrackRef.current.enabled = !nextMuted;
     updateStatus(nextMuted ? 'Muted' : 'Mic Active');
-    await window.electronAPI.updateSetting('vad.start_muted', nextMuted);
+    await api.updateSetting('vad.start_muted', nextMuted);
   };
 
   const toggleMode = async (e: React.MouseEvent) => {
@@ -226,13 +227,13 @@ export function useAvatar() {
     const nextMode = mode === 'soliloquy' ? 'conversation' : 'soliloquy';
     setMode(nextMode);
     updateStatus(`Mode: ${nextMode}`);
-    await window.electronAPI.updateSetting('user_profile.mode', nextMode);
+    await api.updateSetting('user_profile.mode', nextMode);
   };
 
   const setSensitivity = async (level: 'low' | 'medium' | 'high') => {
     setSensitivityState(level);
     updateStatus(`Sensitivity: ${level}`);
-    await window.electronAPI.updateSetting('response_sensitivity', level);
+    await api.updateSetting('response_sensitivity', level);
   };
 
   const toggleLock = async (e: React.MouseEvent) => {
@@ -242,13 +243,13 @@ export function useAvatar() {
 
     let currentBounds = null;
     if (nextLocked) {
-      currentBounds = await window.electronAPI.getWindowBounds();
+      currentBounds = await api.getWindowBounds();
     }
 
     setIsLocked(nextLocked);
-    window.electronAPI.setResizable(!nextLocked);
+    api.setResizable(!nextLocked);
 
-    const s = await window.electronAPI.getSettings();
+    const s = await api.getSettings();
     if (!s.electron) s.electron = {};
     if (!s.electron.windows) s.electron.windows = {};
     if (!s.electron.windows[state.avatarType]) s.electron.windows[state.avatarType] = {};
@@ -263,7 +264,7 @@ export function useAvatar() {
       winConf.height = Math.round(currentBounds.height);
     }
 
-    await window.electronAPI.saveSettings(s);
+    await api.saveSettings(s);
   };
 
   return {

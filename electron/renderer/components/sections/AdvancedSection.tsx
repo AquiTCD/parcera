@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { api } from '../../lib/electron-bridge';
 import { SectionProps } from './types';
 import { FieldRow, PasswordField } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -84,7 +85,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
   const port = settings.electron?.port || 8676;
-  const isWindows = window.electronAPI.platform === 'win32';
+  const isWindows = api.platform === 'win32';
 
   return (
     <div className="space-y-6">

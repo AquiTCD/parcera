@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { api } from '../../lib/electron-bridge';
 import { SectionProps } from './types';
 import { FieldRow } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -19,10 +20,10 @@ export const DeveloperSection: React.FC<SectionProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    window.electronAPI.getLogHistory().then((history) => {
+    api.getLogHistory().then((history) => {
       setLogs(history.slice(-100));
     });
-    return window.electronAPI.onLogMessage((log) => {
+    return api.onLogMessage((log) => {
       setLogs((prev) => [...prev.slice(-100), log]);
     });
   }, []);

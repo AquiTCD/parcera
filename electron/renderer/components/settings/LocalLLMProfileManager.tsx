@@ -1,4 +1,5 @@
 import React from 'react';
+import { api } from '../../lib/electron-bridge';
 import type { ParceraSettings } from '../../../shared/types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -49,8 +50,8 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
 
   React.useEffect(() => {
     fetchProfiles();
-    if (window.electronAPI.onProfilesUpdated) {
-      return window.electronAPI.onProfilesUpdated(() => fetchProfiles());
+    if (api.onProfilesUpdated) {
+      return api.onProfilesUpdated(() => fetchProfiles());
     }
   }, [fetchProfiles]);
 
@@ -110,7 +111,7 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
   };
 
   const handleImportSelect = async () => {
-    const sourcePath = await window.electronAPI.selectDirectory();
+    const sourcePath = await api.selectDirectory();
     if (!sourcePath) return;
     const defaultName = sourcePath.split(/[\\/]/).pop() || 'imported_profile';
     setImportPending({ sourcePath, name: defaultName });
@@ -140,7 +141,7 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
 
   const handleExportProfile = async (profileName: string) => {
     try {
-      const destPath = await window.electronAPI.selectDirectory();
+      const destPath = await api.selectDirectory();
       if (!destPath) return;
       const res = await fetch(`http://127.0.0.1:${port}/training/profiles/export`, {
         method: 'POST',
@@ -168,7 +169,7 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
         return;
       }
       fetchProfiles();
-      window.electronAPI.broadcastProfilesUpdated?.();
+      api.broadcastProfilesUpdated?.();
       if (activeAdapterPath.includes(`/${name}`) || activeAdapterPath === name) {
         updateProvider('llm', 'local', 'adapter_path', '');
       }
@@ -187,8 +188,8 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
         setStatus?.({ message: `作成に失敗しました: ${data.detail ?? res.status}`, type: 'error' });
         return;
       }
-      window.electronAPI.broadcastProfilesUpdated?.();
-      window.electronAPI.openTrainingWindow(name);
+      api.broadcastProfilesUpdated?.();
+      api.openTrainingWindow(name);
       setNewProfileName('');
     } catch {
       setStatus?.({ message: '作成中にエラーが発生しました', type: 'error' });
@@ -270,7 +271,7 @@ export const LocalLLMProfileManager: React.FC<Props> = ({ settings, updateProvid
                     <Badge variant={p.needs_train ? 'warning' : 'secondary'} className="text-xs">
                       {p.status_message}
                     </Badge>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => window.electronAPI.openTrainingWindow(p.name)} title="学習ウィンドウを開く">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => api.openTrainingWindow(p.name)} title="学習ウィンドウを開く">
                       📝
                     </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleExportProfile(p.name)} title="エクスポート">

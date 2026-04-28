@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../../lib/electron-bridge';
 import type { TwitchSettings } from '../../../shared/types';
 import { SectionProps } from './types';
 import { FieldRow, PasswordField } from './shared';
@@ -25,7 +26,7 @@ export const IntegrationSection: React.FC<SectionProps> = ({
     if (!isAuthorized) return;
     const fetchStatus = async () => {
       try {
-        const status = await window.electronAPI.getTwitchStatus();
+        const status = await api.getTwitchStatus();
         if (status?.session_id) setSessionId(status.session_id);
       } catch {
         // ignore

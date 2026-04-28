@@ -1,4 +1,5 @@
 import React from 'react';
+import { api } from '../../lib/electron-bridge';
 import { ParceraSettings } from '../../../shared/types';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -59,7 +60,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
         size="sm"
         className="w-full text-xs"
         onClick={async () => {
-          const bounds = await window.electronAPI.getAvatarWindowBounds(type);
+          const bounds = await api.getAvatarWindowBounds(type);
           if (bounds) {
             updateNested('electron', 'windows', {
               ...settings.electron?.windows,

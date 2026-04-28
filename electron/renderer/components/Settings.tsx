@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { api } from '../lib/electron-bridge';
 import type { ParceraSettings } from '../../shared/types';
 import { useSettingsState } from '../lib/hooks/useSettingsState';
 import { SidebarLayout } from './layout/SidebarLayout';
@@ -37,8 +38,8 @@ export const Settings: React.FC = () => {
   const [activeSection, setActiveSection] = useState('character');
 
   useEffect(() => {
-    window.electronAPI.getSettings().then(setSettings);
-    window.electronAPI.getDefaultSettings().then(setDefaultSettings);
+    api.getSettings().then(setSettings);
+    api.getDefaultSettings().then(setDefaultSettings);
   }, [setSettings]);
 
   const handleRestoreDefaults = useCallback(() => {
@@ -60,7 +61,7 @@ export const Settings: React.FC = () => {
   const handleSave = useCallback(async () => {
     if (!settings) return;
     setStatus({ message: '保存中...', type: '' });
-    const result = await window.electronAPI.saveSettings(settings);
+    const result = await api.saveSettings(settings);
     if (result.success) {
       setStatus({ message: '設定を保存しました！', type: 'success' });
       setTimeout(() => setStatus({ message: '', type: '' }), 3000);
@@ -73,7 +74,7 @@ export const Settings: React.FC = () => {
     async (key: 'user' | 'ai') => {
       if (!settings) return;
       const current = settings.avatars?.[key]?.assets_dir;
-      const result = await window.electronAPI.selectDirectory(current);
+      const result = await api.selectDirectory(current);
       if (result) {
         updateNested('avatars', key, { ...(settings.avatars?.[key] || {}), assets_dir: result });
       }
@@ -152,7 +153,7 @@ export const Settings: React.FC = () => {
             {status.message}
           </span>
         )}
-        <Button variant="outline" onClick={() => window.electronAPI.closeWindow()}>
+        <Button variant="outline" onClick={() => api.closeWindow()}>
           閉じる
         </Button>
         <Button onClick={handleSave}>保存する</Button>

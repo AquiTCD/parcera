@@ -1,3 +1,4 @@
+import { api } from '../../lib/electron-bridge';
 import React, { useState, useEffect, useCallback } from 'react';
 import type { TrainingPair, ParceraSettings } from '../../../shared/types';
 import { Button } from '../ui/button';
@@ -88,8 +89,8 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
   useEffect(() => { fetchPairs(); }, [fetchPairs]);
 
   useEffect(() => {
-    if (window.electronAPI.onTrainingProfileChanged) {
-      return window.electronAPI.onTrainingProfileChanged((profile: string) => {
+    if (api.onTrainingProfileChanged) {
+      return api.onTrainingProfileChanged((profile: string) => {
         setCurrentProfile(profile);
       });
     }
@@ -195,8 +196,8 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
       );
       if (res.ok) {
         setCurrentProfile(tempProfileName.trim());
-        if (window.electronAPI.broadcastProfilesUpdated) {
-          window.electronAPI.broadcastProfilesUpdated();
+        if (api.broadcastProfilesUpdated) {
+          api.broadcastProfilesUpdated();
         }
       } else {
         setStatus?.({ message: '名前の変更に失敗しました', type: 'error' });

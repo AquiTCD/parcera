@@ -16,6 +16,7 @@ eggs/
 .eggs/
 lib/
 !electron/renderer/lib/
+!electron/renderer/tests/lib/
 lib64/
 parts/
 sdist/
