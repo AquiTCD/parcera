@@ -28,8 +28,8 @@ export PARCERA_CONFIG_PATH="configs/settings.default.yaml"
 
 [tasks.tauri-dev]
 description = "Start Tauri dev (Vite + Rust). Run 'mise run server' first in another terminal."
-run = "pnpm -C electron tauri dev"
+run = "electron/node_modules/.bin/tauri dev"
 
 [tasks.tauri-build]
 description = "Build Tauri app (production)"
-run = "pnpm -C electron tauri build"
+run = "electron/node_modules/.bin/tauri build"
