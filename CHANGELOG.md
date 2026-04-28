@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-04-28 - Windows Support & Library Updates
+
+### Added
+- **Windows support**: Python backend now runs cross-platform; `prepare_sidecar.ps1` script for Windows build preparation; Electron build config includes NSIS x64 target
+- **Platform utilities**: New `src/core/platform_utils.py` as single source of truth for OS detection (`IS_WINDOWS`, `IS_MACOS`, `app_support_base()`)
+- **`platform` API**: Exposed `window.electronAPI.platform` via contextBridge for renderer-side platform detection
+
+### Changed
+- **Local LLM hidden on Windows**: Settings UI no longer shows "Local Brain" option when running on Windows (mlx-lm is macOS/Apple Silicon only)
+- **Optional packages path**: Now resolves to `%APPDATA%\Parcera\optional-packages` on Windows instead of macOS-only `~/Library/Application Support`
+- **`xattr` quarantine removal**: Guarded by `IS_MACOS` so it doesn't run on Windows
+- **Dependencies bumped**: `aiavatar`, `mlx-lm`, `google-genai`, `openai`, `azure-cognitiveservices-speech`, `fastapi`, `uvicorn`, `pydantic`, `moonshine-voice` updated to latest stable
+
+### Fixed
+- **Missing LoRA adapter crash**: `LocalLLMService._load_model` now falls back to base model instead of crashing when the configured adapter path no longer exists (e.g. after training run cleanup)
+- **Repeated adapter-missing warnings**: Warning is now emitted once per path per session; `clear_cache()` resets the seen-set so a re-installed adapter is picked up after model reload
+
 ## [0.9.0] - 2026-04-27 - UI Refresh Completion & Local LLM Feature Restoration
 
 ### Added
