@@ -1,0 +1,67 @@
+pub mod commands;
+pub mod settings_store;
+pub mod sidecar;
+pub mod twitch;
+pub mod types;
+
+use std::sync::{Arc, Mutex};
+use tauri::Manager;
+
+use settings_store::SettingsStore;
+use twitch::token_store::TwitchTokenStore;
+use types::LogManager;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub settings: Arc<Mutex<SettingsStore>>,
+    pub log_manager: Arc<LogManager>,
+    pub twitch_tokens: Arc<TwitchTokenStore>,
+}
+
+pub fn run() {
+    env_logger::init();
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let data_dir = app.path().app_data_dir()?;
+
+            let settings_path = data_dir.join("config.json");
+            let mut store = SettingsStore::new(settings_path);
+            store.init().expect("Failed to initialize settings store");
+
+            let tokens_path = data_dir.join("twitch_tokens.json");
+
+            let state = AppState {
+                settings: Arc::new(Mutex::new(store)),
+                log_manager: Arc::new(LogManager::new()),
+                twitch_tokens: Arc::new(TwitchTokenStore::new(tokens_path)),
+            };
+
+            app.manage(state);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::settings::get_settings,
+            commands::settings::get_default_settings,
+            commands::settings::save_settings,
+            commands::settings::update_setting,
+            commands::settings::reload_settings,
+            commands::windows::save_window_bounds,
+            commands::windows::get_avatar_window_bounds,
+            commands::dialogs::select_directory,
+            commands::logs::get_log_history,
+            commands::twitch::twitch_start_auth,
+            commands::twitch::twitch_get_auth_status,
+            commands::twitch::twitch_clear_auth,
+            commands::twitch::twitch_test_event,
+            commands::twitch::get_twitch_status,
+            commands::training::open_training_window,
+            commands::training::broadcast_profiles_updated,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
