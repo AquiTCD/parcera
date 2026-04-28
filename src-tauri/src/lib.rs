@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 use settings_store::SettingsStore;
+use sidecar::SidecarManager;
 use twitch::token_store::TwitchTokenStore;
 use types::LogManager;
 
@@ -35,13 +36,28 @@ pub fn run() {
 
             let tokens_path = data_dir.join("twitch_tokens.json");
 
+            let log_manager = Arc::new(LogManager::new());
+            let port = store.get_port();
+            let config_path = data_dir.join("config.json")
+                .to_string_lossy()
+                .into_owned();
+
             let state = AppState {
                 settings: Arc::new(Mutex::new(store)),
-                log_manager: Arc::new(LogManager::new()),
+                log_manager: log_manager.clone(),
                 twitch_tokens: Arc::new(TwitchTokenStore::new(tokens_path)),
             };
 
             app.manage(state);
+
+            // Start Python sidecar asynchronously after setup completes
+            let app_handle = app.handle().clone();
+            tokio::spawn(async move {
+                SidecarManager::new(log_manager, config_path, port)
+                    .start(app_handle)
+                    .await;
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
