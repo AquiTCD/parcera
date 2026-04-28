@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm -C electron dev:tauri",
-    "beforeBuildCommand": "pnpm -C electron build:tauri"
+    "beforeDevCommand": "pnpm dev:tauri",
+    "beforeBuildCommand": "pnpm build:tauri"
   },
   "app": {
     "withGlobalTauri": false,
