@@ -52,7 +52,7 @@ pub fn run() {
 
             // Start Python sidecar asynchronously after setup completes
             let app_handle = app.handle().clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 SidecarManager::new(log_manager, config_path, port)
                     .start(app_handle)
                     .await;
