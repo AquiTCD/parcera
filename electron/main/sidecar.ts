@@ -115,18 +115,21 @@ export class PythonSidecar {
     }
   }
 
+  private getDevRoot(): string {
+    return process.env['APP_ROOT']
+      ? path.join(process.env['APP_ROOT'], '..')
+      : path.join(app.getAppPath(), '..');
+  }
+
   private getPythonExecutable(): string {
     const isWindows = process.platform === 'win32';
     if (app.isPackaged) {
-      // python-build-standalone: macOS has bin/python3, Windows has python.exe at root
       if (isWindows) {
         return path.join(process.resourcesPath, 'bin', 'python-runtime', 'python.exe');
       }
       return path.join(process.resourcesPath, 'bin', 'python-runtime', 'bin', 'python3');
     }
-    const root = process.env['APP_ROOT']
-      ? path.join(process.env['APP_ROOT'], '..')
-      : path.join(app.getAppPath(), '..');
+    const root = this.getDevRoot();
     if (isWindows) {
       return path.join(root, '.venv', 'Scripts', 'python.exe');
     }
@@ -137,9 +140,6 @@ export class PythonSidecar {
     if (app.isPackaged) {
       return path.join(process.resourcesPath, 'src', 'run_server.py');
     }
-    const root = process.env['APP_ROOT']
-      ? path.join(process.env['APP_ROOT'], '..')
-      : path.join(app.getAppPath(), '..');
-    return path.join(root, 'src', 'run_server.py');
+    return path.join(this.getDevRoot(), 'src', 'run_server.py');
   }
 }

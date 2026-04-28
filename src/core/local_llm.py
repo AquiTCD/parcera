@@ -57,15 +57,11 @@ class LocalLLMService(LLMService):
 
     @classmethod
     def _load_model(cls, model_path: str, adapter_path: Optional[str] = None):
-        if not adapter_path:
-            adapter_path = None
-        if adapter_path:
-            if adapter_path in cls._warned_missing_adapters:
-                adapter_path = None
-            elif not os.path.exists(adapter_path):
+        if adapter_path and not os.path.exists(adapter_path):
+            if adapter_path not in cls._warned_missing_adapters:
                 logger.warning(f"Adapter path not found, loading base model only: {adapter_path}")
                 cls._warned_missing_adapters.add(adapter_path)
-                adapter_path = None
+            adapter_path = None
         if cls._model is None or cls._current_model_path != model_path or cls._current_adapter_path != adapter_path:
             from mlx_lm.utils import load_model, load_tokenizer, load_adapters, _download
             logger.info(f"Loading MLX model: {model_path} (adapter: {adapter_path})...")
@@ -92,6 +88,7 @@ class LocalLLMService(LLMService):
             cls._tokenizer = None
             cls._current_model_path = None
             cls._current_adapter_path = None
+            cls._warned_missing_adapters.clear()
             gc.collect()
             logger.info("Local LLM: Model unloaded.")
 
