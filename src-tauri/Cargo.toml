@@ -1,0 +1,41 @@
+[package]
+name = "parcera"
+version = "0.11.0"
+description = "Parcera - AI Avatar Companion"
+authors = []
+edition = "2021"
+
+[lib]
+name = "parcera_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "parcera"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-http = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+log = "0.4"
+env_logger = "0.11"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+urlencoding = "2"
+rand = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
