@@ -1,7 +1,8 @@
 import asyncio
 import logging
+import os
 import threading
-from typing import AsyncGenerator, List, Dict, Any, Optional
+from typing import AsyncGenerator, ClassVar, List, Dict, Any, Optional
 from aiavatar.sts.llm.base import LLMService, LLMResponse
 from aiavatar.sts.llm.context_manager import ContextManager
 
@@ -12,6 +13,7 @@ class LocalLLMService(LLMService):
     _tokenizer = None
     _current_model_path = None
     _current_adapter_path = None
+    _warned_missing_adapters: ClassVar[set[str]] = set()
 
     _GEMMA_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
     _QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
@@ -55,7 +57,10 @@ class LocalLLMService(LLMService):
 
     @classmethod
     def _load_model(cls, model_path: str, adapter_path: Optional[str] = None):
-        if not adapter_path:
+        if adapter_path and not os.path.exists(adapter_path):
+            if adapter_path not in cls._warned_missing_adapters:
+                logger.warning(f"Adapter path not found, loading base model only: {adapter_path}")
+                cls._warned_missing_adapters.add(adapter_path)
             adapter_path = None
         if cls._model is None or cls._current_model_path != model_path or cls._current_adapter_path != adapter_path:
             from mlx_lm.utils import load_model, load_tokenizer, load_adapters, _download
@@ -83,6 +88,7 @@ class LocalLLMService(LLMService):
             cls._tokenizer = None
             cls._current_model_path = None
             cls._current_adapter_path = None
+            cls._warned_missing_adapters.clear()
             gc.collect()
             logger.info("Local LLM: Model unloaded.")
 

@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+if [[ "$(uname)" != "Darwin" ]]; then
+    echo "❌ This script is macOS only. Use scripts/prepare_sidecar.ps1 on Windows."
+    exit 1
+fi
+
 # Configuration
 # Updated to match project Python version and latest standalone build
 PYTHON_VERSION="3.13.12"

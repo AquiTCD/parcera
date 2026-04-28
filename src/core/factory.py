@@ -9,6 +9,7 @@ from aiavatar.sts.tts.google import GoogleSpeechSynthesizer # Fixed import
 from core.config import ParceraConfig
 from core.stt import NoOpRecognizer
 from core.optional_packages import is_installed
+from core.platform_utils import IS_WINDOWS
 from core.tts import FineTunedVoicevoxTTS
 from core.gemini import FixedGeminiService
 from core.wrappers import ParceraLLMWrapper, ParceraSTTWrapper
@@ -66,6 +67,8 @@ class ParceraComponentFactory:
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
 
         elif provider == "local":
+            if IS_WINDOWS:
+                raise ValueError("Local LLM (mlx-lm) is not supported on Windows. Use Gemini or OpenAI instead.")
             from core.local_llm import LocalLLMService  # lazy: only when local LLM is selected
             local_cfg = providers.get("local", {})
             model_name = local_cfg.get("model", "mlx-community/gemma-2-9b-it-4bit")

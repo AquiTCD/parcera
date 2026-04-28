@@ -2,7 +2,7 @@
   "name": "parcera",
   "productName": "Parcera",
   "private": true,
-  "version": "0.9.0",
+  "version": "0.10.0",
   "main": "dist-electron/index.js",
   "type": "module",
   "scripts": {
@@ -102,6 +102,14 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
     },
     "asar": true,
     "asarUnpack": [
