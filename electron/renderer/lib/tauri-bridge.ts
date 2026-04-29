@@ -44,6 +44,12 @@ export const api: ParceraAPI = {
 
   // FS / Dialog
   resolveLocalPath: (filePath) => {
+    // Bundled web assets (/assets/... or assets/...): strip leading slash and
+    // return as a web-relative path served by Vite/dist. Same logic as Electron preload.
+    if (filePath.startsWith('assets/') || filePath.startsWith('/assets/')) {
+      return filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    }
+    // Absolute filesystem paths (user data dir, etc.): convert to asset:// URL.
     if (filePath.startsWith('/') || /^[A-Za-z]:\\/.test(filePath)) {
       return convertFileSrc(filePath);
     }
