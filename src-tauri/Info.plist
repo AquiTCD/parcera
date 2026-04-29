@@ -4,5 +4,7 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Parcera uses the microphone for voice input and AI conversation.</string>
+  <key>NSCameraUseContinuityCameraDeviceType</key>
+  <true/>
 </dict>
 </plist>
