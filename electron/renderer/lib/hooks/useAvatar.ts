@@ -29,6 +29,17 @@ export function useAvatar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // WKWebView (Tauri/Safari) requires a user gesture before AudioContext can run.
+  // Register a one-time pointerdown handler so the context resumes on first touch/click.
+  useEffect(() => {
+    const resumeOnGesture = () => {
+      const ctx = getContext();
+      if (ctx?.state === 'suspended') ctx.resume().catch(() => {});
+    };
+    document.addEventListener('pointerdown', resumeOnGesture, { once: true });
+    return () => document.removeEventListener('pointerdown', resumeOnGesture);
+  }, []);
+
   const updateStatus = (text: string) => {
     logStatus(text);
   };
@@ -58,7 +69,12 @@ export function useAvatar() {
       initAudioContext();
       const ctx = getContext();
       if (!ctx || ctx.state === 'closed') return;
-      if (ctx.state === 'suspended') await ctx.resume();
+      if (ctx.state === 'suspended') {
+        await Promise.race([
+          ctx.resume(),
+          new Promise<void>(resolve => setTimeout(resolve, 500)),
+        ]).catch(() => {});
+      }
 
       try {
         if (micTrackRef.current) {
