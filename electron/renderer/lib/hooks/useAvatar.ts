@@ -40,10 +40,13 @@ export function useAvatar() {
   }, []);
 
   useEffect(() => {
+    const isTauri = !!(window as any).__TAURI_INTERNALS__;
     if (isLocked) {
       document.body.classList.add('is-locked');
+      if (isTauri) document.body.removeAttribute('data-tauri-drag-region');
     } else {
       document.body.classList.remove('is-locked');
+      if (isTauri) document.body.setAttribute('data-tauri-drag-region', '');
     }
   }, [isLocked]);
 

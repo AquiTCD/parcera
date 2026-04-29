@@ -75,6 +75,26 @@ pub fn run() {
                 }
             });
 
+            // Restore saved window bounds (position + size) for avatar windows
+            {
+                let settings_data = app.state::<AppState>().settings.lock().unwrap().get_all();
+                for win_type in &["user", "ai"] {
+                    let cfg = &settings_data["electron"]["windows"][win_type];
+                    if let Some(win) = app.get_webview_window(win_type) {
+                        if let (Some(x), Some(y)) = (cfg["x"].as_f64(), cfg["y"].as_f64()) {
+                            let _ = win.set_position(tauri::Position::Logical(
+                                tauri::LogicalPosition { x, y },
+                            ));
+                        }
+                        if let (Some(w), Some(h)) = (cfg["width"].as_f64(), cfg["height"].as_f64()) {
+                            let _ = win.set_size(tauri::Size::Logical(
+                                tauri::LogicalSize { width: w, height: h },
+                            ));
+                        }
+                    }
+                }
+            }
+
             // Start Python sidecar asynchronously after setup completes
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
