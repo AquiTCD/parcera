@@ -25,7 +25,23 @@ impl SidecarManager {
     }
 
     pub async fn start(&self, app: AppHandle) {
+        if self.is_server_healthy() {
+            log::info!("[Sidecar] Port {} already in use — reusing existing server", self.port);
+            let app_clone = app.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                let _ = app_clone.emit("sidecar-ready", ());
+            });
+            return;
+        }
         self.spawn_python(app).await;
+    }
+
+    fn is_server_healthy(&self) -> bool {
+        use std::net::{SocketAddr, TcpStream};
+        use std::time::Duration;
+        let addr: SocketAddr = format!("127.0.0.1:{}", self.port).parse().unwrap();
+        TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
     }
 
     async fn spawn_python(&self, app: AppHandle) {
@@ -103,7 +119,7 @@ impl SidecarManager {
                 };
 
                 if count <= MAX_RESTARTS {
-                    let delay_ms = (1000u64 * 2u64.pow(count)).min(30_000);
+                    let delay_ms = restart_delay_ms(count);
                     log::warn!(
                         "[Sidecar] Restarting ({count}/{MAX_RESTARTS}) in {delay_ms}ms…"
                     );
