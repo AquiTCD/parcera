@@ -44,13 +44,21 @@ pub async fn twitch_clear_auth(state: State<'_, AppState>) -> Result<bool, Strin
     Ok(true)
 }
 
+fn build_test_event_url(port: u16, event_type: &str) -> String {
+    format!(
+        "http://127.0.0.1:{}/twitch/test-event?event_type={}",
+        port,
+        urlencoding::encode(event_type)
+    )
+}
+
 #[tauri::command]
 pub async fn twitch_test_event(
     state: State<'_, AppState>,
     event_type: String,
 ) -> Result<OpResult, String> {
     let port = state.settings.lock().map_err(|e| e.to_string())?.get_port();
-    let url = format!("http://127.0.0.1:{port}/twitch/test-event?event_type={event_type}");
+    let url = build_test_event_url(port, &event_type);
 
     match reqwest::Client::new().post(&url).send().await {
         Ok(res) if res.status().is_success() => Ok(OpResult::ok()),
@@ -77,6 +85,7 @@ pub async fn get_twitch_status(state: State<'_, AppState>) -> Result<TwitchStatu
 
 #[cfg(test)]
 mod tests {
+    use super::build_test_event_url;
     use crate::types::TwitchStatus;
 
     #[test]
@@ -85,5 +94,24 @@ mod tests {
         let v = serde_json::to_value(&s).unwrap();
         assert_eq!(v["initialized"], false);
         assert!(v.get("user").map_or(true, |u| u.is_null()));
+    }
+
+    #[test]
+    fn build_test_event_url_normal_type() {
+        let url = build_test_event_url(8676, "follow");
+        assert_eq!(url, "http://127.0.0.1:8676/twitch/test-event?event_type=follow");
+    }
+
+    #[test]
+    fn build_test_event_url_encodes_special_chars() {
+        let url = build_test_event_url(8676, "follow&inject=x");
+        assert!(url.contains("follow%26inject%3Dx"), "got: {url}");
+        assert!(!url.contains("follow&inject=x"), "raw ampersand leaked into URL: {url}");
+    }
+
+    #[test]
+    fn build_test_event_url_encodes_equals() {
+        let url = build_test_event_url(8676, "a=b");
+        assert!(url.contains("a%3Db"), "got: {url}");
     }
 }
