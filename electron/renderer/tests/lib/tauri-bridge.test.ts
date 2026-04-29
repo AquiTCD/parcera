@@ -156,7 +156,7 @@ describe('tauriBridge', () => {
 
   describe('Logs', () => {
     it('getLogHistory invokes get_log_history command', async () => {
-      const logs = [{ source: 'stdout', text: 'hello', time: 1000 }];
+      const logs = [{ source: 'stdout', text: 'hello', timestamp: '2026-01-01T00:00:00Z' }];
       mockInvoke.mockResolvedValue(logs);
       const result = await api.getLogHistory();
       expect(mockInvoke).toHaveBeenCalledWith('get_log_history');

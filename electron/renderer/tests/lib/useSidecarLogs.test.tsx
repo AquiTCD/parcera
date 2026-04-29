@@ -11,7 +11,7 @@ vi.mock('../../lib/electron-bridge', () => ({ api: mockApi }));
 
 const { useSidecarLogs } = await import('../../lib/hooks/useSidecarLogs');
 
-const makeLog = (text: string): LogEntry => ({ source: 'stdout', text, time: Date.now() });
+const makeLog = (text: string): LogEntry => ({ source: 'stdout', text, timestamp: new Date().toISOString() });
 
 describe('useSidecarLogs', () => {
   beforeEach(() => {

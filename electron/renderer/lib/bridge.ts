@@ -2,7 +2,7 @@ import type { ParceraSettings } from '../../shared/types';
 
 export type Rect = { x: number; y: number; width: number; height: number };
 
-export type LogEntry = { source: 'stdout' | 'stderr'; text: string; time?: number };
+export type LogEntry = { source: 'stdout' | 'stderr'; text: string; timestamp: string };
 
 export type TwitchStatus = {
   initialized: boolean;
