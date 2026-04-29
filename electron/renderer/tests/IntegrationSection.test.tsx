@@ -78,6 +78,44 @@ describe('IntegrationSection', () => {
       render(<IntegrationSection {...mockProps} />);
       expect(screen.getByText(/フォロー/)).toBeInTheDocument();
     });
+
+    it('テストボタンクリックで api.twitchTestEvent を呼び fetch は使わない', async () => {
+      // Setup: authorized + session active → テストボタンが表示される
+      const localMock = {
+        ...mockElectron,
+        twitchGetAuthStatus: vi.fn().mockResolvedValue(true),
+        getTwitchStatus: vi.fn().mockResolvedValue({ session_id: 'ses-123', initialized: true }),
+        onTwitchAuthStatus: vi.fn((cb: (v: { success: boolean }) => void) => {
+          cb({ success: true });
+          return vi.fn();
+        }),
+        twitchTestEvent: vi.fn().mockResolvedValue({ success: true }),
+      };
+      (window as any).electronAPI = localMock;
+      vi.clearAllMocks();
+      (global.fetch as ReturnType<typeof vi.fn>).mockClear();
+
+      render(<IntegrationSection {...mockProps} />);
+
+      await waitFor(() => {
+        const testBtns = screen.queryAllByText('テスト');
+        expect(testBtns.length).toBeGreaterThan(0);
+      });
+
+      const [firstTestBtn] = screen.queryAllByText('テスト');
+      firstTestBtn.click();
+
+      await waitFor(() => {
+        expect(localMock.twitchTestEvent).toHaveBeenCalledWith('follow');
+      });
+      expect(global.fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/twitch/test-event'),
+        expect.anything()
+      );
+
+      // restore
+      (window as any).electronAPI = mockElectron;
+    });
   });
 
   describe('フィルター', () => {

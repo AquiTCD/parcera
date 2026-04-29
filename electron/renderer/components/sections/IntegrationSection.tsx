@@ -45,8 +45,7 @@ export const IntegrationSection: React.FC<SectionProps> = ({
 
   const handleTestEvent = async (type: string) => {
     try {
-      const port = settings.electron?.port || 8676;
-      await fetch(`http://localhost:${port}/twitch/test-event?event_type=${type}`, { method: 'POST' });
+      await api.twitchTestEvent(type);
     } catch {
       // ignore
     }

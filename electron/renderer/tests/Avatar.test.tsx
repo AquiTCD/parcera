@@ -96,6 +96,13 @@ describe('Avatar Component', () => {
     expect(img.style.opacity).toBe('0.5');
   });
 
+  it('does not set data-tauri-drag-region when platform is electron', async () => {
+    mockElectron.getSettings.mockResolvedValue({ avatars: {} });
+    render(<Avatar />);
+    const container = screen.getByTestId('avatar-container');
+    expect(container).not.toHaveAttribute('data-tauri-drag-region');
+  });
+
   it('handles visibility toggle', async () => {
     mockElectron.getSettings.mockResolvedValue({ avatars: {} });
     render(<Avatar />);

@@ -2,8 +2,7 @@ import React from 'react';
 import { state } from '../lib/state';
 import type { AvatarType } from '../lib/state';
 import { useAvatar } from '../lib/hooks/useAvatar';
-
-const isTauri = !!(window as any).__TAURI_INTERNALS__;
+import { api } from '../lib/api';
 
 // Initialize global state.avatarType immediately upon module execution
 const params = new URLSearchParams(window.location.search);
@@ -39,7 +38,7 @@ export const Avatar: React.FC = () => {
       <div
         className={`avatar-container ${!visible ? 'hidden' : ''} ${viewMode === 'wide' ? 'wide-view' : ''}`}
         data-testid="avatar-container"
-        {...(isTauri && !isLocked ? { 'data-tauri-drag-region': '' } : {})}
+        {...(api.platform === 'tauri' && !isLocked ? { 'data-tauri-drag-region': '' } : {})}
       >
         <img
           ref={avatarImageRef}
