@@ -10,9 +10,15 @@ describe('ChromaKeyFilter', () => {
     expect(filter).not.toBeNull();
   });
 
-  it('should not render anything when disabled', () => {
+  it('should render identity filter (pass-through) when disabled', () => {
+    // SVG must always be in DOM so CSS filter: url(#chromakey-filter) resolves.
+    // WebKit makes the element transparent when the referenced SVG node is missing.
     const { container } = render(<ChromaKeyFilter enabled={false} />);
-    expect(container.firstChild).toBeNull();
+    const filter = container.querySelector('#chromakey-filter');
+    expect(filter).not.toBeNull();
+    const matrix = container.querySelector('feColorMatrix');
+    // Identity matrix — no visual change
+    expect(matrix?.getAttribute('values')).toBe('1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0');
   });
 
   it('should apply green matrix values', () => {
