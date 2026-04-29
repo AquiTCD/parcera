@@ -56,6 +56,7 @@ export function useAvatar() {
     } else {
       document.body.classList.remove('is-locked');
     }
+    api.setResizable(!isLocked);
   }, [isLocked]);
 
 
@@ -102,7 +103,6 @@ export function useAvatar() {
 
         if (winConf?.locked) {
           setIsLocked(true);
-          api.setResizable(false);
         }
         if (winConf?.control_corner) setControlCorner(winConf.control_corner);
 
@@ -194,11 +194,7 @@ export function useAvatar() {
       }
 
       if (winConf?.locked !== undefined) {
-        setIsLocked(prev => {
-          if (prev === !!winConf.locked) return prev;
-          api.setResizable(!winConf.locked);
-          return !!winConf.locked;
-        });
+        setIsLocked(!!winConf.locked);
       }
 
       const newMode = settings.user_profile?.mode || 'soliloquy';
@@ -263,7 +259,6 @@ export function useAvatar() {
     }
 
     setIsLocked(nextLocked);
-    api.setResizable(!nextLocked);
 
     const s = await api.getSettings();
     if (!s.electron) s.electron = {};

@@ -131,13 +131,19 @@ describe('Avatar Component', () => {
 
     render(<Avatar />);
 
-    await waitFor(() => {
-      const lockBtn = screen.getByTestId('lock-button');
-      fireEvent.click(lockBtn);
-    });
+    // Wait for component to settle with settings loaded, then click lock
+    await waitFor(() => expect(screen.getByTestId('lock-button')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('lock-button'));
 
-    // Check if setResizable(false) was called (since it was unlocked, click locks it)
-    expect(mockElectron.setResizable).toHaveBeenCalledWith(false);
+    // setResizable(false) is driven by the isLocked useEffect — wait for it
+    await waitFor(() => {
+      expect(mockElectron.setResizable).toHaveBeenCalledWith(false);
+    });
+    // Must not be called more than once with false for a single lock transition
+    const falseCallCount = (mockElectron.setResizable as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([v]) => v === false
+    ).length;
+    expect(falseCallCount).toBe(1);
 
     // Check if saveSettings was called with current bounds
     expect(mockElectron.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
