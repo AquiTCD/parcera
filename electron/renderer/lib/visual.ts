@@ -6,6 +6,7 @@
  */
 import { state } from './state';
 import { getRMS, getEnvelope, getVowel, TALK_THRESHOLD } from './audio';
+import { api } from './api';
 
 // --- Constants ---
 const BLINK_CLOSE_DURATION = 150; // ms — eyes stay shut this long
@@ -147,9 +148,7 @@ function updateVisuals(): void {
     ? avatarConfig.assets_dir
     : `assets/${state.avatarType}`;
 
-  const resolvedAssetsDir = ((window as any).electronAPI?.resolveLocalPath)
-    ? (window as any).electronAPI.resolveLocalPath(rawAssetsDir)
-    : rawAssetsDir;
+  const resolvedAssetsDir = api.resolveLocalPath(rawAssetsDir);
 
   const targetPath = `${resolvedAssetsDir}/${targetFile}`;
 
