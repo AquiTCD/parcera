@@ -5,6 +5,7 @@ pub mod twitch;
 pub mod types;
 
 use std::sync::{Arc, Mutex};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::Manager;
 
 use settings_store::SettingsStore;
@@ -50,6 +51,30 @@ pub fn run() {
 
             app.manage(state);
 
+            // macOS application menu with Cmd+, → Preferences
+            let app_menu_submenu = Submenu::with_items(
+                app,
+                "Parcera",
+                true,
+                &[
+                    &PredefinedMenuItem::about(app, None, None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &MenuItem::with_id(app, "preferences", "Preferences...", true, Some("CmdOrCtrl+,"))?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::quit(app, None)?,
+                ],
+            )?;
+            let menu = Menu::with_items(app, &[&app_menu_submenu])?;
+            app.set_menu(menu)?;
+            app.on_menu_event(|app, event| {
+                if event.id().as_ref() == "preferences" {
+                    let handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = commands::preferences::open_preference_window(handle).await;
+                    });
+                }
+            });
+
             // Start Python sidecar asynchronously after setup completes
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -75,6 +100,7 @@ pub fn run() {
             commands::twitch::twitch_clear_auth,
             commands::twitch::twitch_test_event,
             commands::twitch::get_twitch_status,
+            commands::preferences::open_preference_window,
             commands::training::open_training_window,
             commands::training::broadcast_profiles_updated,
         ])
