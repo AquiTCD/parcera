@@ -98,9 +98,10 @@ pub fn run() {
             }
 
             // Start Python sidecar asynchronously after setup completes
+            let paths = sidecar::resolve_paths(app.handle());
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                SidecarManager::new(log_manager, config_path, port)
+                SidecarManager::new(log_manager, config_path, port, paths)
                     .start(app_handle)
                     .await;
             });

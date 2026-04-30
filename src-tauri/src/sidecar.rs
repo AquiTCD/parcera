@@ -1,25 +1,38 @@
 use crate::types::{LogEntry, LogManager};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
+#[cfg(not(debug_assertions))]
+use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
 
 const MAX_RESTARTS: u32 = 5;
 
+/// Resolved paths for the Python sidecar process.
+#[derive(Clone)]
+pub struct SidecarPaths {
+    pub python: String,
+    pub script: String,
+    /// Set to PYTHONPATH in production (None in dev where .venv handles deps).
+    pub pythonpath: Option<String>,
+}
+
 pub struct SidecarManager {
     log_manager: Arc<LogManager>,
     config_path: String,
     port: u16,
+    paths: SidecarPaths,
     restart_count: Arc<Mutex<u32>>,
 }
 
 impl SidecarManager {
-    pub fn new(log_manager: Arc<LogManager>, config_path: String, port: u16) -> Self {
+    pub fn new(log_manager: Arc<LogManager>, config_path: String, port: u16, paths: SidecarPaths) -> Self {
         Self {
             log_manager,
             config_path,
             port,
+            paths,
             restart_count: Arc::new(Mutex::new(0)),
         }
     }
@@ -46,24 +59,31 @@ impl SidecarManager {
     }
 
     async fn spawn_python(&self, app: AppHandle) {
-        let python_path = resolve_python_path();
-        let script_path = resolve_script_path();
+        let python_path = self.paths.python.clone();
+        let script_path = self.paths.script.clone();
+        let pythonpath = self.paths.pythonpath.clone();
         let config_path = self.config_path.clone();
         let log_manager = self.log_manager.clone();
         let restart_count = self.restart_count.clone();
         let port = self.port;
+        let paths = self.paths.clone();
         let app_clone = app.clone();
 
         log::info!("[Sidecar] Starting Python: {python_path} {script_path}");
         log::info!("[Sidecar] Config: {config_path}");
 
-        let result = app
+        let mut cmd = app
             .shell()
             .command(&python_path)
             .args([&script_path])
             .env("PARCERA_CONFIG_PATH", &config_path)
-            .env("PYTHONUNBUFFERED", "1")
-            .spawn();
+            .env("PYTHONUNBUFFERED", "1");
+
+        if let Some(ref pp) = pythonpath {
+            cmd = cmd.env("PYTHONPATH", pp);
+        }
+
+        let result = cmd.spawn();
 
         match result {
             Ok((mut rx, _child)) => {
@@ -128,11 +148,11 @@ impl SidecarManager {
                     );
                     tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
 
-                    // Recreate a new manager-like state for the retry
                     let mgr = SidecarManager {
                         log_manager: log_manager.clone(),
                         config_path: config_path.clone(),
                         port,
+                        paths,
                         restart_count: restart_count.clone(),
                     };
                     Box::pin(mgr.spawn_python(app_clone)).await;
@@ -147,28 +167,46 @@ impl SidecarManager {
     }
 }
 
-/// Resolve the Python executable path.
-/// Dev: `.venv/bin/python` relative to the project root.
-/// Prod: bundled python-runtime binary.
-pub fn resolve_python_path() -> String {
+// ── Path resolution helpers ────────────────────────────────────────────────
+
+/// Path to the Python binary inside a bundled resource directory.
+pub fn python_bin_path(resource_dir: &Path) -> PathBuf {
+    resource_dir.join("python-runtime").join("bin").join("python")
+}
+
+/// Path to run_server.py inside a bundled resource directory.
+pub fn server_script_path(resource_dir: &Path) -> PathBuf {
+    resource_dir.join("python_src").join("run_server.py")
+}
+
+/// Path to site-packages inside a bundled resource directory.
+pub fn site_packages_path(resource_dir: &Path) -> PathBuf {
+    resource_dir.join("site-packages")
+}
+
+/// Resolve sidecar paths from the app handle.
+/// Dev: project-local .venv. Prod: bundled resources via resource_dir().
+pub fn resolve_paths(app: &AppHandle) -> SidecarPaths {
     #[cfg(debug_assertions)]
     {
-        // In dev, resolve relative to the Cargo workspace (src-tauri/../.venv)
+        let _ = app;
         let root = project_root();
-        root.join(".venv").join("bin").join("python").to_string_lossy().into_owned()
+        SidecarPaths {
+            python: root.join(".venv").join("bin").join("python").to_string_lossy().into_owned(),
+            script: root.join("src").join("run_server.py").to_string_lossy().into_owned(),
+            pythonpath: None,
+        }
     }
     #[cfg(not(debug_assertions))]
     {
-        // In production, Tauri bundles resources; resolved via app.path() at runtime.
-        // Placeholder — overridden when the app handle is available.
-        ".venv/bin/python".to_string()
+        let resource_dir = app.path().resource_dir()
+            .expect("[Sidecar] resource_dir unavailable in production build");
+        SidecarPaths {
+            python: python_bin_path(&resource_dir).to_string_lossy().into_owned(),
+            script: server_script_path(&resource_dir).to_string_lossy().into_owned(),
+            pythonpath: Some(site_packages_path(&resource_dir).to_string_lossy().into_owned()),
+        }
     }
-}
-
-/// Resolve the server script path.
-pub fn resolve_script_path() -> String {
-    let root = project_root();
-    root.join("src").join("run_server.py").to_string_lossy().into_owned()
 }
 
 /// Returns the project root directory (parent of src-tauri/).
@@ -209,15 +247,24 @@ mod tests {
     }
 
     #[test]
-    fn resolve_python_path_is_nonempty() {
-        let p = resolve_python_path();
-        assert!(!p.is_empty());
+    fn python_bin_path_resolves_correctly() {
+        let dir = PathBuf::from("/resources");
+        let p = python_bin_path(&dir);
+        assert!(p.to_string_lossy().ends_with("python-runtime/bin/python"), "got: {}", p.display());
     }
 
     #[test]
-    fn resolve_script_path_ends_with_run_server_py() {
-        let p = resolve_script_path();
-        assert!(p.ends_with("run_server.py"), "got: {p}");
+    fn server_script_path_resolves_correctly() {
+        let dir = PathBuf::from("/resources");
+        let p = server_script_path(&dir);
+        assert!(p.to_string_lossy().ends_with("python_src/run_server.py"), "got: {}", p.display());
+    }
+
+    #[test]
+    fn site_packages_path_resolves_correctly() {
+        let dir = PathBuf::from("/resources");
+        let p = site_packages_path(&dir);
+        assert!(p.to_string_lossy().ends_with("site-packages"), "got: {}", p.display());
     }
 
     #[test]
@@ -228,12 +275,30 @@ mod tests {
 
     #[test]
     fn sidecar_manager_constructs() {
+        let paths = SidecarPaths {
+            python: "/tmp/python".into(),
+            script: "/tmp/run_server.py".into(),
+            pythonpath: None,
+        };
         let mgr = SidecarManager::new(
             Arc::new(LogManager::new()),
             "/tmp/test-config.json".into(),
             8676,
+            paths,
         );
         assert_eq!(*mgr.restart_count.lock().unwrap(), 0);
+    }
+
+    #[test]
+    fn sidecar_paths_clones() {
+        let paths = SidecarPaths {
+            python: "/usr/bin/python".into(),
+            script: "/app/run_server.py".into(),
+            pythonpath: Some("/app/site-packages".into()),
+        };
+        let clone = paths.clone();
+        assert_eq!(clone.python, paths.python);
+        assert_eq!(clone.pythonpath, paths.pythonpath);
     }
 
     // ── Integration tests (require running Tauri app + Python) ───────────────

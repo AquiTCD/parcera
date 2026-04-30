@@ -55,7 +55,10 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../configs/settings.default.yaml": "configs/settings.default.yaml"
+      "../configs/settings.default.yaml": "configs/settings.default.yaml",
+      "../electron/resources/bin/python-runtime": "python-runtime",
+      "../electron/resources/site-packages": "site-packages",
+      "../src": "python_src"
     }
   }
 }
