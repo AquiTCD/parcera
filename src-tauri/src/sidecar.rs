@@ -76,11 +76,12 @@ impl SidecarManager {
                     let _ = sync_app.emit("sidecar-ready", ());
                 });
 
-                // Stream stdout/stderr to LogManager and frontend
+                // Stream stdout/stderr to LogManager, frontend, and terminal
                 while let Some(event) = rx.recv().await {
                     match event {
                         CommandEvent::Stdout(line) => {
                             let text = String::from_utf8_lossy(&line).to_string();
+                            eprintln!("[Python] {text}");
                             let entry = LogEntry::new("stdout", &text);
                             log_manager.add("stdout", &text);
                             let _ = app_clone.emit("sidecar-log", &entry);
@@ -93,6 +94,7 @@ impl SidecarManager {
                                 || text.contains("Application startup complete")
                                 || text.contains("Uvicorn running");
                             let source = if is_info { "stdout" } else { "stderr" };
+                            eprintln!("[Python] {text}");
                             let entry = LogEntry::new(source, &text);
                             log_manager.add(source, &text);
                             let _ = app_clone.emit("sidecar-log", &entry);

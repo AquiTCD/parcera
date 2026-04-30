@@ -28,6 +28,7 @@ export PARCERA_CONFIG_PATH="configs/settings.default.yaml"
 
 [tasks.tauri-dev]
 description = "Start Tauri dev (Vite + Rust + Python sidecar). All-in-one."
+env = { RUST_LOG = "info" }
 run = "electron/node_modules/.bin/tauri dev --config src-tauri/tauri.dev.conf.json"
 
 [tasks.tauri-build]
