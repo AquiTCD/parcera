@@ -20,6 +20,7 @@ impl TwitchOAuthHandler {
         client_secret: String,
         token_store: SharedTokenStore,
         app_handle: tauri::AppHandle,
+        python_port: u16,
     ) -> Result<(), String> {
         let state_token = generate_state();
 
@@ -40,6 +41,7 @@ impl TwitchOAuthHandler {
                 client_secret_clone,
                 token_store_clone,
                 app_handle_clone,
+                python_port,
             )
             .await
             {
@@ -68,12 +70,42 @@ fn build_auth_url(client_id: &str, state: &str) -> String {
     )
 }
 
+async fn sync_tokens_with_python(port: u16, tokens: &TwitchTokens) {
+    let url = format!("http://127.0.0.1:{port}/twitch/init");
+    let body = serde_json::json!({
+        "access_token": tokens.access_token,
+        "refresh_token": tokens.refresh_token,
+    });
+
+    for attempt in 1..=10u32 {
+        match reqwest::Client::new().post(&url).json(&body).send().await {
+            Ok(res) if res.status().is_success() => {
+                log::info!("[Twitch] Python backend initialized successfully.");
+                return;
+            }
+            Ok(res) => {
+                log::warn!("[Twitch] /twitch/init responded {}: attempt {attempt}/10", res.status());
+            }
+            Err(e) => {
+                log::warn!("[Twitch] /twitch/init unreachable: {e}: attempt {attempt}/10");
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+    }
+    log::error!("[Twitch] Failed to sync tokens with Python backend after 10 attempts.");
+}
+
+fn build_sync_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}/twitch/init")
+}
+
 async fn run_callback_server(
     expected_state: String,
     client_id: String,
     client_secret: String,
     token_store: SharedTokenStore,
     app_handle: tauri::AppHandle,
+    python_port: u16,
 ) -> Result<(), String> {
     let addr: SocketAddr = format!("127.0.0.1:{OAUTH_PORT}").parse().unwrap();
     let listener = TcpListener::bind(addr).await.map_err(|e| e.to_string())?;
@@ -115,6 +147,12 @@ async fn run_callback_server(
                 token_store.save(&tokens).map_err(|e| e.to_string())?;
                 let _ = write_http_response(&mut stream, 200, SUCCESS_HTML).await;
                 let _ = app_handle.emit("twitch-auth-status", serde_json::json!({ "success": true }));
+                // Sync tokens to Python backend in background (with retry).
+                // Must happen after save so restart also re-syncs from token_store.
+                let tokens_clone = tokens.clone();
+                tokio::spawn(async move {
+                    sync_tokens_with_python(python_port, &tokens_clone).await;
+                });
             }
             Err(e) => {
                 let _ = write_http_response(&mut stream, 500, &e).await;
@@ -237,5 +275,18 @@ mod tests {
         let a = generate_state();
         let b = generate_state();
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn build_sync_url_uses_correct_path() {
+        let url = build_sync_url(8676);
+        assert_eq!(url, "http://127.0.0.1:8676/twitch/init");
+    }
+
+    #[test]
+    fn build_sync_url_respects_port() {
+        let url = build_sync_url(9999);
+        assert!(url.contains(":9999/"));
+        assert!(url.ends_with("/twitch/init"));
     }
 }

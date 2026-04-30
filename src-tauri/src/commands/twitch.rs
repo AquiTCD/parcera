@@ -8,7 +8,7 @@ pub async fn twitch_start_auth(
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let (client_id, client_secret) = {
+    let (client_id, client_secret, port) = {
         let store = state.settings.lock().map_err(|e| e.to_string())?;
         let settings = store.get_all();
         let id = settings["twitch"]["client_id"]
@@ -21,11 +21,11 @@ pub async fn twitch_start_auth(
             .filter(|s| !s.is_empty())
             .ok_or("Twitch Client Secret is missing in settings")?
             .to_string();
-        (id, secret)
+        (id, secret, store.get_port())
     };
 
     let token_store = state.twitch_tokens.clone();
-    TwitchOAuthHandler::start(client_id, client_secret, token_store, app_handle).await
+    TwitchOAuthHandler::start(client_id, client_secret, token_store, app_handle, port).await
 }
 
 #[tauri::command]
