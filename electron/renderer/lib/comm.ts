@@ -9,6 +9,18 @@ import type { ServerMessage } from './state';
 import { getContext, getAnalyser, connectToAnalyser } from './audio';
 import processorUrl from './pcm-processor.js?url';
 
+// --- Constants ---
+export const DEFAULT_PORT = 8676;
+
+export function buildWsUrl(port: number): string {
+  return `ws://127.0.0.1:${port}/ws`;
+}
+
+export function buildServerUrl(port: number, path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `http://127.0.0.1:${port}${normalizedPath}`;
+}
+
 // --- Module State ---
 let socket: WebSocket | null = null;
 let playbackRouteReady = false;
@@ -135,7 +147,7 @@ let closingIntentionally = false;
 
 async function checkServerHealth(port: number): Promise<boolean> {
   try {
-    const res = await fetch(`http://localhost:${port}/health`);
+    const res = await fetch(buildServerUrl(port, '/health'));
     return res.ok;
   } catch {
     return false;
@@ -173,8 +185,8 @@ function scheduleReconnect(): void {
 export function startWebSocket(): void {
   if (state.avatarType !== 'ai') return;
 
-  const port = state.settings.electron?.port || 8080;
-  const wsUrl = `ws://localhost:${port}/ws`;
+  const port = state.settings.electron?.port || DEFAULT_PORT;
+  const wsUrl = buildWsUrl(port);
 
   // Skip if we are already connected or connecting to the correct URL
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
