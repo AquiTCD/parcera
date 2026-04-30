@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-04-30 - Tauri v2 Migration
+
+### Added
+- **Tauri v2 support**: Full migration from Electron to Tauri v2 as the primary desktop runtime; `ParceraAPI` bridge layer abstracts IPC so both Electron and Tauri renderers share the same API surface
+- **Production Python sidecar**: `SidecarPaths` / `resolve_paths(app)` resolves Python binary and script paths from the bundled `resource_dir()` at runtime; `tauri.conf.json` bundles `python-runtime`, `site-packages`, and `python_src`
+- **Preferences window**: Native macOS menu item (Cmd+,) opens a dedicated Preferences window via `open_preference_window` Tauri command
+- **Training window**: `open_training_window` command and `broadcast_profiles_updated` IPC event for live profile reloads
+- **Twitch OAuth → Python sync**: After token exchange, Rust backend calls `/twitch/init` with up to 10 retries so the Python sidecar is always in sync after authentication
+
+### Changed
+- **IPC abstraction**: All renderer code routes through `api` bridge; `tauri-bridge.ts` and `electron-bridge.ts` are selected at runtime via `__TAURI_INTERNALS__` detection
+- **Model download/check URLs**: Fixed `tauri-bridge.ts` to use correct query-param endpoints (`/models/check?name=`, `/models/download?name=`) matching the Python FastAPI router
+- **Port default unified**: `comm.ts` fallback corrected from 8080 → 8676; `buildWsUrl` / `buildServerUrl` pure helpers standardize all server URLs to `127.0.0.1`
+- **Rust URL centralization**: `python_url(port, path)` helper in `python_client.rs` replaces five scattered `format!("http://127.0.0.1:...")` calls
+
+### Fixed
+- **AudioContext suspension in WKWebView**: Multiple event types (`pointerdown`, `click`, `keydown`) now attempt resume; retry after `getUserMedia` succeeds; debug overlay shows `ctx:state` for diagnosis
+- **Peak meter blank lines**: Python stdout/stderr trimmed with `trim_end()` before `eprintln!` to remove double newlines
+- **Zombie Python process detection**: `is_server_healthy()` TCP probe reuses an externally running server and emits `sidecar-ready` without double-spawning
+- **RUST_LOG propagation**: `mise run tauri-dev` now sets `RUST_LOG=info`; startup diagnostic logs `[Parcera] Starting (RUST_LOG=...)` on launch
+
 ## [0.10.0] - 2026-04-28 - Windows Support & Library Updates
 
 ### Added
