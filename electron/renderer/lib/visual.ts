@@ -5,7 +5,7 @@
  * debug overlay, and the requestAnimationFrame loop.
  */
 import { state } from './state';
-import { getRMS, getEnvelope, getVowel, TALK_THRESHOLD } from './audio';
+import { getRMS, getEnvelope, getVowel, TALK_THRESHOLD, getContext } from './audio';
 import { api } from './api';
 
 // --- Constants ---
@@ -103,7 +103,8 @@ function updateVisuals(): void {
 
       // Show envelope percentage alongside dB for clarity
       const envPct = (env * 100).toFixed(0);
-      statusDebug.innerHTML = `${state.persistentStatus}<br>[${meterHtml}] ${db.toFixed(1)}dB | Env: ${envPct}% | Vowel: ${vowel}`;
+      const ctxState = getContext()?.state ?? 'null';
+      statusDebug.innerHTML = `${state.persistentStatus}<br>[${meterHtml}] ${db.toFixed(1)}dB | Env: ${envPct}% | Vowel: ${vowel} | ctx:${ctxState}`;
     }
   }
 

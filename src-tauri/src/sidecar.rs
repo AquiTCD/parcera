@@ -26,6 +26,7 @@ impl SidecarManager {
 
     pub async fn start(&self, app: AppHandle) {
         if self.is_server_healthy() {
+            eprintln!("[Sidecar] Port {} already healthy — reusing external server, no log capture.", self.port);
             log::info!("[Sidecar] Port {} already in use — reusing existing server", self.port);
             let app_clone = app.clone();
             tauri::async_runtime::spawn(async move {
@@ -81,7 +82,7 @@ impl SidecarManager {
                     match event {
                         CommandEvent::Stdout(line) => {
                             let text = String::from_utf8_lossy(&line).to_string();
-                            eprintln!("[Python] {text}");
+                            eprintln!("[Python] {}", text.trim_end());
                             let entry = LogEntry::new("stdout", &text);
                             log_manager.add("stdout", &text);
                             let _ = app_clone.emit("sidecar-log", &entry);
@@ -94,7 +95,7 @@ impl SidecarManager {
                                 || text.contains("Application startup complete")
                                 || text.contains("Uvicorn running");
                             let source = if is_info { "stdout" } else { "stderr" };
-                            eprintln!("[Python] {text}");
+                            eprintln!("[Python] {}", text.trim_end());
                             let entry = LogEntry::new(source, &text);
                             log_manager.add(source, &text);
                             let _ = app_clone.emit("sidecar-log", &entry);

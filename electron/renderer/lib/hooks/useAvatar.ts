@@ -30,14 +30,16 @@ export function useAvatar() {
   }, []);
 
   // WKWebView (Tauri/Safari) requires a user gesture before AudioContext can run.
-  // Register a one-time pointerdown handler so the context resumes on first touch/click.
+  // Listen on multiple event types until the context is actually running.
   useEffect(() => {
-    const resumeOnGesture = () => {
+    const tryResume = () => {
       const ctx = getContext();
-      if (ctx?.state === 'suspended') ctx.resume().catch(() => {});
+      if (!ctx || ctx.state !== 'suspended') return;
+      ctx.resume().catch(() => {});
     };
-    document.addEventListener('pointerdown', resumeOnGesture, { once: true });
-    return () => document.removeEventListener('pointerdown', resumeOnGesture);
+    const events = ['pointerdown', 'click', 'keydown'] as const;
+    events.forEach(e => document.addEventListener(e, tryResume));
+    return () => events.forEach(e => document.removeEventListener(e, tryResume));
   }, []);
 
   const updateStatus = (text: string) => {
@@ -110,7 +112,11 @@ export function useAvatar() {
         track.enabled = !initialMute;
 
         const micSource = ctx.createMediaStreamSource(stream);
-        const analyser = getAnalyser();
+        // Connecting a MediaStreamSource sometimes unblocks suspended AudioContext
+        // on macOS WKWebView — attempt resume again after mic is granted.
+        if (ctx.state === 'suspended') {
+          await ctx.resume().catch(() => {});
+        }
 
         if (state.avatarType === 'user') {
           connectToAnalyser(micSource);

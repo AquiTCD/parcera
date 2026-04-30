@@ -13,11 +13,11 @@ export type TwitchStatus = {
 export type OpResult = { success: boolean; error?: string };
 
 export type DownloadProgress = {
-  progress: number;
+  status: 'downloading' | 'complete' | 'error';
+  progress?: number;
   downloaded_mb?: number;
   total_mb?: number;
   file?: string;
-  status?: string;
   error?: string;
 };
 

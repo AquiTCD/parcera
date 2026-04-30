@@ -14,6 +14,7 @@ vi.mock('@/lib/audio', () => ({
   getEnvelope: vi.fn(() => 0),
   getVowel: vi.fn(() => null),
   TALK_THRESHOLD: 0.06,
+  getContext: vi.fn(() => null),
 }));
 
 describe('visual.ts — resolveLocalPath delegation', () => {
