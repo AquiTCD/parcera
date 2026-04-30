@@ -1,3 +1,4 @@
+use crate::python_client::python_url;
 use crate::twitch::token_store::{SharedTokenStore, TwitchTokens};
 use rand::Rng;
 use std::net::SocketAddr;
@@ -96,7 +97,7 @@ async fn sync_tokens_with_python(port: u16, tokens: &TwitchTokens) {
 }
 
 fn build_sync_url(port: u16) -> String {
-    format!("http://127.0.0.1:{port}/twitch/init")
+    python_url(port, "/twitch/init")
 }
 
 async fn run_callback_server(

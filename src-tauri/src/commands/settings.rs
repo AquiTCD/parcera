@@ -1,3 +1,4 @@
+use crate::python_client::python_url;
 use crate::settings_store::parse_default_yaml;
 use crate::types::OpResult;
 use crate::AppState;
@@ -64,7 +65,7 @@ pub async fn update_setting(
 }
 
 async fn notify_python_reload(port: u16, settings: &Value) {
-    let url = format!("http://127.0.0.1:{port}/config/reload");
+    let url = python_url(port, "/config/reload");
     let _ = reqwest::Client::new()
         .post(&url)
         .json(settings)

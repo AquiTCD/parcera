@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod python_client;
 pub mod settings_store;
 pub mod sidecar;
 pub mod twitch;

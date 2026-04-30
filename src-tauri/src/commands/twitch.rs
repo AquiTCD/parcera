@@ -1,3 +1,4 @@
+use crate::python_client::python_url;
 use crate::twitch::oauth::TwitchOAuthHandler;
 use crate::types::{OpResult, TwitchStatus};
 use crate::AppState;
@@ -38,18 +39,14 @@ pub async fn twitch_clear_auth(state: State<'_, AppState>) -> Result<bool, Strin
     state.twitch_tokens.clear()?;
 
     let port = state.settings.lock().map_err(|e| e.to_string())?.get_port();
-    let url = format!("http://127.0.0.1:{port}/twitch/stop");
+    let url = python_url(port, "/twitch/stop");
     let _ = reqwest::Client::new().post(&url).send().await;
 
     Ok(true)
 }
 
 fn build_test_event_url(port: u16, event_type: &str) -> String {
-    format!(
-        "http://127.0.0.1:{}/twitch/test-event?event_type={}",
-        port,
-        urlencoding::encode(event_type)
-    )
+    python_url(port, &format!("/twitch/test-event?event_type={}", urlencoding::encode(event_type)))
 }
 
 #[tauri::command]
@@ -73,7 +70,7 @@ pub async fn twitch_test_event(
 #[tauri::command]
 pub async fn get_twitch_status(state: State<'_, AppState>) -> Result<TwitchStatus, String> {
     let port = state.settings.lock().map_err(|e| e.to_string())?.get_port();
-    let url = format!("http://127.0.0.1:{port}/twitch/status");
+    let url = python_url(port, "/twitch/status");
 
     match reqwest::Client::new().get(&url).send().await {
         Ok(res) if res.status().is_success() => {
