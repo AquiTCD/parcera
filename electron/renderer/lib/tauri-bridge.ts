@@ -62,16 +62,15 @@ export const api: ParceraAPI = {
   onLogMessage: (cb) => makeListener<LogEntry>('sidecar-log', cb),
 
   // Models — HTTP direct to Python backend; no Tauri commands needed
-  checkModelCached: async (modelName, port = 8000) => {
-    const res = await fetch(`http://127.0.0.1:${port}/models/${encodeURIComponent(modelName)}/cached`);
+  checkModelCached: async (modelName, port = 8676) => {
+    const res = await fetch(`http://127.0.0.1:${port}/models/check?name=${encodeURIComponent(modelName)}`);
     const data = await res.json();
     return data.cached as boolean;
   },
-  downloadModel: (modelName, onProgress, port = 8000) => {
+  downloadModel: (modelName, onProgress, port = 8676) => {
     const controller = new AbortController();
     (async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/models/${encodeURIComponent(modelName)}/download`, {
-        method: 'POST',
+      const res = await fetch(`http://127.0.0.1:${port}/models/download?name=${encodeURIComponent(modelName)}`, {
         signal: controller.signal,
       });
       const reader = res.body?.getReader();
@@ -92,7 +91,7 @@ export const api: ParceraAPI = {
     })().catch(() => {});
     return () => controller.abort();
   },
-  reloadModel: (port = 8000) => fetch(`http://127.0.0.1:${port}/models/reload`, { method: 'POST' })
+  reloadModel: (port = 8676) => fetch(`http://127.0.0.1:${port}/models/reload`, { method: 'POST' })
     .then(() => ({ success: true }) as OpResult),
 
   // Twitch

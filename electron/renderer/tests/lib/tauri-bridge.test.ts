@@ -204,6 +204,56 @@ describe('tauriBridge', () => {
     });
   });
 
+  describe('Models', () => {
+    beforeEach(() => {
+      global.fetch = vi.fn();
+    });
+
+    it('checkModelCached fetches correct query-param URL', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        json: async () => ({ cached: true }),
+      });
+      const result = await api.checkModelCached('gemma3:4b', 8676);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:8676/models/check?name=gemma3%3A4b'
+      );
+      expect(result).toBe(true);
+    });
+
+    it('checkModelCached uses default port 8676', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        json: async () => ({ cached: false }),
+      });
+      await api.checkModelCached('whisper');
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('127.0.0.1:8676')
+      );
+    });
+
+    it('downloadModel fetches with GET (no method override)', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+      };
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        body: { getReader: () => mockReader },
+      });
+      api.downloadModel('gemma3:4b', vi.fn(), 8676);
+      await vi.waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      const [url, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe('http://127.0.0.1:8676/models/download?name=gemma3%3A4b');
+      expect(opts?.method).toBeUndefined();
+    });
+
+    it('reloadModel sends POST to /models/reload', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({});
+      await api.reloadModel(8676);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:8676/models/reload',
+        { method: 'POST' }
+      );
+    });
+  });
+
   describe('Profiles', () => {
     it('openTrainingWindow invokes open_training_window', async () => {
       mockInvoke.mockResolvedValue(undefined);
