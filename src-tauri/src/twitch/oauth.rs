@@ -71,7 +71,7 @@ fn build_auth_url(client_id: &str, state: &str) -> String {
 }
 
 async fn sync_tokens_with_python(port: u16, tokens: &TwitchTokens) {
-    let url = format!("http://127.0.0.1:{port}/twitch/init");
+    let url = build_sync_url(port);
     let body = serde_json::json!({
         "access_token": tokens.access_token,
         "refresh_token": tokens.refresh_token,
