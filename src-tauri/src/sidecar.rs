@@ -210,6 +210,7 @@ pub fn resolve_paths(app: &AppHandle) -> SidecarPaths {
 }
 
 /// Returns the project root directory (parent of src-tauri/).
+#[cfg(debug_assertions)]
 fn project_root() -> PathBuf {
     // CARGO_MANIFEST_DIR points to src-tauri/ at compile time
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
