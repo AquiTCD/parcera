@@ -15,6 +15,12 @@ body.is-locked {
   -webkit-app-region: no-drag !important;
 }
 
+/* Tauri/WKWebView: rely on data-tauri-drag-region instead of CSS drag regions.
+   The CSS property swallows :hover on all children in WKWebView, breaking controls. */
+body.tauri-mode {
+  -webkit-app-region: none !important;
+}
+
 #app {
   width: 100vw;
   height: 100vh;

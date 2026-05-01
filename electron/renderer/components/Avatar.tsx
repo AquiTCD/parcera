@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { state } from '../lib/state';
 import type { AvatarType } from '../lib/state';
 import { useAvatar } from '../lib/hooks/useAvatar';
@@ -15,6 +15,16 @@ if (state.avatarType === 'ai') {
 }
 
 export const Avatar: React.FC = () => {
+  // In Tauri/WKWebView, `body { -webkit-app-region: drag }` swallows all mouse events
+  // (including :hover), even on children with -webkit-app-region: no-drag.
+  // Mark the body so CSS can opt out, letting Tauri's data-tauri-drag-region handle dragging.
+  useEffect(() => {
+    if (api.platform === 'tauri') {
+      document.body.classList.add('tauri-mode');
+      return () => { document.body.classList.remove('tauri-mode'); };
+    }
+  }, []);
+
   const {
     avatarImageRef,
     statusDebugRef,

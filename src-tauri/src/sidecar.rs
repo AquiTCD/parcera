@@ -47,6 +47,10 @@ impl SidecarManager {
     }
 
     pub async fn start(&self, app: AppHandle) {
+        // In dev mode: if a Python server is already running (developer started it manually),
+        // reuse it. This avoids double-spawning during development.
+        // In release: always spawn fresh — log capture requires owning the process.
+        #[cfg(debug_assertions)]
         if self.is_server_healthy() {
             eprintln!("[Sidecar] Port {} already healthy — reusing external server, no log capture.", self.port);
             log::info!("[Sidecar] Port {} already in use — reusing existing server", self.port);
