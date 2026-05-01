@@ -64,6 +64,7 @@ impl SidecarManager {
         self.spawn_python(app).await;
     }
 
+    #[cfg(debug_assertions)]
     fn is_server_healthy(&self) -> bool {
         use std::net::{SocketAddr, TcpStream};
         use std::time::Duration;
