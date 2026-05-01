@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter};
 #[cfg(not(debug_assertions))]
 use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 
 const MAX_RESTARTS: u32 = 5;
 
@@ -24,16 +24,25 @@ pub struct SidecarManager {
     port: u16,
     paths: SidecarPaths,
     restart_count: Arc<Mutex<u32>>,
+    /// Holds the live Python child so it can be killed on app exit.
+    pub child_store: Arc<Mutex<Option<CommandChild>>>,
 }
 
 impl SidecarManager {
-    pub fn new(log_manager: Arc<LogManager>, config_path: String, port: u16, paths: SidecarPaths) -> Self {
+    pub fn new(
+        log_manager: Arc<LogManager>,
+        config_path: String,
+        port: u16,
+        paths: SidecarPaths,
+        child_store: Arc<Mutex<Option<CommandChild>>>,
+    ) -> Self {
         Self {
             log_manager,
             config_path,
             port,
             paths,
             restart_count: Arc::new(Mutex::new(0)),
+            child_store,
         }
     }
 
@@ -65,6 +74,7 @@ impl SidecarManager {
         let config_path = self.config_path.clone();
         let log_manager = self.log_manager.clone();
         let restart_count = self.restart_count.clone();
+        let child_store = self.child_store.clone();
         let port = self.port;
         let paths = self.paths.clone();
         let app_clone = app.clone();
@@ -86,7 +96,9 @@ impl SidecarManager {
         let result = cmd.spawn();
 
         match result {
-            Ok((mut rx, _child)) => {
+            Ok((mut rx, child)) => {
+                // Store the child handle so the app can kill it on exit.
+                *child_store.lock().unwrap() = Some(child);
                 // Reset restart counter on successful spawn
                 *restart_count.lock().unwrap() = 0;
 
@@ -154,6 +166,7 @@ impl SidecarManager {
                         port,
                         paths,
                         restart_count: restart_count.clone(),
+                        child_store: child_store.clone(),
                     };
                     Box::pin(mgr.spawn_python(app_clone)).await;
                 } else {
@@ -286,6 +299,7 @@ mod tests {
             "/tmp/test-config.json".into(),
             8676,
             paths,
+            Arc::new(Mutex::new(None)),
         );
         assert_eq!(*mgr.restart_count.lock().unwrap(), 0);
     }

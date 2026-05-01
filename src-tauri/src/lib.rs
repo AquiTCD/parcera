@@ -13,24 +13,31 @@ use settings_store::SettingsStore;
 use sidecar::SidecarManager;
 use twitch::token_store::TwitchTokenStore;
 use types::LogManager;
+use tauri_plugin_shell::process::CommandChild;
 
 #[derive(Clone)]
 pub struct AppState {
     pub settings: Arc<Mutex<SettingsStore>>,
     pub log_manager: Arc<LogManager>,
     pub twitch_tokens: Arc<TwitchTokenStore>,
+    pub python_child: Arc<Mutex<Option<CommandChild>>>,
 }
 
 pub fn run() {
     eprintln!("[Parcera] Starting (RUST_LOG={})", std::env::var("RUST_LOG").unwrap_or_else(|_| "unset".into()));
     env_logger::init();
 
+    // Hoist python_child to function scope so both the setup closure and the
+    // run-event handler can share the same Arc without lifetime issues.
+    let python_child: Arc<Mutex<Option<CommandChild>>> = Arc::new(Mutex::new(None));
+    let python_child_exit = python_child.clone();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
             let data_dir = app.path().app_data_dir()?;
 
             let settings_path = data_dir.join("config.json");
@@ -49,6 +56,7 @@ pub fn run() {
                 settings: Arc::new(Mutex::new(store)),
                 log_manager: log_manager.clone(),
                 twitch_tokens: Arc::new(TwitchTokenStore::new(tokens_path)),
+                python_child: python_child.clone(),
             };
 
             app.manage(state);
@@ -101,7 +109,7 @@ pub fn run() {
             let paths = sidecar::resolve_paths(app.handle());
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                SidecarManager::new(log_manager, config_path, port, paths)
+                SidecarManager::new(log_manager, config_path, port, paths, python_child)
                     .start(app_handle)
                     .await;
             });
@@ -127,6 +135,14 @@ pub fn run() {
             commands::training::open_training_window,
             commands::training::broadcast_profiles_updated,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(move |_, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Kill the Python sidecar so it doesn't linger across app launches.
+                if let Some(child) = python_child_exit.lock().unwrap().take() {
+                    let _ = child.kill();
+                }
+            }
+        });
 }

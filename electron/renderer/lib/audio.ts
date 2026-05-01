@@ -102,6 +102,16 @@ export function initAudioContext(): void {
     analyser.fftSize = FFT_SIZE;
     analyser.smoothingTimeConstant = SMOOTHING_TIME_CONSTANT;
 
+    // Connect analyser through a silent gain to destination so it stays in the
+    // audio render graph. Without this, WebAudio's pull model skips the analyser
+    // and getFloatTimeDomainData() always returns zeros (breaks user lip-sync).
+    // For the AI window, initPlaybackRoute() adds a direct analyser→destination
+    // connection on top of this, enabling audible TTS playback.
+    const silentGain = audioContext.createGain();
+    silentGain.gain.value = 0;
+    analyser.connect(silentGain);
+    silentGain.connect(audioContext.destination);
+
     const actualRate = audioContext.sampleRate;
     logStatus(`Audio: ${actualRate}Hz ${state.avatarType === 'ai' ? '(AI)' : '(User)'}`);
     console.log(`[Parcera] AudioContext Initialized. Rate: ${actualRate}Hz, Type: ${state.avatarType}`);
