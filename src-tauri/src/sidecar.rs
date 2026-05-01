@@ -49,7 +49,6 @@ impl SidecarManager {
     pub async fn start(&self, app: AppHandle) {
         // In dev mode: if a Python server is already running (developer started it manually),
         // reuse it. This avoids double-spawning during development.
-        // In release: always spawn fresh — log capture requires owning the process.
         #[cfg(debug_assertions)]
         if self.is_server_healthy() {
             eprintln!("[Sidecar] Port {} already healthy — reusing external server, no log capture.", self.port);
@@ -61,6 +60,12 @@ impl SidecarManager {
             });
             return;
         }
+        // In release: evict any lingering process from a previous session before spawning.
+        // This happens when the previous app crashed/was force-quit before RunEvent::Exit
+        // could kill the child, leaving a stale Python bound to our port.
+        #[cfg(not(debug_assertions))]
+        self.evict_port_occupant().await;
+
         self.spawn_python(app).await;
     }
 
@@ -70,6 +75,22 @@ impl SidecarManager {
         use std::time::Duration;
         let addr: SocketAddr = format!("127.0.0.1:{}", self.port).parse().unwrap();
         TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
+    }
+
+    /// Kill any process currently bound to our port (macOS/Linux: via lsof).
+    /// Ignores errors — if nothing is there, that's fine.
+    #[cfg(not(debug_assertions))]
+    async fn evict_port_occupant(&self) {
+        let port = self.port;
+        let result = tokio::task::spawn_blocking(move || {
+            std::process::Command::new("sh")
+                .args(["-c", &format!("lsof -ti tcp:{port} | xargs kill -9 2>/dev/null; exit 0")])
+                .status()
+        }).await;
+        if result.is_ok() {
+            // Give the OS time to release the socket after kill.
+            tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
+        }
     }
 
     async fn spawn_python(&self, app: AppHandle) {
