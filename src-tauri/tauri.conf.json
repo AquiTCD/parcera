@@ -37,7 +37,11 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "bundle": {
@@ -56,6 +60,8 @@
     ],
     "resources": {
       "../configs/settings.default.yaml": "configs/settings.default.yaml",
+      "../configs/system_vitals.yaml": "configs/system_vitals.yaml",
+      "../prompts": "prompts",
       "../electron/resources/bin/python-runtime": "python-runtime",
       "../electron/resources/site-packages": "site-packages",
       "../src": "python_src"
