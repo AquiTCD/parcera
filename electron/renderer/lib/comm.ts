@@ -271,9 +271,13 @@ export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Pro
     currentMicSource = null;
   }
 
-  // 2. Initialize the worklet (Vite resolves the URL via ?url import)
+  // 2. Initialize the worklet (Vite resolves the URL via ?url import).
+  //    Pass the AudioContext's actual sample rate explicitly — the worklet's
+  //    own sampleRate global can disagree with audioContext.sampleRate on WKWebView.
   await audioContext.audioWorklet.addModule(processorUrl);
-  const workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
+  const workletNode = new AudioWorkletNode(audioContext, 'pcm-processor', {
+    processorOptions: { actualSampleRate: audioContext.sampleRate },
+  });
 
   currentMicSource = source;
   currentWorkletNode = workletNode;
@@ -286,8 +290,18 @@ export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Pro
   workletNode.connect(silentGain);
   silentGain.connect(audioContext.destination);
 
-  // Receive PCM buffers from the worklet thread
+  // Receive PCM buffers (and one-time init diagnostic) from the worklet thread
   workletNode.port.onmessage = (e) => {
+    if (e.data?.type === 'init') {
+      // Log actual vs requested sample rates so mismatches are visible in the log viewer.
+      console.log(
+        `[PCM] worklet sampleRate=${e.data.workletSampleRate} ` +
+        `audioContext.sampleRate=${e.data.actualSampleRate} ` +
+        `ratio=${e.data.ratio.toFixed(4)}`
+      );
+      logStatus(`PCM: ${e.data.actualSampleRate}Hz→${Math.round(e.data.actualSampleRate / e.data.ratio)}Hz (ratio ${e.data.ratio.toFixed(2)})`);
+      return;
+    }
     if (state.isAIPlaying) return;
     if (socket && socket.readyState === WebSocket.OPEN) {
       const base64Data = uint8ToBase64(new Uint8Array(e.data));
