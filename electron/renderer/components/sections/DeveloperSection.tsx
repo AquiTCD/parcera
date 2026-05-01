@@ -41,9 +41,42 @@ export const DeveloperSection: React.FC<SectionProps> = ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>ログビューア</CardTitle>
-            <Button variant="outline" size="sm" onClick={() => setLogs([])}>
-              表示ログをクリア
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const text = logs
+                    .map((l) => `[${l.timestamp}] [${l.source}] ${l.text.replace(/\x1b\[[0-9;]*m/g, '')}`)
+                    .join('');
+                  navigator.clipboard.writeText(text).catch(() => {});
+                }}
+              >
+                コピー
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const text = logs
+                    .map((l) => `[${l.timestamp}] [${l.source}] ${l.text.replace(/\x1b\[[0-9;]*m/g, '')}`)
+                    .join('');
+                  const blob = new Blob([text], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                  a.download = `parcera-log-${ts}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                保存
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setLogs([])}>
+                クリア
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

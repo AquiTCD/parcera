@@ -44,7 +44,7 @@ describe('DeveloperSection', () => {
 
     it('renders clear button', () => {
       render(<DeveloperSection {...mockProps} />);
-      expect(screen.getByText(/表示ログをクリア/)).toBeInTheDocument();
+      expect(screen.getByText(/クリア/)).toBeInTheDocument();
     });
 
     it('shows waiting message when no logs', async () => {
