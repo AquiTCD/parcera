@@ -209,7 +209,6 @@ export function startWebSocket(): void {
       return;
     }
 
-    const wsUrl = `ws://localhost:${port}/ws`;
     logStatus('Connecting to AI Server...');
     socket = new WebSocket(wsUrl);
 
@@ -287,7 +286,6 @@ export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Pro
   // Without this guard, two concurrent calls both create a worklet and both
   // start sending PCM to Python → doubled transcription output.
   if (gen !== micSetupGen) {
-    console.log('[Parcera] Mic setup superseded, aborting stale worklet creation.');
     return;
   }
 
@@ -306,18 +304,9 @@ export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Pro
   workletNode.connect(silentGain);
   silentGain.connect(audioContext.destination);
 
-  // Receive PCM buffers (and one-time init diagnostic) from the worklet thread
+  // Receive PCM buffers from the worklet thread
   workletNode.port.onmessage = (e) => {
-    if (e.data?.type === 'init') {
-      // Log actual vs requested sample rates so mismatches are visible in the log viewer.
-      console.log(
-        `[PCM] worklet sampleRate=${e.data.workletSampleRate} ` +
-        `audioContext.sampleRate=${e.data.actualSampleRate} ` +
-        `ratio=${e.data.ratio.toFixed(4)}`
-      );
-      logStatus(`PCM: ${e.data.actualSampleRate}Hz→${Math.round(e.data.actualSampleRate / e.data.ratio)}Hz (ratio ${e.data.ratio.toFixed(2)})`);
-      return;
-    }
+    if (e.data?.type === 'init') return; // worklet startup acknowledgement, no action needed
     if (state.isAIPlaying) return;
     if (socket && socket.readyState === WebSocket.OPEN) {
       const base64Data = uint8ToBase64(new Uint8Array(e.data));

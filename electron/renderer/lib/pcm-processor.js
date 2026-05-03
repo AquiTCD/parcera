@@ -27,14 +27,6 @@ class PCMProcessor extends AudioWorkletProcessor {
     this.writeIndex = 0;
     this.readPos = 0;
     this.prevSample = 0;
-
-    // Report actual values back so the main thread can log them.
-    this.port.postMessage({
-      type: 'init',
-      workletSampleRate: sampleRate,
-      actualSampleRate: actualRate,
-      ratio: this.ratio,
-    });
   }
 
   process(inputs) {

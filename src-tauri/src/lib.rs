@@ -24,8 +24,8 @@ pub struct AppState {
 }
 
 pub fn run() {
-    eprintln!("[Parcera] Starting (RUST_LOG={})", std::env::var("RUST_LOG").unwrap_or_else(|_| "unset".into()));
     env_logger::init();
+    log::info!("[Parcera] Starting (RUST_LOG={})", std::env::var("RUST_LOG").unwrap_or_else(|_| "unset".into()));
 
     // Hoist python_child to function scope so both the setup closure and the
     // run-event handler can share the same Arc without lifetime issues.
