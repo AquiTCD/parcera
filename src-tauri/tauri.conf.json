@@ -62,8 +62,8 @@
       "../configs/settings.default.yaml": "configs/settings.default.yaml",
       "../configs/system_vitals.yaml": "configs/system_vitals.yaml",
       "../prompts": "prompts",
-      "../electron/resources/bin/python-runtime": "python-runtime",
-      "../electron/resources/site-packages": "site-packages",
+      "../ui/resources/bin/python-runtime": "python-runtime",
+      "../ui/resources/site-packages": "site-packages",
       "../src": "python_src"
     }
   }

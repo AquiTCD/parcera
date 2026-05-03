@@ -5,18 +5,18 @@ rust = "stable"
 description = "Parcera Project Tasks"
 
 [tasks.dev]
-description = "Start Electron dev server (Frontend)"
-run = "cd electron && pnpm dev"
+description = "Start UI dev server (Frontend)"
+run = "cd ui && pnpm dev"
 
 [tasks.build]
-description = "Build Electron frontend"
-run = "cd electron && pnpm build"
+description = "Build UI frontend"
+run = "cd ui && pnpm build"
 
 [tasks.package]
 description = "Package as macOS DMG (unsigned)"
 run = """
 bash scripts/prepare_sidecar.sh
-cd electron && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null
+cd ui && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null
 """
 
 [tasks.server]
@@ -29,12 +29,12 @@ export PARCERA_CONFIG_PATH="configs/settings.default.yaml"
 [tasks.tauri-dev]
 description = "Start Tauri dev (Vite + Rust + Python sidecar). All-in-one."
 env = { RUST_LOG = "info" }
-run = "electron/node_modules/.bin/tauri dev --config src-tauri/tauri.dev.conf.json"
+run = "ui/node_modules/.bin/tauri dev --config src-tauri/tauri.dev.conf.json"
 
 [tasks.tauri-build]
 description = "Build Tauri app (production) and copy DMG/app to dist/"
 run = """
-electron/node_modules/.bin/tauri build
+ui/node_modules/.bin/tauri build
 mkdir -p dist
 cp src-tauri/target/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
 cp -r "src-tauri/target/release/bundle/macos/Parcera.app" dist/ 2>/dev/null || true
