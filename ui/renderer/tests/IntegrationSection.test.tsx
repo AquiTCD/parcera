@@ -1,19 +1,45 @@
 import '@testing-library/jest-dom';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { IntegrationSection } from '../components/sections/IntegrationSection';
-import { createBaseMockElectron } from './helpers/mockElectron';
 
-const mockElectron = {
-  ...createBaseMockElectron(),
-  getTwitchStatus: vi.fn().mockResolvedValue({ session_id: null }),
-  twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
-  twitchStartAuth: vi.fn().mockResolvedValue({}),
-  twitchClearAuth: vi.fn().mockResolvedValue({}),
-  onTwitchAuthStatus: vi.fn(() => vi.fn()),
-};
-(window as any).electronAPI = mockElectron;
+vi.mock('@/lib/api', () => ({
+  api: {
+    platform: 'darwin',
+    getSettings: vi.fn(),
+    getDefaultSettings: vi.fn(),
+    saveSettings: vi.fn(),
+    updateSetting: vi.fn().mockResolvedValue({ success: true }),
+    reloadSettings: vi.fn(),
+    onSettingsChanged: vi.fn(() => vi.fn()),
+    resizeWindow: vi.fn(),
+    setResizable: vi.fn(),
+    closeWindow: vi.fn(),
+    getWindowBounds: vi.fn().mockResolvedValue(null),
+    saveWindowBounds: vi.fn().mockResolvedValue({ success: true }),
+    getAvatarWindowBounds: vi.fn().mockResolvedValue(null),
+    selectDirectory: vi.fn(),
+    resolveLocalPath: vi.fn((p: string) => `file://${p}`),
+    getLogHistory: vi.fn().mockResolvedValue([]),
+    onLogMessage: vi.fn(() => vi.fn()),
+    checkModelCached: vi.fn().mockResolvedValue(false),
+    downloadModel: vi.fn(() => vi.fn()),
+    reloadModel: vi.fn().mockResolvedValue({ success: true }),
+    twitchStartAuth: vi.fn().mockResolvedValue(undefined),
+    twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
+    twitchClearAuth: vi.fn().mockResolvedValue(true),
+    twitchTestEvent: vi.fn().mockResolvedValue({ success: true }),
+    getTwitchStatus: vi.fn().mockResolvedValue({ initialized: false }),
+    onTwitchAuthStatus: vi.fn(() => vi.fn()),
+    openTrainingWindow: vi.fn(),
+    broadcastProfilesUpdated: vi.fn(),
+    onProfilesUpdated: vi.fn(() => vi.fn()),
+    onTrainingProfileChanged: vi.fn(() => vi.fn()),
+  }
+}));
+
+import { IntegrationSection } from '../components/sections/IntegrationSection';
+import { api } from '../lib/api';
 
 global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as any);
 
@@ -34,7 +60,7 @@ const dummySettings = {
     max_queue_size: 5,
     queue_expiry_seconds: 120,
   },
-  electron: { port: 8676 },
+  app: { port: 8676 },
 };
 
 const mockProps = {
@@ -47,7 +73,15 @@ const mockProps = {
 };
 
 describe('IntegrationSection', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.getTwitchStatus).mockResolvedValue({ initialized: false, session_id: null } as any);
+    vi.mocked(api.twitchGetAuthStatus).mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
   describe('Twitch有効化', () => {
     it('renders Twitch連携 heading', () => {
@@ -81,18 +115,10 @@ describe('IntegrationSection', () => {
 
     it('テストボタンクリックで api.twitchTestEvent を呼び fetch は使わない', async () => {
       // Setup: authorized + session active → テストボタンが表示される
-      const localMock = {
-        ...mockElectron,
-        twitchGetAuthStatus: vi.fn().mockResolvedValue(true),
-        getTwitchStatus: vi.fn().mockResolvedValue({ session_id: 'ses-123', initialized: true }),
-        onTwitchAuthStatus: vi.fn((cb: (v: { success: boolean }) => void) => {
-          cb({ success: true });
-          return vi.fn();
-        }),
-        twitchTestEvent: vi.fn().mockResolvedValue({ success: true }),
-      };
-      (window as any).electronAPI = localMock;
-      vi.clearAllMocks();
+      vi.mocked(api.twitchGetAuthStatus).mockResolvedValue(true);
+      vi.mocked(api.getTwitchStatus).mockResolvedValue({ session_id: 'ses-123', initialized: true });
+      vi.mocked(api.onTwitchAuthStatus).mockImplementation((cb: any) => { cb({ success: true }); return vi.fn(); });
+      vi.mocked(api.twitchTestEvent).mockResolvedValue({ success: true });
       (global.fetch as ReturnType<typeof vi.fn>).mockClear();
 
       render(<IntegrationSection {...mockProps} />);
@@ -106,15 +132,12 @@ describe('IntegrationSection', () => {
       firstTestBtn.click();
 
       await waitFor(() => {
-        expect(localMock.twitchTestEvent).toHaveBeenCalledWith('follow');
+        expect(vi.mocked(api.twitchTestEvent)).toHaveBeenCalledWith('follow');
       });
       expect(global.fetch).not.toHaveBeenCalledWith(
         expect.stringContaining('/twitch/test-event'),
         expect.anything()
       );
-
-      // restore
-      (window as any).electronAPI = mockElectron;
     });
   });
 

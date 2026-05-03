@@ -2,11 +2,43 @@ import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import { DeveloperSection } from '../components/sections/DeveloperSection';
-import { createBaseMockElectron } from './helpers/mockElectron';
 
-const mockElectron = { ...createBaseMockElectron() };
-(window as any).electronAPI = mockElectron;
+vi.mock('@/lib/api', () => ({
+  api: {
+    platform: 'darwin',
+    getSettings: vi.fn(),
+    getDefaultSettings: vi.fn(),
+    saveSettings: vi.fn(),
+    updateSetting: vi.fn().mockResolvedValue({ success: true }),
+    reloadSettings: vi.fn(),
+    onSettingsChanged: vi.fn(() => vi.fn()),
+    resizeWindow: vi.fn(),
+    setResizable: vi.fn(),
+    closeWindow: vi.fn(),
+    getWindowBounds: vi.fn().mockResolvedValue(null),
+    saveWindowBounds: vi.fn().mockResolvedValue({ success: true }),
+    getAvatarWindowBounds: vi.fn().mockResolvedValue(null),
+    selectDirectory: vi.fn(),
+    resolveLocalPath: vi.fn((p: string) => `file://${p}`),
+    getLogHistory: vi.fn().mockResolvedValue([]),
+    onLogMessage: vi.fn(() => vi.fn()),
+    checkModelCached: vi.fn().mockResolvedValue(false),
+    downloadModel: vi.fn(() => vi.fn()),
+    reloadModel: vi.fn().mockResolvedValue({ success: true }),
+    twitchStartAuth: vi.fn().mockResolvedValue(undefined),
+    twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
+    twitchClearAuth: vi.fn().mockResolvedValue(true),
+    twitchTestEvent: vi.fn().mockResolvedValue({ success: true }),
+    getTwitchStatus: vi.fn().mockResolvedValue({ initialized: false }),
+    onTwitchAuthStatus: vi.fn(() => vi.fn()),
+    openTrainingWindow: vi.fn(),
+    broadcastProfilesUpdated: vi.fn(),
+    onProfilesUpdated: vi.fn(() => vi.fn()),
+    onTrainingProfileChanged: vi.fn(() => vi.fn()),
+  }
+}));
+
+import { DeveloperSection } from '../components/sections/DeveloperSection';
 
 const dummySettings = {
   log_level: 'INFO',

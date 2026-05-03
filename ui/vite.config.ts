@@ -1,48 +1,27 @@
 import { defineConfig } from 'vite';
 import path from 'node:path';
-import electron from 'vite-plugin-electron';
-import renderer from 'vite-plugin-electron-renderer';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+// Tauri-specific Vite config: no vite-plugin-electron or vite-plugin-electron-renderer.
+// The Electron config (vite.config.ts) compiles the main process and uses Electron-specific
+// polyfills which conflict with Tauri's webview environment.
 export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
-    electron([
-      {
-        // Main process entry file of the Electron App.
-        entry: 'main/index.ts',
-      },
-      {
-        entry: 'main/preload.ts',
-        onstart(options) {
-          // Notify the Renderer-Process to reload the page when the Preload-Scripts build is complete,
-          // instead of restarting the entire Electron App.
-          options.reload();
-        },
-        vite: {
-          build: {
-            sourcemap: 'inline',
-            minify: false,
-            outDir: 'dist-electron', // Ensure it outputs to the correct directory
-            rollupOptions: {
-              external: ['electron'], // Usually handled by plugin, but good to be explicit
-              output: {
-                format: 'cjs',
-                entryFileNames: '[name].js',
-                inlineDynamicImports: true,
-              },
-            },
-          },
-        },
-      },
-    ]),
-    renderer(),
   ],
   resolve: {
     alias: {
       '@': path.join(__dirname, 'renderer'),
     },
+  },
+  build: {
+    outDir: '../dist',
+    emptyOutDir: true,
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
   },
 });

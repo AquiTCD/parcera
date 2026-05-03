@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import { Avatar } from '../components/Avatar';
 
 // Mock audio/visual to avoid overhead
 vi.mock('../lib/audio', () => ({
@@ -16,26 +15,43 @@ vi.mock('../lib/visual', () => ({
   initVisual: vi.fn(),
 }));
 
-// Mock Electron API
-const mockElectron = {
-  getSettings: vi.fn().mockResolvedValue({
-    response_sensitivity: 'medium',
-    avatars: { ai: { assets_dir: '/test' } },
-    user_profile: { mode: 'soliloquy' }
-  }),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  onAvatarSpeechStateChanged: vi.fn(() => vi.fn()),
-  onAvatarBlink: vi.fn(() => vi.fn()),
-  onAvatarLipSyncUpdate: vi.fn(() => vi.fn()),
-  resolveLocalPath: vi.fn((p) => `file://${p}`),
-  getWindowBounds: vi.fn(),
-  setResizable: vi.fn(),
-  saveSettings: vi.fn(),
-  updateSetting: vi.fn().mockResolvedValue({ success: true }),
-  getLogHistory: vi.fn().mockResolvedValue([]),
-};
-(window as any).electronAPI = mockElectron;
+vi.mock('@/lib/api', () => ({
+  api: {
+    platform: 'darwin',
+    getSettings: vi.fn(),
+    getDefaultSettings: vi.fn(),
+    saveSettings: vi.fn(),
+    updateSetting: vi.fn().mockResolvedValue({ success: true }),
+    reloadSettings: vi.fn(),
+    onSettingsChanged: vi.fn(() => vi.fn()),
+    resizeWindow: vi.fn(),
+    setResizable: vi.fn(),
+    closeWindow: vi.fn(),
+    getWindowBounds: vi.fn().mockResolvedValue(null),
+    saveWindowBounds: vi.fn().mockResolvedValue({ success: true }),
+    getAvatarWindowBounds: vi.fn().mockResolvedValue(null),
+    selectDirectory: vi.fn(),
+    resolveLocalPath: vi.fn((p: string) => `file://${p}`),
+    getLogHistory: vi.fn().mockResolvedValue([]),
+    onLogMessage: vi.fn(() => vi.fn()),
+    checkModelCached: vi.fn().mockResolvedValue(false),
+    downloadModel: vi.fn(() => vi.fn()),
+    reloadModel: vi.fn().mockResolvedValue({ success: true }),
+    twitchStartAuth: vi.fn().mockResolvedValue(undefined),
+    twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
+    twitchClearAuth: vi.fn().mockResolvedValue(true),
+    twitchTestEvent: vi.fn().mockResolvedValue({ success: true }),
+    getTwitchStatus: vi.fn().mockResolvedValue({ initialized: false }),
+    onTwitchAuthStatus: vi.fn(() => vi.fn()),
+    openTrainingWindow: vi.fn(),
+    broadcastProfilesUpdated: vi.fn(),
+    onProfilesUpdated: vi.fn(() => vi.fn()),
+    onTrainingProfileChanged: vi.fn(() => vi.fn()),
+  }
+}));
 
+import { Avatar } from '../components/Avatar';
+import { api } from '../lib/api';
 import { state } from '../lib/state';
 
 describe('Sensitivity Controls in Avatar', () => {
@@ -49,6 +65,12 @@ describe('Sensitivity Controls in Avatar', () => {
   });
 
   it('renders sensitivity buttons for AI avatar', async () => {
+    vi.mocked(api.getSettings).mockResolvedValue({
+      response_sensitivity: 'medium',
+      avatars: { ai: { assets_dir: '/test' } },
+      user_profile: { mode: 'soliloquy' }
+    } as any);
+
     render(<Avatar />);
 
     await waitFor(() => {
@@ -59,6 +81,12 @@ describe('Sensitivity Controls in Avatar', () => {
   });
 
   it('calls updateSetting when a sensitivity button is clicked', async () => {
+    vi.mocked(api.getSettings).mockResolvedValue({
+      response_sensitivity: 'medium',
+      avatars: { ai: { assets_dir: '/test' } },
+      user_profile: { mode: 'soliloquy' }
+    } as any);
+
     render(<Avatar />);
 
     await waitFor(() => {
@@ -66,14 +94,14 @@ describe('Sensitivity Controls in Avatar', () => {
       fireEvent.click(highBtn);
     });
 
-    expect(mockElectron.updateSetting).toHaveBeenCalledWith('response_sensitivity', 'high');
+    expect(vi.mocked(api.updateSetting)).toHaveBeenCalledWith('response_sensitivity', 'high');
   });
 
   it('highlights the active sensitivity level', async () => {
-    mockElectron.getSettings.mockResolvedValueOnce({
+    vi.mocked(api.getSettings).mockResolvedValueOnce({
       response_sensitivity: 'low',
       avatars: { ai: { assets_dir: '/test' } }
-    });
+    } as any);
 
     render(<Avatar />);
 

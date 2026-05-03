@@ -39,23 +39,43 @@ vi.mock('../lib/audio', () => ({
   TALK_THRESHOLD: 0.05,
 }));
 
+vi.mock('@/lib/api', () => ({
+  api: {
+    platform: 'darwin',
+    getSettings: vi.fn(),
+    getDefaultSettings: vi.fn(),
+    saveSettings: vi.fn(),
+    updateSetting: vi.fn().mockResolvedValue({ success: true }),
+    reloadSettings: vi.fn(),
+    onSettingsChanged: vi.fn(() => vi.fn()),
+    resizeWindow: vi.fn(),
+    setResizable: vi.fn(),
+    closeWindow: vi.fn(),
+    getWindowBounds: vi.fn().mockResolvedValue(null),
+    saveWindowBounds: vi.fn().mockResolvedValue({ success: true }),
+    getAvatarWindowBounds: vi.fn().mockResolvedValue(null),
+    selectDirectory: vi.fn(),
+    resolveLocalPath: vi.fn((p: string) => `file://${p}`),
+    getLogHistory: vi.fn().mockResolvedValue([]),
+    onLogMessage: vi.fn(() => vi.fn()),
+    checkModelCached: vi.fn().mockResolvedValue(false),
+    downloadModel: vi.fn(() => vi.fn()),
+    reloadModel: vi.fn().mockResolvedValue({ success: true }),
+    twitchStartAuth: vi.fn().mockResolvedValue(undefined),
+    twitchGetAuthStatus: vi.fn().mockResolvedValue(false),
+    twitchClearAuth: vi.fn().mockResolvedValue(true),
+    twitchTestEvent: vi.fn().mockResolvedValue({ success: true }),
+    getTwitchStatus: vi.fn().mockResolvedValue({ initialized: false }),
+    onTwitchAuthStatus: vi.fn(() => vi.fn()),
+    openTrainingWindow: vi.fn(),
+    broadcastProfilesUpdated: vi.fn(),
+    onProfilesUpdated: vi.fn(() => vi.fn()),
+    onTrainingProfileChanged: vi.fn(() => vi.fn()),
+  }
+}));
+
 import { Avatar } from '@/components/Avatar';
-
-// Mock Electron API
-const mockElectron = {
-  getSettings: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
-  onAvatarSpeechStateChanged: vi.fn(() => vi.fn()),
-  onAvatarBlink: vi.fn(() => vi.fn()),
-  onAvatarLipSyncUpdate: vi.fn(() => vi.fn()),
-  resolveLocalPath: vi.fn((p) => `file://${p}`),
-  getWindowBounds: vi.fn(),
-  setResizable: vi.fn(),
-  saveSettings: vi.fn(),
-  getLogHistory: vi.fn().mockResolvedValue([]),
-};
-(window as any).electronAPI = mockElectron;
-
+import { api } from '@/lib/api';
 
 describe('Avatar Component', () => {
   beforeEach(() => {
@@ -63,11 +83,11 @@ describe('Avatar Component', () => {
   });
 
   it('renders without crashing and shows image', async () => {
-    mockElectron.getSettings.mockResolvedValue({
+    vi.mocked(api.getSettings).mockResolvedValue({
       avatars: {
         user: { name: 'TestUser', assets_dir: '/test/path' }
       }
-    });
+    } as any);
 
     // We need to match the URL param 'type=user'
     delete (window as any).location;
@@ -83,7 +103,7 @@ describe('Avatar Component', () => {
   });
 
   it('updates opacity on error', async () => {
-    mockElectron.getSettings.mockResolvedValue({ avatars: {} });
+    vi.mocked(api.getSettings).mockResolvedValue({ avatars: {} } as any);
     const { container } = render(<Avatar />);
 
     const img = container.querySelector('img');
@@ -97,14 +117,14 @@ describe('Avatar Component', () => {
   });
 
   it('does not set data-tauri-drag-region when platform is electron', async () => {
-    mockElectron.getSettings.mockResolvedValue({ avatars: {} });
+    vi.mocked(api.getSettings).mockResolvedValue({ avatars: {} } as any);
     render(<Avatar />);
     const container = screen.getByTestId('avatar-container');
     expect(container).not.toHaveAttribute('data-tauri-drag-region');
   });
 
   it('handles visibility toggle', async () => {
-    mockElectron.getSettings.mockResolvedValue({ avatars: {} });
+    vi.mocked(api.getSettings).mockResolvedValue({ avatars: {} } as any);
     render(<Avatar />);
 
     // Simulate press 'v' (visibility toggle)
@@ -119,12 +139,10 @@ describe('Avatar Component', () => {
   });
 
   it('handles window lock with resizability and bounds saving', async () => {
-    mockElectron.getSettings.mockResolvedValue({
-      electron: { windows: { user: { locked: false } } }
-    });
-    mockElectron.getWindowBounds = vi.fn().mockResolvedValue({ x: 10, y: 20, width: 300, height: 400 });
-    mockElectron.setResizable = vi.fn();
-    mockElectron.saveSettings = vi.fn();
+    vi.mocked(api.getSettings).mockResolvedValue({
+      app: { windows: { user: { locked: false } } }
+    } as any);
+    vi.mocked(api.getWindowBounds).mockResolvedValue({ x: 10, y: 20, width: 300, height: 400 });
 
     delete (window as any).location;
     (window as any).location = new URL('http://localhost/?type=user');
@@ -137,17 +155,17 @@ describe('Avatar Component', () => {
 
     // setResizable(false) is driven by the isLocked useEffect — wait for it
     await waitFor(() => {
-      expect(mockElectron.setResizable).toHaveBeenCalledWith(false);
+      expect(vi.mocked(api.setResizable)).toHaveBeenCalledWith(false);
     });
     // Must not be called more than once with false for a single lock transition
-    const falseCallCount = (mockElectron.setResizable as ReturnType<typeof vi.fn>).mock.calls.filter(
+    const falseCallCount = (vi.mocked(api.setResizable)).mock.calls.filter(
       ([v]) => v === false
     ).length;
     expect(falseCallCount).toBe(1);
 
     // Check if saveSettings was called with current bounds
-    expect(mockElectron.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
-      electron: expect.objectContaining({
+    expect(vi.mocked(api.saveSettings)).toHaveBeenCalledWith(expect.objectContaining({
+      app: expect.objectContaining({
         windows: expect.objectContaining({
           user: expect.objectContaining({
             locked: true,
@@ -162,10 +180,10 @@ describe('Avatar Component', () => {
   });
 
   it('requests specific microphone device when configured', async () => {
-    mockElectron.getSettings.mockResolvedValue({
-      electron: { mic_device_id: 'special-mic' },
+    vi.mocked(api.getSettings).mockResolvedValue({
+      app: { mic_device_id: 'special-mic' },
       avatars: { user: { assets_dir: '/test' } }
-    });
+    } as any);
 
     delete (window as any).location;
     (window as any).location = new URL('http://localhost/?type=user');
@@ -182,10 +200,10 @@ describe('Avatar Component', () => {
   });
 
   it('uses default microphone when no specific id is set', async () => {
-    mockElectron.getSettings.mockResolvedValue({
-      electron: { mic_device_id: 'default' },
+    vi.mocked(api.getSettings).mockResolvedValue({
+      app: { mic_device_id: 'default' },
       avatars: { user: { assets_dir: '/test' } }
-    });
+    } as any);
 
     delete (window as any).location;
     (window as any).location = new URL('http://localhost/?type=user');
