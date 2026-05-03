@@ -250,12 +250,19 @@ export function startWebSocket(): void {
 // --- Mic Streaming State ---
 let currentMicSource: MediaStreamAudioSourceNode | null = null;
 let currentWorkletNode: AudioWorkletNode | null = null;
+// Monotonic counter: incremented on each call so that if a newer call arrives
+// while `await addModule` is pending, the older call self-aborts after the
+// await rather than creating a stale worklet that double-sends PCM to Python.
+let micSetupGen = 0;
 
 export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Promise<void> {
   const audioContext = getContext();
   if (!audioContext) return;
 
-  // 1. Clean up previous streaming nodes
+  const gen = ++micSetupGen;
+
+  // 1. Clean up previous streaming nodes synchronously, before any await.
+  //    This ensures the old worklet's onmessage is nulled out right away.
   if (currentWorkletNode) {
     console.log('[Parcera] Cleaning up previous mic worklet...');
     currentWorkletNode.port.onmessage = null;
@@ -275,6 +282,15 @@ export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Pro
   //    Pass the AudioContext's actual sample rate explicitly — the worklet's
   //    own sampleRate global can disagree with audioContext.sampleRate on WKWebView.
   await audioContext.audioWorklet.addModule(processorUrl);
+
+  // If a newer setupMicStreaming call arrived while we were awaiting, abort.
+  // Without this guard, two concurrent calls both create a worklet and both
+  // start sending PCM to Python → doubled transcription output.
+  if (gen !== micSetupGen) {
+    console.log('[Parcera] Mic setup superseded, aborting stale worklet creation.');
+    return;
+  }
+
   const workletNode = new AudioWorkletNode(audioContext, 'pcm-processor', {
     processorOptions: { actualSampleRate: audioContext.sampleRate },
   });
