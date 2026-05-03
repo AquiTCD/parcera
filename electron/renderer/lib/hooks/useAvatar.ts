@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { state, logStatus } from '../state';
 import type { AvatarConfig, ParceraSettings } from '../state';
-import { initAudioContext, getContext, getAnalyser, setNoiseGateDb, connectToAnalyser } from '../audio';
+import { initAudioContext, getContext, setNoiseGateDb, connectToAnalyser } from '../audio';
 import { initVisual } from '../visual';
 import { startWebSocket, setupMicStreaming } from '../comm';
 
@@ -42,10 +42,6 @@ export function useAvatar() {
     return () => events.forEach(e => document.removeEventListener(e, tryResume));
   }, []);
 
-  const updateStatus = (text: string) => {
-    logStatus(text);
-  };
-
   useEffect(() => {
     if (avatarImageRef.current && statusDebugRef.current) {
       initVisual(avatarImageRef.current, statusDebugRef.current);
@@ -68,7 +64,7 @@ export function useAvatar() {
 
     const startup = async () => {
       if (!active) return;
-      updateStatus('Initializing Audio...');
+      logStatus('Initializing Audio...');
       initAudioContext();
       const ctx = getContext();
       if (!ctx || ctx.state === 'closed') return;
@@ -120,24 +116,24 @@ export function useAvatar() {
 
         if (state.avatarType === 'user') {
           connectToAnalyser(micSource);
-          updateStatus('User Mic Active');
+          logStatus('User Mic Active');
         } else {
           await setupMicStreaming(micSource);
-          updateStatus('AI System Listening...');
+          logStatus('AI System Listening...');
         }
       } catch (err) {
         console.error('Mic Access Error:', err);
         if (micId && micId !== 'default') {
           console.warn('[Parcera] Specific mic failed, falling back to default...');
-          updateStatus('Mic Fallback');
+          logStatus('Mic Fallback');
           setMicId('default');
           return;
         }
-        updateStatus('Mic Error');
+        logStatus('Mic Error');
       }
 
       if (state.avatarType === 'ai') startWebSocket();
-      if (active) updateStatus('System Live');
+      if (active) logStatus('System Live');
     };
 
     startup();
@@ -164,7 +160,6 @@ export function useAvatar() {
 
       const volumeDb = settings.vad?.volume_db_threshold ?? -20;
       state.threshold_db = volumeDb;
-      state.threshold = Math.pow(10, volumeDb / 20) * 100;
       // Noise gate only applies to the user window (mic input).
       // AI window plays clean TTS audio — no ambient noise to gate out.
       if (state.avatarType !== 'ai') {
@@ -209,25 +204,20 @@ export function useAvatar() {
       setSensitivityState((settings.response_sensitivity || 'medium') as 'low' | 'medium' | 'high');
 
       const newMicId = settings.electron?.mic_device_id || 'default';
-      setMicId(prev => {
-        if (prev === newMicId) return prev;
-        console.log(`[Parcera] Mic ID changing: ${prev} -> ${newMicId}`);
-        return newMicId;
-      });
+      setMicId(prev => (prev === newMicId ? prev : newMicId));
     };
 
     api.getSettings().then((s: ParceraSettings) => {
       applySettings(s);
-      updateStatus('Settings Loaded');
+      logStatus('Settings Loaded');
     }).catch((e: any) => {
       console.error('Settings error:', e);
-      updateStatus('Using Defaults');
+      logStatus('Using Defaults');
     });
 
     return api.onSettingsChanged((s: ParceraSettings) => {
       applySettings(s);
-      updateStatus('Settings Reloaded');
-      console.log('[Parcera] Settings hot-reloaded');
+      logStatus('Settings Reloaded');
     });
   }, []);
 
@@ -236,7 +226,7 @@ export function useAvatar() {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
     if (micTrackRef.current) micTrackRef.current.enabled = !nextMuted;
-    updateStatus(nextMuted ? 'Muted' : 'Mic Active');
+    logStatus(nextMuted ? 'Muted' : 'Mic Active');
     await api.updateSetting('vad.start_muted', nextMuted);
   };
 
@@ -244,18 +234,17 @@ export function useAvatar() {
     e.stopPropagation();
     const nextMode = mode === 'soliloquy' ? 'conversation' : 'soliloquy';
     setMode(nextMode);
-    updateStatus(`Mode: ${nextMode}`);
+    logStatus(`Mode: ${nextMode}`);
     await api.updateSetting('user_profile.mode', nextMode);
   };
 
   const setSensitivity = async (level: 'low' | 'medium' | 'high') => {
     setSensitivityState(level);
-    updateStatus(`Sensitivity: ${level}`);
+    logStatus(`Sensitivity: ${level}`);
     await api.updateSetting('response_sensitivity', level);
   };
 
   const toggleLock = async (e: React.MouseEvent) => {
-    // Keep toggleLock as is for now since it handles multiple fields (bounds + locked)
     e.stopPropagation();
     const nextLocked = !isLocked;
 

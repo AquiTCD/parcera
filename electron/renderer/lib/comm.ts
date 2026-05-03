@@ -190,10 +190,7 @@ export function startWebSocket(): void {
 
   // Skip if we are already connected or connecting to the correct URL
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-    if (socket.url === wsUrl) {
-      console.log('[Parcera] WebSocket already active for:', wsUrl);
-      return;
-    }
+    if (socket.url === wsUrl) return;
   }
 
   initPlaybackRoute(); // wire analyser→destination once
@@ -240,6 +237,11 @@ export function startWebSocket(): void {
       logStatus('AI Connection Lost');
       scheduleReconnect();
     };
+
+    socket.onerror = () => {
+      logStatus('AI Connection Error');
+      scheduleReconnect();
+    };
   });
 }
 
@@ -263,7 +265,6 @@ export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Pro
   // 1. Clean up previous streaming nodes synchronously, before any await.
   //    This ensures the old worklet's onmessage is nulled out right away.
   if (currentWorkletNode) {
-    console.log('[Parcera] Cleaning up previous mic worklet...');
     currentWorkletNode.port.onmessage = null;
     try {
       currentWorkletNode.disconnect();

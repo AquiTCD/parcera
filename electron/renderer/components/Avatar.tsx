@@ -7,7 +7,6 @@ import { api } from '../lib/api';
 // Initialize global state.avatarType immediately upon module execution
 const params = new URLSearchParams(window.location.search);
 state.avatarType = (params.get('type') as AvatarType) || 'user';
-console.log('[Parcera] Avatar Type Initialized:', state.avatarType);
 if (state.avatarType === 'ai') {
   document.title = 'Parcera - AI';
 } else if (state.avatarType === 'user') {

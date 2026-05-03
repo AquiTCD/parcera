@@ -114,7 +114,6 @@ export function initAudioContext(): void {
 
     const actualRate = audioContext.sampleRate;
     logStatus(`Audio: ${actualRate}Hz ${state.avatarType === 'ai' ? '(AI)' : '(User)'}`);
-    console.log(`[Parcera] AudioContext Initialized. Rate: ${actualRate}Hz, Type: ${state.avatarType}`);
   } catch (e) {
     console.error('AudioContext error:', e);
     logStatus('Audio Init Failed');
