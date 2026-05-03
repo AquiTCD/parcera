@@ -20,7 +20,7 @@ export interface ParceraSettings {
   stt?: STTSettings;
   tts?: TTSSettingsConfig;
   vad?: VADSettings;
-  electron?: ElectronSettings;
+  app?: AppSettings;
   avatars?: AvatarSettings;
   ai_profile?: AIProfileSettings;
   user_profile?: UserProfileSettings;
@@ -129,10 +129,10 @@ export interface VADSettings {
   start_muted?: boolean;
 }
 
-export interface ElectronSettings {
+export interface AppSettings {
   port?: number;
   ai_audio_sample_rate?: number;
-  gpu_acceleration?: boolean;        // If false, calls app.disableHardwareAcceleration()
+  gpu_acceleration?: boolean;
   mic_device_id?: string;            // Selected microphone device ID
   windows?: Record<string, WindowConfig>;
 }

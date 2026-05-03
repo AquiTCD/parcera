@@ -84,7 +84,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
 
   const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
-  const port = settings.electron?.port || 8676;
+  const port = settings.app?.port || 8676;
   const isWindows = api.platform === 'win32';
 
   return (

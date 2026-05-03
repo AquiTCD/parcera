@@ -9,7 +9,7 @@
 export type {
   ParceraSettings,
   VADSettings,
-  ElectronSettings,
+  AppSettings,
   WindowConfig,
   AvatarSettings,
   AvatarConfig,

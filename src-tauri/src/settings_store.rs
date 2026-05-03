@@ -48,13 +48,13 @@ impl SettingsStore {
         self.data = data;
     }
 
-    /// Set a value by dot-notation key (e.g. "electron.port").
+    /// Set a value by dot-notation key (e.g. "app.port").
     pub fn set(&mut self, key: &str, value: Value) {
         set_nested_value(&mut self.data, key, value);
     }
 
     pub fn get_port(&self) -> u16 {
-        self.data["electron"]["port"].as_u64().unwrap_or(8676) as u16
+        self.data["app"]["port"].as_u64().unwrap_or(8676) as u16
     }
 }
 
@@ -101,8 +101,8 @@ mod tests {
     #[test]
     fn set_nested_key_creates_path() {
         let mut data = json!({});
-        set_nested_value(&mut data, "electron.port", json!(8676));
-        assert_eq!(data["electron"]["port"], json!(8676));
+        set_nested_value(&mut data, "app.port", json!(8676));
+        assert_eq!(data["app"]["port"], json!(8676));
     }
 
     #[test]
@@ -121,17 +121,17 @@ mod tests {
 
     #[test]
     fn set_replaces_non_object_with_object_when_traversing() {
-        let mut data = json!({ "electron": "old_string" });
-        set_nested_value(&mut data, "electron.port", json!(9000));
-        assert_eq!(data["electron"]["port"], json!(9000));
+        let mut data = json!({ "app": "old_string" });
+        set_nested_value(&mut data, "app.port", json!(9000));
+        assert_eq!(data["app"]["port"], json!(9000));
     }
 
     #[test]
     fn set_preserves_sibling_keys() {
-        let mut data = json!({ "electron": { "port": 8676, "gpu_acceleration": true } });
-        set_nested_value(&mut data, "electron.port", json!(9000));
-        assert_eq!(data["electron"]["port"], json!(9000));
-        assert_eq!(data["electron"]["gpu_acceleration"], json!(true));
+        let mut data = json!({ "app": { "port": 8676, "gpu_acceleration": true } });
+        set_nested_value(&mut data, "app.port", json!(9000));
+        assert_eq!(data["app"]["port"], json!(9000));
+        assert_eq!(data["app"]["gpu_acceleration"], json!(true));
     }
 
     // ── parse_default_yaml ───────────────────────────────────────────────────
@@ -146,7 +146,7 @@ mod tests {
     fn default_yaml_has_expected_keys() {
         let v = parse_default_yaml().unwrap();
         assert_eq!(v["log_level"], "INFO");
-        assert_eq!(v["electron"]["port"], 8676);
+        assert_eq!(v["app"]["port"], 8676);
         assert!(v["llm"].is_object());
         assert!(v["tts"].is_object());
         assert!(v["stt"].is_object());
@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn default_yaml_port_is_8676() {
         let v = parse_default_yaml().unwrap();
-        assert_eq!(v["electron"]["port"].as_u64().unwrap(), 8676u64);
+        assert_eq!(v["app"]["port"].as_u64().unwrap(), 8676u64);
     }
 
     // ── SettingsStore persistence ─────────────────────────────────────────────
@@ -168,7 +168,7 @@ mod tests {
         store.init().unwrap();
         assert!(path.exists());
         let v = store.get_all();
-        assert_eq!(v["electron"]["port"], json!(8676));
+        assert_eq!(v["app"]["port"], json!(8676));
     }
 
     #[test]
@@ -177,12 +177,12 @@ mod tests {
         let path = dir.path().join("config.json");
         let mut store = SettingsStore::new(path.clone());
         store.init().unwrap();
-        store.set("electron.port", json!(9999));
+        store.set("app.port", json!(9999));
         store.save().unwrap();
 
         let mut store2 = SettingsStore::new(path);
         store2.load().unwrap();
-        assert_eq!(store2.get_all()["electron"]["port"], json!(9999));
+        assert_eq!(store2.get_all()["app"]["port"], json!(9999));
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("config.json");
         let mut store = SettingsStore::new(path);
-        store.set_all(json!({ "electron": { "port": 9876 } }));
+        store.set_all(json!({ "app": { "port": 9876 } }));
         assert_eq!(store.get_port(), 9876);
     }
 }

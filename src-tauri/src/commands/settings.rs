@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn default_settings_has_required_top_level_keys() {
         let v = parse_default_yaml().unwrap();
-        for key in &["log_level", "llm", "stt", "tts", "electron", "avatars"] {
+        for key in &["log_level", "llm", "stt", "tts", "app", "avatars"] {
             assert!(v.get(*key).is_some(), "missing key: {key}");
         }
     }

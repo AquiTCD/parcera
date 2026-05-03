@@ -36,7 +36,7 @@ export const CharacterSection: React.FC<SectionProps> = ({
   const handleFetchSpeakers = async () => {
     setStatus({ message: 'キャラクターリストを取得中...', type: '' });
     try {
-      const port = settings.electron?.port || 8676;
+      const port = settings.app?.port || 8676;
       const res = await fetch(`http://127.0.0.1:${port}/tts/speakers?provider=${currentTTSProvider}`);
       const data = await res.json();
       const processed = data.flatMap((speaker: any) =>

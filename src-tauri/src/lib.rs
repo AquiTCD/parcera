@@ -89,7 +89,7 @@ pub fn run() {
             {
                 let settings_data = app.state::<AppState>().settings.lock().unwrap().get_all();
                 for win_type in &["user", "ai"] {
-                    let cfg = &settings_data["electron"]["windows"][win_type];
+                    let cfg = &settings_data["app"]["windows"][win_type];
                     if let Some(win) = app.get_webview_window(win_type) {
                         if let (Some(x), Some(y)) = (cfg["x"].as_f64(), cfg["y"].as_f64()) {
                             let _ = win.set_position(tauri::Position::Logical(

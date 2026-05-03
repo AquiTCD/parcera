@@ -91,7 +91,7 @@ export function initAudioContext(): void {
     // AI window: Matches raw TTS PCM from server.
     // User window: Automatically handles hardware (48k) -> AI (16k) resampling.
     // This ensures PCM data sent to Python is exactly 16000 samples per second.
-    const sampleRate = state.settings.electron?.ai_audio_sample_rate || 16000;
+    const sampleRate = state.settings.app?.ai_audio_sample_rate || 16000;
     const options: AudioContextOptions = {
       sampleRate,
       latencyHint: 'interactive'

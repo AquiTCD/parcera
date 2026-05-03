@@ -97,7 +97,7 @@ export function useAvatar() {
 
         const s = await api.getSettings();
         const initialMute = s.vad?.start_muted ?? false;
-        const winConf = s.electron?.windows?.[state.avatarType];
+        const winConf = s.app?.windows?.[state.avatarType];
 
         if (winConf?.locked) {
           setIsLocked(true);
@@ -189,7 +189,7 @@ export function useAvatar() {
         micTrackRef.current.enabled = !newMuted;
       }
 
-      const winConf = settings.electron?.windows?.[state.avatarType];
+      const winConf = settings.app?.windows?.[state.avatarType];
       if (winConf?.control_corner) {
         setControlCorner(winConf.control_corner);
       }
@@ -203,7 +203,7 @@ export function useAvatar() {
 
       setSensitivityState((settings.response_sensitivity || 'medium') as 'low' | 'medium' | 'high');
 
-      const newMicId = settings.electron?.mic_device_id || 'default';
+      const newMicId = settings.app?.mic_device_id || 'default';
       setMicId(prev => (prev === newMicId ? prev : newMicId));
     };
 
@@ -256,11 +256,11 @@ export function useAvatar() {
     setIsLocked(nextLocked);
 
     const s = await api.getSettings();
-    if (!s.electron) s.electron = {};
-    if (!s.electron.windows) s.electron.windows = {};
-    if (!s.electron.windows[state.avatarType]) s.electron.windows[state.avatarType] = {};
+    if (!s.app) s.app = {};
+    if (!s.app.windows) s.app.windows = {};
+    if (!s.app.windows[state.avatarType]) s.app.windows[state.avatarType] = {};
 
-    const winConf = s.electron.windows[state.avatarType]!;
+    const winConf = s.app.windows[state.avatarType]!;
     winConf.locked = nextLocked;
 
     if (currentBounds) {

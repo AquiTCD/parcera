@@ -19,10 +19,10 @@ pub async fn save_window_bounds(
     let h = (size.height as f64 / scale).round() as i64;
 
     let mut store = state.settings.lock().map_err(|e| e.to_string())?;
-    store.set(&format!("electron.windows.{window_type}.x"), json!(x));
-    store.set(&format!("electron.windows.{window_type}.y"), json!(y));
-    store.set(&format!("electron.windows.{window_type}.width"), json!(w));
-    store.set(&format!("electron.windows.{window_type}.height"), json!(h));
+    store.set(&format!("app.windows.{window_type}.x"), json!(x));
+    store.set(&format!("app.windows.{window_type}.y"), json!(y));
+    store.set(&format!("app.windows.{window_type}.width"), json!(w));
+    store.set(&format!("app.windows.{window_type}.height"), json!(h));
     store.save()?;
 
     Ok(OpResult::ok())

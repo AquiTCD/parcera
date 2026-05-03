@@ -163,16 +163,16 @@ export const DeveloperSection: React.FC<SectionProps> = ({
           <FieldRow label="WebSocketポート番号">
             <Input
               type="number"
-              value={settings.electron?.port ?? defaultSettings?.electron?.port ?? 8676}
-              onChange={(e) => updateNested('electron', 'port', Number(e.target.value))}
+              value={settings.app?.port ?? defaultSettings?.app?.port ?? 8676}
+              onChange={(e) => updateNested('app', 'port', Number(e.target.value))}
             />
             <p className="text-xs text-muted-foreground mt-1">変更後は再起動が必要です。</p>
           </FieldRow>
 
           <FieldRow label="内部音声サンプリングレート (Hz)">
             <Select
-              value={String(settings.electron?.ai_audio_sample_rate ?? 16000)}
-              onValueChange={(v) => updateNested('electron', 'ai_audio_sample_rate', Number(v))}
+              value={String(settings.app?.ai_audio_sample_rate ?? 16000)}
+              onValueChange={(v) => updateNested('app', 'ai_audio_sample_rate', Number(v))}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -193,8 +193,8 @@ export const DeveloperSection: React.FC<SectionProps> = ({
               <p className="text-xs text-muted-foreground">OBSキャプチャで問題がある場合はOFFにして再起動。</p>
             </div>
             <Switch
-              checked={settings.electron?.gpu_acceleration ?? true}
-              onCheckedChange={(v) => updateNested('electron', 'gpu_acceleration', v)}
+              checked={settings.app?.gpu_acceleration ?? true}
+              onCheckedChange={(v) => updateNested('app', 'gpu_acceleration', v)}
             />
           </div>
 

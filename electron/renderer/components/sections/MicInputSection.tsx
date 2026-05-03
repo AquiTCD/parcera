@@ -53,8 +53,8 @@ export const MicInputSection: React.FC<SectionProps> = ({
         <CardContent className="space-y-4">
           <FieldRow label="使用するマイク">
             <Select
-              value={settings.electron?.mic_device_id ?? 'default'}
-              onValueChange={(val) => updateNested('electron', 'mic_device_id', val)}
+              value={settings.app?.mic_device_id ?? 'default'}
+              onValueChange={(val) => updateNested('app', 'mic_device_id', val)}
             >
               <SelectTrigger>
                 <SelectValue />

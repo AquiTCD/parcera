@@ -24,13 +24,13 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
   updateNested,
   setStatus,
 }) => {
-  const winParams = settings.electron?.windows?.[type] || {};
-  const defaultWinParams = defaultSettings?.electron?.windows?.[type] || {};
+  const winParams = settings.app?.windows?.[type] || {};
+  const defaultWinParams = defaultSettings?.app?.windows?.[type] || {};
   const labelPrefix = type === 'user' ? 'USER' : 'AI';
 
   const updateWinParam = (key: string, value: unknown) => {
-    updateNested('electron', 'windows', {
-      ...settings.electron?.windows,
+    updateNested('app', 'windows', {
+      ...settings.app?.windows,
       [type]: { ...winParams, [key]: value },
     });
   };
@@ -62,8 +62,8 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
         onClick={async () => {
           const bounds = await api.getAvatarWindowBounds(type);
           if (bounds) {
-            updateNested('electron', 'windows', {
-              ...settings.electron?.windows,
+            updateNested('app', 'windows', {
+              ...settings.app?.windows,
               [type]: { ...winParams, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
             });
           } else {

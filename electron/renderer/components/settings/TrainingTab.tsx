@@ -67,7 +67,7 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ settings, profile: ini
   const [tempProfileName, setTempProfileName] = useState('');
   const [lastActionTime, setLastActionTime] = useState(0);
 
-  const port = settings.electron?.port || 8676;
+  const port = settings.app?.port || 8676;
   const baseUrl = `http://127.0.0.1:${port}/training`;
 
   const fetchPairs = useCallback(async () => {

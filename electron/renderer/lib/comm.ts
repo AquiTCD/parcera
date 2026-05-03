@@ -185,7 +185,7 @@ function scheduleReconnect(): void {
 export function startWebSocket(): void {
   if (state.avatarType !== 'ai') return;
 
-  const port = state.settings.electron?.port || DEFAULT_PORT;
+  const port = state.settings.app?.port || DEFAULT_PORT;
   const wsUrl = buildWsUrl(port);
 
   // Skip if we are already connected or connecting to the correct URL

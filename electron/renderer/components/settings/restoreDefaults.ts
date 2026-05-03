@@ -38,13 +38,13 @@ export function getDefaultsForTab(
       return { llm: defaults.llm, stt: defaults.stt, tts: defaults.tts };
 
     case 'developer': {
-      const prevWindows = current.electron?.windows;
+      const prevWindows = current.app?.windows;
       return {
         verbose: defaults.verbose,
         profile_mode: defaults.profile_mode,
         log_level: defaults.log_level,
         simple_log: defaults.simple_log,
-        electron: { ...defaults.electron, windows: prevWindows },
+        app: { ...defaults.app, windows: prevWindows },
       };
     }
 
@@ -65,12 +65,12 @@ export function getDefaultsForTab(
       return { tts: defaults.tts };
 
     case 'visual': {
-      const prevWindows = current.electron?.windows || {};
-      const defaultWindows = defaults.electron?.windows || {};
+      const prevWindows = current.app?.windows || {};
+      const defaultWindows = defaults.app?.windows || {};
       return {
         avatars: defaults.avatars,
-        electron: {
-          ...current.electron,
+        app: {
+          ...current.app,
           windows: {
             ...prevWindows,
             ai: defaultWindows.ai,
@@ -81,12 +81,12 @@ export function getDefaultsForTab(
     }
 
     case 'system': {
-      const prevWindows = current.electron?.windows;
+      const prevWindows = current.app?.windows;
       return {
         verbose: defaults.verbose,
         profile_mode: defaults.profile_mode,
         log_level: defaults.log_level,
-        electron: { ...defaults.electron, windows: prevWindows },
+        app: { ...defaults.app, windows: prevWindows },
       };
     }
 
