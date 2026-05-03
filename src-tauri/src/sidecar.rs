@@ -51,8 +51,7 @@ impl SidecarManager {
         // reuse it. This avoids double-spawning during development.
         #[cfg(debug_assertions)]
         if self.is_server_healthy() {
-            eprintln!("[Sidecar] Port {} already healthy — reusing external server, no log capture.", self.port);
-            log::info!("[Sidecar] Port {} already in use — reusing existing server", self.port);
+            log::info!("[Sidecar] Port {} already in use — reusing existing server, no log capture", self.port);
             let app_clone = app.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -140,6 +139,7 @@ impl SidecarManager {
                     match event {
                         CommandEvent::Stdout(line) => {
                             let text = String::from_utf8_lossy(&line).to_string();
+                            #[cfg(debug_assertions)]
                             eprintln!("[Python] {}", text.trim_end());
                             let entry = LogEntry::new("stdout", &text);
                             log_manager.add("stdout", &text);
@@ -153,6 +153,7 @@ impl SidecarManager {
                                 || text.contains("Application startup complete")
                                 || text.contains("Uvicorn running");
                             let source = if is_info { "stdout" } else { "stderr" };
+                            #[cfg(debug_assertions)]
                             eprintln!("[Python] {}", text.trim_end());
                             let entry = LogEntry::new(source, &text);
                             log_manager.add(source, &text);
