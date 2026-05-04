@@ -5,33 +5,11 @@ rust = "stable"
 description = "Parcera Project Tasks"
 
 [tasks.dev]
-description = "Start UI dev server (Frontend)"
-run = "cd ui && pnpm dev"
-
-[tasks.build]
-description = "Build UI frontend"
-run = "cd ui && pnpm build"
-
-[tasks.package]
-description = "Package as macOS DMG (unsigned)"
-run = """
-bash scripts/prepare_sidecar.sh
-cd ui && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null
-"""
-
-[tasks.server]
-description = "Start Python server standalone (for debugging)"
-run = """
-export PARCERA_CONFIG_PATH="configs/settings.default.yaml"
-.venv/bin/python src/run_server.py
-"""
-
-[tasks.tauri-dev]
-description = "Start Tauri dev (Vite + Rust + Python sidecar). All-in-one."
+description = "Start dev (Vite + Rust + Python sidecar). All-in-one."
 env = { RUST_LOG = "info" }
 run = "ui/node_modules/.bin/tauri dev --config src-tauri/tauri.dev.conf.json"
 
-[tasks.tauri-build]
+[tasks.build]
 description = "Build Tauri app (production) and copy DMG/app to dist/"
 run = """
 ui/node_modules/.bin/tauri build
@@ -40,4 +18,11 @@ cp src-tauri/target/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
 cp -r "src-tauri/target/release/bundle/macos/Parcera.app" dist/ 2>/dev/null || true
 echo "Build artifacts copied to dist/"
 ls dist/
+"""
+
+[tasks.server]
+description = "Start Python server standalone (for debugging)"
+run = """
+export PARCERA_CONFIG_PATH="configs/settings.default.yaml"
+.venv/bin/python src/run_server.py
 """
