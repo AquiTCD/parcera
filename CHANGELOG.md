@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-05-04 - Tauri-Only Architecture & De-Electron
+
+### Added
+- **Local LLM repetition penalty**: `repetition_penalty=1.1` and `repetition_context_size=20` added to MLX generation via `make_repetition_penalty` logits processor; prevents infinite loop on garbled STT input; configurable via `llm.providers.local` in settings
+
+### Changed
+- **Complete Electron removal**: `electron-bridge.ts`, all Electron npm packages, and Electron-specific main process code deleted; `ParceraAPI` bridge is now Tauri-only
+- **Directory renamed**: `electron/` → `ui/` across all paths, scripts, configs, and AI agent memories
+- **Settings key renamed**: `electron:` section in `settings.yaml` → `app:` — **update custom configs if needed**
+- **Python schema aligned with TypeScript**: `ElectronSettings` → `AppSettings`, `ElectronWindows` → `AppWindows`, root `AppSettings` → `ParceraSettings`
+- **mise tasks**: `tauri-dev` → `dev`, `tauri-build` → `build`; `package` task restored to run `prepare_sidecar.sh` before `tauri build` (prevents DMG without bundled Python sidecar)
+- **Scripts**: `prepare_sidecar.sh/.ps1` and `generate_icons.sh` paths corrected from `electron/` to `ui/`
+
+### Fixed
+- **Mic worklet double-setup**: Concurrent `AudioWorklet` initializations no longer send duplicate PCM streams
+- **PCM sample rate mismatch**: `audioContext.sampleRate` passed explicitly to worklet for WKWebView compatibility
+- **Sidecar port eviction**: Stale process holding the port is killed on startup instead of failing silently
+- **Avatar hover controls and log capture**: Fixed in release builds
+- **STT sample rate / log export**: WKWebView sample rate mismatch resolved; log export via UI added
+- **User lip-sync and zombie Python process**: Fixed audio pipeline and stale process handling
+- **Dead code cleanup**: Removed breathe CSS remnants, unused state fields, diagnostic logging, and dead init message protocol
+
 ## [0.11.0] - 2026-04-30 - Tauri v2 Migration
 
 ### Added
