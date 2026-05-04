@@ -6,7 +6,7 @@ $BuildTag = "20260203"
 $Platform = "x86_64-pc-windows-msvc-shared"
 $Url = "https://github.com/astral-sh/python-build-standalone/releases/download/$BuildTag/cpython-$PythonVersion+$BuildTag-$Platform-install_only.tar.gz"
 
-$ResourceDir = "electron\resources"
+$ResourceDir = "ui\resources"
 $BinDir = "$ResourceDir\bin"
 $SitePackagesDir = "$ResourceDir\site-packages"
 
@@ -14,7 +14,7 @@ Write-Host "Preparing Sidecar Resources (Python $PythonVersion)..."
 
 New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
 New-Item -ItemType Directory -Force -Path $SitePackagesDir | Out-Null
-New-Item -ItemType Directory -Force -Path "electron\build" | Out-Null
+New-Item -ItemType Directory -Force -Path "ui\build" | Out-Null
 
 $VersionFile = "$BinDir\python-runtime\BIN_VERSION"
 $CurrentVer = ""
@@ -63,4 +63,4 @@ New-Item -ItemType Directory -Force -Path "$SitePackagesDir\torchaudio" | Out-Nu
 Set-Content -Path "$SitePackagesDir\torchaudio\__init__.py" -Value ""
 
 Write-Host "Sidecar preparation complete!"
-Write-Host "Next: run 'pnpm -C electron install' and 'pnpm -C electron package -- --win'"
+Write-Host "Next: run 'pnpm -C ui install' and 'mise run build'"

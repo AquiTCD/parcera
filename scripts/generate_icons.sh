@@ -5,8 +5,8 @@
 # If no argument is provided, it defaults to 'icon.png' in the project root.
 
 SOURCE_IMAGE=${1:-"icon.png"}
-ICONSET_DIR="electron/build/icon.iconset"
-OUTPUT_ICNS="electron/build/icon.icns"
+ICONSET_DIR="ui/build/icon.iconset"
+OUTPUT_ICNS="ui/build/icon.icns"
 
 if [ ! -f "$SOURCE_IMAGE" ]; then
     echo "Error: Source image '$SOURCE_IMAGE' not found."

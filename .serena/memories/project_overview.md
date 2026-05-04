@@ -4,7 +4,7 @@ Parcera is an AI Avatar project running on macOS. It uses aiavatar as the core l
 # Tech Stack
 - **Language**: Python 3.11+
 - **Manager**: `uv`, `mise`
-- **Frontend**: Electron + React/Vite
+- **Frontend**: Tauri v2 + React/Vite
 - **Core**: `aiavatar`
 - **STT**: `faster-whisper` (Kotoba-Whisper)
 - **TTS**: AivisSpeech (VOICEVOX compatible)
@@ -14,7 +14,7 @@ Parcera is an AI Avatar project running on macOS. It uses aiavatar as the core l
 - `src/`: Core Python logic
   - `src/core/`: Component factory, config management, avatar base
   - `src/run_server.py`: FastAPI server for WebSocket communication
-- `electron/`: Frontend UI
+- `ui/`: Frontend UI (Tauri + React/Vite)
 - `configs/`: Configuration files
 - `prompts/`: AI personality prompts
 - `specs/`: Technical specifications

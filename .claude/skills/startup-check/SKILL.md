@@ -30,8 +30,8 @@ You **MUST** follow this procedure and verify its success before declaring any c
    - `LLM: Warm-up complete.`
    - `TTS Engine is already running...`
 
-3. **Verify Frontend Status (`vite` / `electron` builder)**:
-   Ensure there are no compilation crashes or severe Electron runtime errors in the task output.
+3. **Verify Frontend Status (`vite` / `tauri` builder)**:
+   Ensure there are no compilation crashes or severe Tauri/WebView runtime errors in the task output.
 
 4. **Handle Failures**:
    If the process crashes with a stack trace (e.g. `ModuleNotFoundError`, `AttributeError`, `PydanticValidationError`), you MUST:

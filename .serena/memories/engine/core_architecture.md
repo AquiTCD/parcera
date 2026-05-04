@@ -1,5 +1,5 @@
 # Core Avatar Engine (Architecture & Data)
-The engine is a Python-based system built on `aiavatar`, serving as a WebSocket bridge between AI providers (Gemini/OpenAI) and the Electron frontend.
+The engine is a Python-based system built on `aiavatar`, serving as a WebSocket bridge between AI providers (Gemini/OpenAI) and the Tauri frontend.
 
 ## Components & Flow
 - **Factory (`src/core/factory.py`)**: Dynamically instantiates LLM (Gemini/OpenAI), STT (Faster-Whisper), and TTS (AivisSpeech) based on settings.

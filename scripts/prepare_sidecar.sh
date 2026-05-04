@@ -13,7 +13,7 @@ BUILD_TAG="20260203"
 PLATFORM="aarch64-apple-darwin"
 URL="https://github.com/astral-sh/python-build-standalone/releases/download/${BUILD_TAG}/cpython-${PYTHON_VERSION}+${BUILD_TAG}-${PLATFORM}-install_only.tar.gz"
 
-RESOURCE_DIR="electron/resources"
+RESOURCE_DIR="ui/resources"
 BIN_DIR="${RESOURCE_DIR}/bin"
 SITE_PACKAGES_DIR="${RESOURCE_DIR}/site-packages"
 
@@ -22,7 +22,7 @@ echo "🚀 Preparing Sidecar Resources (Python ${PYTHON_VERSION})..."
 # 1. Create directories
 mkdir -p "${BIN_DIR}"
 mkdir -p "${SITE_PACKAGES_DIR}"
-mkdir -p "electron/build"
+mkdir -p "ui/build"
 
 # 2. Download Portable Python if not exists (or if version mismatch)
 # We check the version file if it exists to ensure we have the right one
@@ -80,4 +80,4 @@ mkdir -p "${SITE_PACKAGES_DIR}/torchaudio"
 touch "${SITE_PACKAGES_DIR}/torchaudio/__init__.py"
 
 echo "✨ Sidecar preparation complete!"
-echo "Next: run 'pnpm -C electron install' and 'pnpm -C electron package'"
+echo "Next: run 'pnpm -C ui install' and 'mise run build'"
