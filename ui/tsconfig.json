@@ -26,7 +26,6 @@
     "renderer/**/*.ts",
     "renderer/**/*.tsx",
     "renderer/vite-env.d.ts",
-    "main/**/*.ts",
     "shared/**/*.ts"
   ],
   "exclude": [

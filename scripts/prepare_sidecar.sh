@@ -80,4 +80,4 @@ mkdir -p "${SITE_PACKAGES_DIR}/torchaudio"
 touch "${SITE_PACKAGES_DIR}/torchaudio/__init__.py"
 
 echo "✨ Sidecar preparation complete!"
-echo "Next: run 'pnpm -C ui install' and 'mise run build'"
+echo "Sidecar ready. Run 'mise run build' to build, or use 'mise run package' which includes this step."
