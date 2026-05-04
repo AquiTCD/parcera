@@ -11,10 +11,9 @@
 - **State**: Use immutable updates (e.g., spread operators or helper utilities).
 - **Style**: Vanilla CSS with CSS Variables for theme consistency.
 
-## macOS/Electron Specifics
-- **OBS Capture**: Always set `backgroundThrottling: false` and `disableOcclusionTracking: true`.
-- **Updates**: Apply `--disable-renderer-backgrounding` and related CLI switches in `main/index.ts`.
-- **Performance**: Use "Heartbeat" animations (1px/2s) to keep frames updating in background.
+## macOS/Tauri Specifics
+- **OBS Capture**: Keep "Heartbeat" animations (1px/2s) active to prevent WebView throttling in the background.
+- **Window**: Tauri window settings (always-on-top, transparency) are configured via `src-tauri/tauri.conf.json`.
 
 ## Git Protocol
 - **English Only**: All commit messages must be in English.

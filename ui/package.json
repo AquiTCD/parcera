@@ -1,0 +1,53 @@
+{
+  "name": "parcera",
+  "productName": "Parcera",
+  "private": true,
+  "version": "0.12.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tauri-apps/cli": "^2.10.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.2.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "js-yaml": "^4.1.1",
+    "jsdom": "^28.1.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "dependencies": {
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slider": "^1.3.6",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@tauri-apps/api": "^2.10.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "swr": "^2.4.0",
+    "tailwind-merge": "^3.5.0"
+  }
+}

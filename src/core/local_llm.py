@@ -36,6 +36,8 @@ class LocalLLMService(LLMService):
         system_prompt: str,
         temperature: float = 0.8,
         max_tokens: int = 150,
+        repetition_penalty: float = 1.1,
+        repetition_context_size: int = 20,
         adapter_path: Optional[str] = None,
         context_manager: Optional[ContextManager] = None,
         **kwargs
@@ -48,6 +50,8 @@ class LocalLLMService(LLMService):
             **kwargs
         )
         self.max_tokens = max_tokens
+        self.repetition_penalty = repetition_penalty
+        self.repetition_context_size = repetition_context_size
         self.adapter_path = adapter_path
         self._model_family = self._detect_model_family(model)
 
@@ -149,7 +153,7 @@ class LocalLLMService(LLMService):
         **kwargs
     ) -> AsyncGenerator[LLMResponse, None]:
         from mlx_lm.generate import stream_generate
-        from mlx_lm.sample_utils import make_sampler
+        from mlx_lm.sample_utils import make_sampler, make_repetition_penalty
         import queue
 
         model, tokenizer = self._load_model(self.model, self.adapter_path)
@@ -158,6 +162,7 @@ class LocalLLMService(LLMService):
             template_kwargs["enable_thinking"] = False
         prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
         sampler = make_sampler(self.temperature)
+        logits_processors = [make_repetition_penalty(self.repetition_penalty, self.repetition_context_size)]
 
         logger.debug(f"Local LLM: Starting threaded generation for context {context_id}")
 
@@ -171,7 +176,8 @@ class LocalLLMService(LLMService):
                     tokenizer=tokenizer,
                     prompt=prompt,
                     max_tokens=m_tokens,
-                    sampler=sampler
+                    sampler=sampler,
+                    logits_processors=logits_processors
                 ):
                     q.put(response.text)
                 q.put(None)  # Sentinel for end

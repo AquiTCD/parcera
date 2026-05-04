@@ -1,5 +1,5 @@
 # Motion PNG Visual System (Lip-Sync & Animation)
-The visual system handles lip-sync, blinking, and natural movement in the Electron renderer.
+The visual system handles lip-sync, blinking, and natural movement in the Tauri WebView renderer.
 
 ## Core Features
 ### 1. Lip-Sync & Audio Analysis

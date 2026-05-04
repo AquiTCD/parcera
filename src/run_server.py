@@ -329,5 +329,5 @@ if __name__ == "__main__":
     import uvicorn
     config_path = os.environ.get("PARCERA_CONFIG_PATH", "configs/settings.default.yaml")
     settings = load_config_file(config_path)
-    port = settings.get("electron", {}).get("port", DEFAULT_UVICORN_PORT)
+    port = settings.get("app", {}).get("port", DEFAULT_UVICORN_PORT)
     uvicorn.run(app, host=DEFAULT_UVICORN_HOST, port=port)

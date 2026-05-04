@@ -15,7 +15,8 @@ downloads/
 eggs/
 .eggs/
 lib/
-!electron/renderer/lib/
+!ui/renderer/lib/
+!ui/renderer/tests/lib/
 lib64/
 parts/
 sdist/
@@ -151,3 +152,7 @@ cython_debug/
 -e
 # Auto-generated config bridge (Electron → Python)
 .env.config_path
+
+# Tauri Rust build artifacts
+src-tauri/target/
+src-tauri/WixTools/

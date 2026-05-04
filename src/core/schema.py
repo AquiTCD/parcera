@@ -22,6 +22,8 @@ class LocalLLMConfig(BaseModel):
     model: str = Field(default="mlx-community/gemma-2-9b-it-4bit")
     temperature: float = Field(default=0.8)
     max_tokens: int = Field(default=100)
+    repetition_penalty: float = Field(default=1.1)
+    repetition_context_size: int = Field(default=20)
     adapter_path: Optional[str] = Field(default=None)
     persist_history: bool = Field(default=False)
 
@@ -121,7 +123,7 @@ class VADSettings(BaseModel):
     max_duration: float = Field(default=15.0)
     start_muted: bool = Field(default=False)
 
-class ElectronWindowSettings(BaseModel):
+class WindowSettings(BaseModel):
     model_config = ConfigDict(extra="allow")
     width: int = Field(default=400)
     height: int = Field(default=400)
@@ -131,18 +133,18 @@ class ElectronWindowSettings(BaseModel):
     locked: bool = Field(default=False)
     control_corner: str = Field(default="bottom-right")
 
-class ElectronWindows(BaseModel):
+class AppWindows(BaseModel):
     model_config = ConfigDict(extra="allow")
-    ai: ElectronWindowSettings = Field(default_factory=ElectronWindowSettings)
-    user: ElectronWindowSettings = Field(default_factory=ElectronWindowSettings)
+    ai: WindowSettings = Field(default_factory=WindowSettings)
+    user: WindowSettings = Field(default_factory=WindowSettings)
 
-class ElectronSettings(BaseModel):
+class AppSettings(BaseModel):
     model_config = ConfigDict(extra="allow")
     port: int = Field(default=8676)
     ai_audio_sample_rate: int = Field(default=16000)
     gpu_acceleration: bool = Field(default=True)
     mic_device_id: str = Field(default="default")
-    windows: ElectronWindows = Field(default_factory=ElectronWindows)
+    windows: AppWindows = Field(default_factory=AppWindows)
 
 class AvatarCharConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -190,7 +192,7 @@ class TwitchSettings(BaseModel):
 
 # --- Root Configuration Model ---
 
-class AppSettings(BaseModel):
+class ParceraSettings(BaseModel):
     """Root model for application settings representing settings.yaml"""
     model_config = ConfigDict(extra="allow")
 
@@ -210,7 +212,7 @@ class AppSettings(BaseModel):
     stt: STTSettings = Field(default_factory=STTSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
     vad: VADSettings = Field(default_factory=VADSettings)
-    electron: ElectronSettings = Field(default_factory=ElectronSettings)
+    app: AppSettings = Field(default_factory=AppSettings)
     avatars: AvatarsSettings = Field(default_factory=AvatarsSettings)
     
     # Profiles & Knowledge

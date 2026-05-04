@@ -7,6 +7,6 @@ Parcera is packaged as a standalone arm64 `.app` using a portable Python interpr
 - **Python Structure**: Resources include a portable interpreter, source code, and a pre-installed `site-packages` directory.
 
 ## Lifecycle Management
-- **Guardian Process**: Electron manages the sidecar lifecycle (Auto-boot, Health checks, Zombie prevention via SIGTERM).
+- **Guardian Process**: Tauri (Rust) manages the sidecar lifecycle (Auto-boot, Health checks, Zombie prevention via SIGTERM).
 - **Distribution**: Uses Hardened Runtime and Notarization. Models are downloaded on-demand to User Data paths.
 Reference: docs/specs/packaging-runtime/TRD.md

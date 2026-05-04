@@ -1,19 +1,30 @@
+[tools]
+rust = "stable"
+
 [tasks]
 description = "Parcera Project Tasks"
 
 [tasks.dev]
-description = "Start Electron dev server (Frontend)"
-run = "cd electron && pnpm dev"
+description = "Start dev (Vite + Rust + Python sidecar). All-in-one."
+env = { RUST_LOG = "info" }
+run = "ui/node_modules/.bin/tauri dev --config src-tauri/tauri.dev.conf.json"
 
 [tasks.build]
-description = "Build Electron frontend"
-run = "cd electron && pnpm build"
+description = "Build Tauri app (production) and copy DMG/app to dist/"
+run = """
+ui/node_modules/.bin/tauri build
+mkdir -p dist
+cp src-tauri/target/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
+cp -r "src-tauri/target/release/bundle/macos/Parcera.app" dist/ 2>/dev/null || true
+echo "Build artifacts copied to dist/"
+ls dist/
+"""
 
 [tasks.package]
-description = "Package as macOS DMG (unsigned)"
+description = "Package distributable DMG (prepare Python sidecar → tauri build)"
 run = """
 bash scripts/prepare_sidecar.sh
-cd electron && pnpm build && npx electron-builder --mac --arm64 -c.mac.identity=null
+mise run build
 """
 
 [tasks.server]

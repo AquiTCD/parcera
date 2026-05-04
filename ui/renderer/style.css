@@ -1,0 +1,301 @@
+:root {
+  --bg-color: #1e1e1e;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: transparent !important;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+body.is-locked {
+  -webkit-app-region: no-drag !important;
+}
+
+/* Tauri/WKWebView: rely on data-tauri-drag-region instead of CSS drag regions.
+   The CSS property swallows :hover on all children in WKWebView, breaking controls. */
+body.tauri-mode {
+  -webkit-app-region: none !important;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  position: relative;
+  overflow: hidden;
+}
+
+.avatar-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.controls-wrapper {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  width: 40px;
+  min-height: 80px;
+  padding: 6px;
+  box-sizing: border-box;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.controls-wrapper:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.controls-wrapper[data-corner="top-left"] {
+  top: 0;
+  left: 0;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.controls-wrapper[data-corner="top-right"] {
+  top: 0;
+  right: 0;
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+
+.controls-wrapper[data-corner="bottom-left"] {
+  bottom: 0;
+  left: 0;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.controls-wrapper[data-corner="bottom-right"] {
+  bottom: 0;
+  right: 0;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.control-button {
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s, transform 0.1s !important;
+  background: rgba(40, 40, 40, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.control-button.active {
+  background: rgba(255, 50, 50, 0.8);
+}
+
+.controls-wrapper:hover .control-button {
+  opacity: 1;
+}
+
+.sensitivity-selector {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  background: rgba(40, 40, 40, 0.8);
+  padding: 3px;
+  border-radius: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  margin-right: 4px;
+}
+
+.controls-wrapper:hover .sensitivity-selector {
+  opacity: 1;
+}
+
+.sensitivity-button {
+  background: transparent;
+  color: #aaa;
+  border: none;
+  font-size: 9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 800;
+  transition: all 0.2s;
+}
+
+.sensitivity-button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sensitivity-button.active {
+  background: #61dafb;
+  color: #000;
+}
+
+.avatar-main {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: top left;
+
+  /* Transformation Origin: Top center so character breathes downward from head */
+  transform-origin: top center;
+
+  transform: scaleX(var(--flip-x, 1)) translateY(var(--breathe-offset-y, 0px)) scale(var(--breathe-current-scale, 1), var(--breathe-current-scale, 1));
+  pointer-events: none;
+
+  /* Chroma Key (Green Screen removal) */
+  filter: url(#chromakey-filter);
+}
+
+.avatar-main.flipped {
+  --flip-x: -1;
+}
+
+/* Heartbeat for keeping frames updated in OBS capture */
+.obs-heartbeat {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  height: 1px;
+  background: white;
+  opacity: 0.01;
+  pointer-events: none;
+  z-index: 1000;
+  animation: obsHeartbeat 2s infinite linear;
+}
+
+@keyframes obsHeartbeat {
+  0% {
+    opacity: 0.01;
+  }
+
+  50% {
+    opacity: 0.02;
+  }
+
+  100% {
+    opacity: 0.01;
+  }
+}
+
+/* ─── Settings Controls ─── */
+.btn {
+  padding: 8px 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  border: none;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.btn-outline {
+  padding: 4px 10px;
+  background: transparent;
+  color: #bbb;
+  border: 1px solid #4d4d50;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.btn-outline:hover {
+  background: #3e3e42;
+  color: #fff;
+}
+
+.setting-group-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #eee;
+}
+
+.setting-group-description {
+  display: block;
+  color: #888;
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.setting-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #1e1e1e;
+  color: #fff;
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: #61dafb;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  cursor: pointer;
+  font-size: 13px;
+  color: #eee;
+}
+
+.checkbox-description {
+  display: block;
+  color: #888;
+  margin-top: 4px;
+  margin-left: 26px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+textarea.setting-input {
+  resize: vertical;
+  min-height: 250px;
+}
+
+.log-viewer {
+  flex: 1;
+  background: #000;
+  color: #0f0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  padding: 15px;
+  border-radius: 8px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid #333;
+  user-select: text;
+}
+
