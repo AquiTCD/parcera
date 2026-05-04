@@ -25,6 +25,8 @@ class LocalLLMService(LLMService):
         path_lower = model_path.lower()
         if "qwen" in path_lower:
             return "qwen"
+        if "gemma-4" in path_lower or "gemma4" in path_lower:
+            return "gemma4"
         if "gemma" in path_lower:
             return "gemma"
         return "unknown"
@@ -118,21 +120,21 @@ class LocalLLMService(LLMService):
             messages.append({"role": "user", "content": text})
 
         if self._model_family == "gemma":
-            # Embed system_content into first user message
+            # Gemma 2: embed system_content into first user message
             if messages and messages[0]["role"] == "user":
                 messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
             elif system_content:
                 messages.insert(0, {"role": "user", "content": system_content})
                 messages.insert(1, {"role": "model", "content": "了解したわ！よろしくね。"})
         else:
-            # Qwen / unknown: system role is natively supported
+            # Gemma 4 / Qwen / unknown: system role is natively supported
             if system_content:
                 messages.insert(0, {"role": "system", "content": system_content})
 
         return messages
 
     async def update_context(self, context_id: str, user_id: str, messages: List[Dict], response_text: str):
-        assistant_role = "model" if self._model_family == "gemma" else "assistant"
+        assistant_role = "model" if self._model_family in ("gemma", "gemma4") else "assistant"
 
         current_messages = list(messages)
         current_messages.append({"role": assistant_role, "content": response_text})

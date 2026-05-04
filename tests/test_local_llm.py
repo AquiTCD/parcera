@@ -59,6 +59,10 @@ def test_detect_model_family_gemma():
     assert LocalLLMService._detect_model_family("mlx-community/gemma-2-9b-it-4bit") == "gemma"
     assert LocalLLMService._detect_model_family("google/gemma-2-2b-it") == "gemma"
 
+def test_detect_model_family_gemma4():
+    assert LocalLLMService._detect_model_family("mlx-community/gemma-4-e4b-it-4bit") == "gemma4"
+    assert LocalLLMService._detect_model_family("mlx-community/gemma4-e2b-it-4bit") == "gemma4"
+
 def test_detect_model_family_unknown():
     assert LocalLLMService._detect_model_family("some-other-model/llama-3") == "unknown"
 
@@ -115,6 +119,43 @@ async def test_update_context_qwen_uses_assistant_role():
     call_args = mock_cm.add_histories.call_args
     saved_messages = call_args[0][1]
     assert saved_messages[-1]["role"] == "assistant"
+
+@pytest.mark.asyncio
+async def test_compose_messages_gemma4_uses_system_role():
+    """Gemma 4 は system role をネイティブサポート。system_content が {"role": "system"} として先頭に入ること。"""
+    mock_cm = MagicMock()
+    mock_cm.get_histories = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/gemma-4-e4b-it-4bit",
+        system_prompt="You are a helpful AI.",
+        context_manager=mock_cm
+    )
+    messages = await service.compose_messages("ctx", "user1", "こんにちは")
+
+    assert messages[0]["role"] == "system"
+    assert "You are a helpful AI." in messages[0]["content"]
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"] == "こんにちは"
+
+@pytest.mark.asyncio
+async def test_update_context_gemma4_uses_model_role():
+    """Gemma 4 では context に "model" ロールで保存されること。"""
+    mock_cm = MagicMock()
+    mock_cm.add_histories = AsyncMock()
+    mock_cm.get_histories = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/gemma-4-e4b-it-4bit",
+        system_prompt="test",
+        context_manager=mock_cm
+    )
+    messages = [{"role": "user", "content": "hi"}]
+    await service.update_context("ctx", "user1", messages, "hello!")
+
+    call_args = mock_cm.add_histories.call_args
+    saved_messages = call_args[0][1]
+    assert saved_messages[-1]["role"] == "model"
 
 @pytest.mark.asyncio
 async def test_update_context_gemma_uses_model_role():

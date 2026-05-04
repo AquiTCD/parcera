@@ -14,6 +14,7 @@ import { ModelDownloaderUI, useModelDownloader } from '../settings/controls/Mode
 import { LocalLLMProfileManager } from '../settings/LocalLLMProfileManager';
 
 const LOCAL_MODEL_PRESETS = [
+  { label: 'Gemma 4 4B (MLX)', value: 'mlx-community/gemma-4-e4b-it-4bit' },
   { label: 'Gemma 2 9B (MLX)', value: 'mlx-community/gemma-2-9b-it-4bit' },
   { label: 'Qwen3.5 9B (MLX)', value: 'mlx-community/Qwen3.5-9B-MLX-4bit' },
   { label: 'Qwen3.5 4B (MLX) - 軽量', value: 'mlx-community/Qwen3.5-4B-MLX-4bit' },
