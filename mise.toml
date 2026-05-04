@@ -20,6 +20,13 @@ echo "Build artifacts copied to dist/"
 ls dist/
 """
 
+[tasks.package]
+description = "Package distributable DMG (prepare Python sidecar → tauri build)"
+run = """
+bash scripts/prepare_sidecar.sh
+mise run build
+"""
+
 [tasks.server]
 description = "Start Python server standalone (for debugging)"
 run = """
