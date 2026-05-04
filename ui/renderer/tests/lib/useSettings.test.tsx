@@ -7,7 +7,7 @@ const mockApi = {
   getDefaultSettings: vi.fn(),
   saveSettings: vi.fn(),
   updateSetting: vi.fn(),
-  onSettingsChanged: vi.fn(() => vi.fn()),
+  onSettingsChanged: vi.fn((_cb: (s: ParceraSettings) => void) => vi.fn()),
 };
 
 vi.mock('../../lib/tauri-bridge', () => ({ api: mockApi }));
@@ -47,7 +47,7 @@ describe('useSettings', () => {
 
   it('updates settings state when change event fires', async () => {
     let changeListener: ((s: ParceraSettings) => void) | null = null;
-    mockApi.onSettingsChanged.mockImplementation((cb) => {
+    mockApi.onSettingsChanged.mockImplementation((cb: (s: ParceraSettings) => void) => {
       changeListener = cb;
       return vi.fn();
     });

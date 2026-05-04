@@ -116,7 +116,7 @@ describe('Avatar Component', () => {
     expect(img.style.opacity).toBe('0.5');
   });
 
-  it('does not set data-tauri-drag-region when platform is electron', async () => {
+  it('does not set data-tauri-drag-region when settings.app.windows is empty', async () => {
     vi.mocked(api.getSettings).mockResolvedValue({ avatars: {} } as any);
     render(<Avatar />);
     const container = screen.getByTestId('avatar-container');

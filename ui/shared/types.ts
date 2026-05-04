@@ -218,43 +218,6 @@ export interface ModelDownloadProgress {
   error?: string;
 }
 
-export interface ElectronAPI {
-  platform: NodeJS.Platform;
-  getSettings: () => Promise<ParceraSettings>;
-  reloadSettings: () => Promise<ParceraSettings>;
-  resizeWindow: (width: number, height: number) => void;
-  onSettingsChanged: (callback: (settings: ParceraSettings) => void) => () => void;
-  saveSettings: (settings: ParceraSettings) => Promise<{ success: boolean; error?: string }>;
-  getDefaultSettings: () => Promise<ParceraSettings>;
-  selectDirectory: (currentPath?: string) => Promise<string | null>;
-  saveWindowBounds: (type: 'user' | 'ai') => Promise<{ success: boolean; error?: string }>;
-  getWindowBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
-  getAvatarWindowBounds: (type: 'user' | 'ai') => Promise<{ x: number; y: number; width: number; height: number } | null>;
-  resolveLocalPath: (filePath: string) => string;
-  setResizable: (resizable: boolean) => void;
-  closeWindow: () => void;
-  onLogMessage: (callback: (log: SidecarLogMessage) => void) => () => void;
-  getLogHistory: () => Promise<SidecarLogMessage[]>;
-
-  // Twitch
-  twitchStartAuth: () => Promise<void>;
-  twitchGetAuthStatus: () => Promise<boolean>;
-  twitchClearAuth: () => Promise<boolean>;
-  twitchTestEvent: (eventType: string) => Promise<{ success: boolean; error?: string }>;
-  onTwitchAuthStatus: (callback: (status: { success: boolean }) => void) => () => void;
-  updateSetting: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
-
-  // Model Downloader
-  checkModelCached: (modelName: string, port: number) => Promise<boolean>;
-  downloadModel: (modelName: string, callback: (data: ModelDownloadProgress) => void, port: number) => void;
-  reloadModel: (port: number) => Promise<void>;
-  getTwitchStatus: () => Promise<{ initialized: boolean; user?: { display_name: string; login: string }; session_id?: string }>;
-  openTrainingWindow: (profile: string) => void;
-  onTrainingProfileChanged: (callback: (profile: string) => void) => () => void;
-  broadcastProfilesUpdated: () => void;
-  onProfilesUpdated: (callback: () => void) => () => void;
-}
-
 export interface TrainingPair {
   id: number;
   input: string;
@@ -265,8 +228,3 @@ export interface TrainingPair {
   created_at: string;
 }
 
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI;
-  }
-}

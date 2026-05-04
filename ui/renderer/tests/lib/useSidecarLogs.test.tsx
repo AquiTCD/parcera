@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import type { LogEntry } from '../../../lib/bridge';
+import type { LogEntry } from '../../lib/bridge';
 
 const mockApi = {
   getLogHistory: vi.fn().mockResolvedValue([]),
-  onLogMessage: vi.fn(() => vi.fn()),
+  onLogMessage: vi.fn((_cb: (log: LogEntry) => void) => vi.fn()),
 };
 
 vi.mock('../../lib/tauri-bridge', () => ({ api: mockApi }));
@@ -48,7 +48,7 @@ describe('useSidecarLogs', () => {
 
   it('appends new log when message arrives', async () => {
     let logListener: ((log: LogEntry) => void) | null = null;
-    mockApi.onLogMessage.mockImplementation((cb) => {
+    mockApi.onLogMessage.mockImplementation((cb: (log: LogEntry) => void) => {
       logListener = cb;
       return vi.fn();
     });

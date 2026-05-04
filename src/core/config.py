@@ -4,7 +4,7 @@ import yaml
 import logging
 import sys
 from typing import Optional, Dict, Any
-from core.schema import AppSettings
+from core.schema import ParceraSettings
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class ParceraConfig:
         self.settings_path = settings_path
         self.last_mtime: float = 0.0
         self.settings: Dict[str, Any] = {}
-        self.data: AppSettings = AppSettings()
+        self.data: ParceraSettings = ParceraSettings()
         self.refresh()
 
     def refresh(self, new_settings: Optional[Dict[str, Any]] = None) -> bool:
@@ -113,7 +113,7 @@ class ParceraConfig:
         # We merge into the "user overrides" layer
         updated_user_settings = deep_merge(user_settings, delta)
         
-        # 3. Save back to disk (This will trigger Electron's watcher if saving to config.json)
+        # 3. Save back to disk (Tauri watches for changes to trigger settings-changed event)
         if save:
             try:
                 with open(self.settings_path, "w", encoding="utf-8") as f:
@@ -159,7 +159,7 @@ class ParceraConfig:
         merged_settings = deep_merge(base_settings, user_settings)
         try:
             # Validate and apply defaults via Pydantic
-            self.data = AppSettings.model_validate(merged_settings)
+            self.data = ParceraSettings.model_validate(merged_settings)
             self.settings = self.data.model_dump()
         except Exception as e:
             logger.warning(f"Config validation failed (falling back to strict dict): {e}")
@@ -310,8 +310,8 @@ class ParceraConfig:
         return self.data.avatars
 
     @property
-    def electron(self):
-        return self.data.electron
+    def app(self):
+        return self.data.app
 
     def get(self, key, default=None):
         return self.settings.get(key, default)
