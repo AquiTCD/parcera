@@ -84,6 +84,8 @@ class ParceraComponentFactory:
                 system_prompt=self.config.full_system_prompt,
                 temperature=float(local_cfg.get("temperature", 0.8)),
                 max_tokens=int(local_cfg.get("max_tokens", 150)),
+                repetition_penalty=float(local_cfg.get("repetition_penalty", 1.1)),
+                repetition_context_size=int(local_cfg.get("repetition_context_size", 20)),
                 debug=self.config.verbose
             )
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)

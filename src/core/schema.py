@@ -22,6 +22,8 @@ class LocalLLMConfig(BaseModel):
     model: str = Field(default="mlx-community/gemma-2-9b-it-4bit")
     temperature: float = Field(default=0.8)
     max_tokens: int = Field(default=100)
+    repetition_penalty: float = Field(default=1.1)
+    repetition_context_size: int = Field(default=20)
     adapter_path: Optional[str] = Field(default=None)
     persist_history: bool = Field(default=False)
 
