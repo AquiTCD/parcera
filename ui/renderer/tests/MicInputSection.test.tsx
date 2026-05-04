@@ -57,7 +57,7 @@ const dummySettings = {
     max_duration: 30,
     start_muted: false,
   },
-  electron: {
+  app: {
     port: 8676,
     mic_device_id: 'default',
     windows: {},

@@ -45,7 +45,7 @@ export const api: ParceraAPI = {
   // FS / Dialog
   resolveLocalPath: (filePath) => {
     // Bundled web assets (/assets/... or assets/...): strip leading slash and
-    // return as a web-relative path served by Vite/dist. Same logic as Electron preload.
+    // return as a web-relative path served by Vite/dist.
     if (filePath.startsWith('assets/') || filePath.startsWith('/assets/')) {
       return filePath.startsWith('/') ? filePath.slice(1) : filePath;
     }

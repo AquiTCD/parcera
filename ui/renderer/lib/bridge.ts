@@ -23,8 +23,7 @@ export type DownloadProgress = {
 
 /**
  * Platform-agnostic API surface for Parcera.
- * Electron implementation: electron-bridge.ts (wraps window.electronAPI)
- * Tauri implementation: tauri-bridge.ts (uses @tauri-apps/api) — future
+ * Implementation: tauri-bridge.ts (uses @tauri-apps/api)
  */
 export interface ParceraAPI {
   readonly platform: string;

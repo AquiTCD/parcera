@@ -68,7 +68,7 @@ const dummySettings = {
       google: { api_key: '' },
     },
   },
-  electron: { port: 8676 },
+  app: { port: 8676 },
 };
 
 const mockProps = {

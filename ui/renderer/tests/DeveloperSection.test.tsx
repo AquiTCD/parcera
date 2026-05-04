@@ -45,7 +45,7 @@ const dummySettings = {
   simple_log: false,
   profile_mode: false,
   verbose: false,
-  electron: {
+  app: {
     port: 8676,
     ai_audio_sample_rate: 16000,
     gpu_acceleration: true,

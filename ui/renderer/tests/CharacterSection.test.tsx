@@ -75,7 +75,7 @@ const dummySettings = {
     ai: { assets_dir: '/path/to/ai' },
     user: { assets_dir: '/path/to/user' },
   },
-  electron: { port: 8676, windows: { ai: {}, user: {} } },
+  app: { port: 8676, windows: { ai: {}, user: {} } },
 };
 
 const mockProps = {
