@@ -14,6 +14,12 @@ router = APIRouter(prefix="/config", tags=["Config"])
 def create_config_router(get_server):
     """Create the config router with a server accessor to avoid circular imports."""
 
+    @router.get("/settings")
+    async def get_settings():
+        """Return all settings as JSON. Used by OBS Browser Source (no Tauri IPC available)."""
+        server = get_server()
+        return server.config.settings
+
     @router.post("/reload")
     async def reload_config(request: Request):
         server = get_server()
