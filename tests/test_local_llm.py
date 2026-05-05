@@ -27,10 +27,8 @@ def mock_mlx():
 async def test_local_llm_service_inference(mock_mlx):
     mock_load, mock_stream, mock_model, mock_tokenizer = mock_mlx
     
-    # Mock context manager to avoid DB issues
     mock_cm = MagicMock()
-    mock_cm.get_context = AsyncMock(return_value=[])
-    
+    mock_cm.get_histories = AsyncMock(return_value=[])
     service = LocalLLMService(model="test_model", system_prompt="you are a help elf", context_manager=mock_cm)
     
     # Test streaming response
@@ -187,7 +185,7 @@ async def test_qwen_special_tags_are_filtered(mock_mlx):
     mock_stream.return_value = iter([mock_resp1, mock_resp2, mock_resp3])
 
     mock_cm = MagicMock()
-    mock_cm.get_context = AsyncMock(return_value=[])
+    mock_cm.get_histories = AsyncMock(return_value=[])
 
     service = LocalLLMService(
         model="mlx-community/Qwen3.5-9B-MLX-4bit",
@@ -212,7 +210,7 @@ def _make_gemma4_service(mock_mlx, tokens: list[str]):
     resps = [MagicMock(text=t) for t in tokens]
     mock_stream.return_value = iter(resps)
     mock_cm = MagicMock()
-    mock_cm.get_context = AsyncMock(return_value=[])
+    mock_cm.get_histories = AsyncMock(return_value=[])
     return LocalLLMService(
         model="mlx-community/gemma-4-e4b-it-4bit",
         system_prompt="test",
@@ -260,7 +258,7 @@ async def test_gemma4_min_tokens_boost(mock_mlx):
     mock_tokenizer.apply_chat_template.return_value = "prompt"
     mock_stream.return_value = iter([MagicMock(text="ok")])
     mock_cm = MagicMock()
-    mock_cm.get_context = AsyncMock(return_value=[])
+    mock_cm.get_histories = AsyncMock(return_value=[])
 
     service = LocalLLMService(
         model="mlx-community/gemma-4-e4b-it-4bit",
@@ -273,6 +271,78 @@ async def test_gemma4_min_tokens_boost(mock_mlx):
 
     _, call_kwargs = mock_stream.call_args
     assert call_kwargs["max_tokens"] >= LocalLLMService._G4_MIN_TOKENS
+
+
+@pytest.mark.asyncio
+async def test_gemma4_thinking_tag_split_across_tokens(mock_mlx):
+    """thinking タグがトークン境界をまたいでも正しく除去されること。"""
+    # <channel>thought が 2 トークンに分割されるケース
+    tokens_split_open = [
+        "<channel>th",    # open tag split
+        "ought\nreasoning\n<channel|>",
+        "返答！",
+    ]
+    service_open = _make_gemma4_service(mock_mlx, tokens_split_open)
+    results = []
+    async for chunk in service_open.get_llm_stream_response("ctx", "user", [{"role": "user", "content": "hi"}]):
+        results.append(chunk.text)
+    full = "".join(results)
+    assert "reasoning" not in full
+    assert "返答！" in full
+
+    # <channel|> 終了タグが 2 トークンに分割されるケース
+    tokens_split_close = [
+        "<channel>thought\nreasoning\n<ch",  # close tag split
+        "annel|>返答B",
+    ]
+    service_close = _make_gemma4_service(mock_mlx, tokens_split_close)
+    results2 = []
+    async for chunk in service_close.get_llm_stream_response("ctx", "user", [{"role": "user", "content": "hi"}]):
+        results2.append(chunk.text)
+    full2 = "".join(results2)
+    assert "reasoning" not in full2
+    assert "返答B" in full2
+
+
+@pytest.mark.asyncio
+async def test_gemma4_multiple_thinking_blocks_stripped(mock_mlx):
+    """thinking ブロックが複数連続しても全て除去されること。"""
+    tokens = [
+        "<channel>thought\nblock1\n<channel|>",
+        "中間テキスト",
+        "<channel>thought\nblock2\n<channel|>",
+        "最終返答",
+    ]
+    service = _make_gemma4_service(mock_mlx, tokens)
+    results = []
+    async for chunk in service.get_llm_stream_response("ctx", "user", [{"role": "user", "content": "hi"}]):
+        results.append(chunk.text)
+    full = "".join(results)
+    assert "block1" not in full
+    assert "block2" not in full
+    assert "中間テキスト" in full
+    assert "最終返答" in full
+
+
+@pytest.mark.asyncio
+async def test_compose_messages_gemma_trims_leading_assistant_history():
+    """Gemma 2 は履歴が assistant から始まる場合に先頭を user まで削る。"""
+    mock_cm = MagicMock()
+    mock_cm.get_histories = AsyncMock(return_value=[
+        {"role": "model", "content": "old assistant turn"},
+        {"role": "user", "content": "previous user turn"},
+        {"role": "model", "content": "previous assistant turn"},
+    ])
+    service = LocalLLMService(
+        model="mlx-community/gemma-2-9b-it-4bit",
+        system_prompt="sys",
+        context_manager=mock_cm,
+    )
+    messages = await service.compose_messages("ctx", "user1", "新しい質問")
+
+    # 先頭は必ず user ロールになること（model ロール先頭は除去）
+    assert messages[0]["role"] == "user"
+    assert "新しい質問" in messages[-1]["content"]
 
 
 @pytest.mark.asyncio
