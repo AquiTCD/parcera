@@ -281,7 +281,8 @@ export function startLipsyncWebSocket(): void {
 
   lipsyncSocket.onopen = () => {
     logStatus('OBS Lipsync Connected');
-    lipsyncSocket?.send(JSON.stringify({ type: 'start', session_id: 'obs-user-session' }));
+    const sessionId = `lipsync-${Math.random().toString(36).slice(2, 9)}`;
+    lipsyncSocket?.send(JSON.stringify({ type: 'start', session_id: sessionId }));
   };
 
   lipsyncSocket.onmessage = (event: MessageEvent) => {

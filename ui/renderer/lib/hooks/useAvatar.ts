@@ -124,6 +124,8 @@ export function useAvatar() {
       avatarImageRef.current.src = src.replace('/e.png', '/a.png');
     } else if (src.endsWith('/o.png')) {
       avatarImageRef.current.src = src.replace('/o.png', '/u.png');
+    } else if (!src.endsWith('/base.png')) {
+      avatarImageRef.current.src = src.replace(/[^/]+\.png$/, 'base.png');
     } else {
       avatarImageRef.current.style.opacity = '0.5';
     }

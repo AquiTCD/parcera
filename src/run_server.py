@@ -198,6 +198,8 @@ class ParceraServer(ParceraAvatarBase):
         if hasattr(self.vad, "volume_db_threshold"):
             new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
             self.vad.volume_db_threshold = new_threshold
+            if hasattr(self, "mic_analyzer") and self.mic_analyzer:
+                self.mic_analyzer.set_threshold_db(new_threshold)
 
         # Update STT filters
         if hasattr(self.stt, "response_filter") and self.stt.response_filter:
