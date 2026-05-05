@@ -79,13 +79,18 @@ function updateVisuals(): void {
     if (showDebug) {
       const db = 20 * Math.log10(Math.max(rmsRaw, 0.00001)); // floor at -100dB
 
-      // Peak meter (0 to 15 blocks, -60dB to 0dB)
+      // Peak meter (0 to 15 blocks, -55dB to -5dB)
+      // Range tuned for Python raw capture levels: typical speech sits at
+      // -25 to -45 dBFS, placing it in the center of the meter so the
+      // threshold marker is easy to read and calibrate.
       const meterSize = 15;
-      const dbRange = 60;
-      const normalizedLevel = Math.max(0, Math.min(1, (db + dbRange) / dbRange));
+      const DB_FLOOR = -55;
+      const DB_CEIL = -5;
+      const dbSpan = DB_CEIL - DB_FLOOR; // 50 dB
+      const normalizedLevel = Math.max(0, Math.min(1, (db - DB_FLOOR) / dbSpan));
       const blocksOn = Math.floor(normalizedLevel * meterSize);
 
-      const thresholdLevel = Math.max(0, Math.min(1, (state.threshold_db + dbRange) / dbRange));
+      const thresholdLevel = Math.max(0, Math.min(1, (state.threshold_db - DB_FLOOR) / dbSpan));
       const thresholdPos = Math.floor(thresholdLevel * meterSize);
 
       let meterHtml = '';
@@ -94,7 +99,7 @@ function updateVisuals(): void {
           meterHtml += '<span style="color: #ff0; font-weight: bold;">|</span>';
         } else if (i < blocksOn) {
           let color = '#eee'; // Default White
-          if (db >= -3) color = '#f44'; // Peak Red
+          if (db >= DB_CEIL) color = '#f44'; // Peak Red (at ceiling)
           else if (env > TALK_THRESHOLD) color = '#4f4'; // Active Green
           else color = '#999'; // Below threshold Grey
 
