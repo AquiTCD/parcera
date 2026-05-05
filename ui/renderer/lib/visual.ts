@@ -14,6 +14,11 @@ const DEFAULT_BLINK_MIN = 5000;
 const DEFAULT_BLINK_MAX = 15000;
 const DEFAULT_MOUTH_HOLD = 120; // ms — minimum time a mouth shape is held
 
+// Vowels that map to a non-standard filename (e.g. nasal → closed mouth)
+const VOWEL_FILE_OVERRIDE: Partial<Record<string, string>> = {
+  n: 'base.png', // ん: nasal consonant, mouth stays closed
+};
+
 // --- Module State ---
 let avatarImage: HTMLImageElement | null = null;
 let statusDebug: HTMLElement | null = null;
@@ -141,7 +146,7 @@ function updateVisuals(): void {
     if (nowMs > mouthHoldTimer) {
       let nextMouth = 'base.png';
       if (env > TALK_THRESHOLD && vowel && vowel !== '?') {
-        nextMouth = `${vowel}.png`;
+        nextMouth = VOWEL_FILE_OVERRIDE[vowel] ?? `${vowel}.png`;
       }
       if (nextMouth !== currentMouthFile) {
         currentMouthFile = nextMouth;
@@ -167,8 +172,24 @@ function updateVisuals(): void {
 
     if (avatarImage.src !== absoluteTarget) {
       avatarImage.src = targetPath;
+      // Reset internal state when the image fails to load (e.g. a custom avatar
+      // missing a vowel sprite). Without this, visual.ts and handleImageError
+      // fight each other every frame, causing a visible flicker loop.
+      avatarImage.onerror = () => {
+        if (targetFile !== 'base.png' && targetFile !== 'closed.png') {
+          currentMouthFile = 'base.png';
+          mouthHoldTimer = 0;
+        }
+        avatarImage!.onerror = null;
+      };
     }
   }
 
-  requestAnimationFrame(updateVisuals);
+  // Use setTimeout when the tab is hidden — rAF is throttled to ≤1 fps in
+  // background tabs and OBS browser sources, making the flicker loop visible.
+  if (document.hidden) {
+    setTimeout(updateVisuals, 33); // ~30 fps
+  } else {
+    requestAnimationFrame(updateVisuals);
+  }
 }
