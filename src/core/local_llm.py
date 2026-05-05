@@ -26,6 +26,15 @@ class LocalLLMService(LLMService):
     _QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
     SPECIAL_TAGS: List[str] = list(set(_GEMMA_TAGS + _QWEN_TAGS))
 
+    # Gemma 4 thinking-block markers (soc_token + "thought" / eoc_token).
+    # The tokenizer config stores soc_token as '<|channel>' but it decodes to '<channel>'
+    # in the stream; we check both forms to be safe.
+    _G4_THINK_OPEN = ("<channel>thought", "<|channel>thought")
+    _G4_THINK_CLOSE = "<channel|>"   # eoc_token
+    # Gemma 4 thinking consumes many tokens before the actual response.
+    # Guarantee enough budget for thinking + reply so generation doesn't stall.
+    _G4_MIN_TOKENS = 512
+
     @staticmethod
     def _detect_model_family(model_path: str) -> str:
         """Detect model family from model path string."""
@@ -183,6 +192,8 @@ class LocalLLMService(LLMService):
             logits_processors = [make_repetition_penalty(self.repetition_penalty, self.repetition_context_size)]
             try:
                 m_tokens = kwargs.get("max_tokens", self.max_tokens)
+                if self._model_family == "gemma4":
+                    m_tokens = max(m_tokens, self._G4_MIN_TOKENS)
                 for response in stream_generate(
                     model=model,
                     tokenizer=tokenizer,
@@ -200,21 +211,78 @@ class LocalLLMService(LLMService):
         # Submit to the dedicated MLX thread (max_workers=1) — never a random thread
         _mlx_executor.submit(producer)
 
+        # --- Gemma 4 thinking-block filter ---
+        # Gemma 4 outputs <channel>thought\n...reasoning...\n<channel|> before the actual
+        # response. We buffer tokens to detect and discard these blocks so they don't reach
+        # the TTS pipeline. We keep a rolling tail equal to (max_open_tag_len - 1) so that
+        # tags split across token boundaries are still detected correctly.
+        g4_buf = ""
+        g4_thinking = False
+        g4_max_tail = max(len(t) for t in self._G4_THINK_OPEN) + len(self._G4_THINK_CLOSE)
+
         while True:
-            # Yield control back to event loop while waiting for the next word
             word = await asyncio.to_thread(q.get)
 
             if word is None:
+                # Flush any buffered non-thinking content
+                if g4_buf and not g4_thinking:
+                    clean = g4_buf
+                    for tag in self.SPECIAL_TAGS:
+                        clean = clean.replace(tag, "")
+                    if clean.strip() or clean == " ":
+                        yield LLMResponse(context_id=context_id, text=clean)
                 break
             if isinstance(word, Exception):
                 raise word
 
-            clean_text = word
-            for tag in self.SPECIAL_TAGS:
-                clean_text = clean_text.replace(tag, "")
-            
-            if clean_text.strip() or clean_text == " ":
-                yield LLMResponse(context_id=context_id, text=clean_text)
+            if self._model_family == "gemma4":
+                g4_buf += word
+                # Inner loop: process buffer until nothing changes
+                changed = True
+                while changed:
+                    changed = False
+                    if g4_thinking:
+                        idx = g4_buf.find(self._G4_THINK_CLOSE)
+                        if idx != -1:
+                            g4_buf = g4_buf[idx + len(self._G4_THINK_CLOSE):]
+                            g4_thinking = False
+                            changed = True
+                        else:
+                            tail = len(self._G4_THINK_CLOSE) - 1
+                            g4_buf = g4_buf[-tail:] if len(g4_buf) > tail else g4_buf
+                    else:
+                        earliest, found_tag = len(g4_buf), None
+                        for tag in self._G4_THINK_OPEN:
+                            i = g4_buf.find(tag)
+                            if 0 <= i < earliest:
+                                earliest, found_tag = i, tag
+                        if found_tag:
+                            before = g4_buf[:earliest]
+                            g4_buf = g4_buf[earliest + len(found_tag):]
+                            g4_thinking = True
+                            changed = True
+                            if before:
+                                clean = before
+                                for tag in self.SPECIAL_TAGS:
+                                    clean = clean.replace(tag, "")
+                                if clean.strip() or clean == " ":
+                                    yield LLMResponse(context_id=context_id, text=clean)
+                        else:
+                            tail = max(len(t) for t in self._G4_THINK_OPEN) - 1
+                            if len(g4_buf) > tail:
+                                to_emit = g4_buf[:-tail]
+                                g4_buf = g4_buf[-tail:]
+                                clean = to_emit
+                                for tag in self.SPECIAL_TAGS:
+                                    clean = clean.replace(tag, "")
+                                if clean.strip() or clean == " ":
+                                    yield LLMResponse(context_id=context_id, text=clean)
+            else:
+                clean_text = word
+                for tag in self.SPECIAL_TAGS:
+                    clean_text = clean_text.replace(tag, "")
+                if clean_text.strip() or clean_text == " ":
+                    yield LLMResponse(context_id=context_id, text=clean_text)
 
         logger.debug(f"Local LLM: Finished generation for context {context_id}")
 

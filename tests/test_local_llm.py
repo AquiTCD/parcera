@@ -205,6 +205,76 @@ async def test_qwen_special_tags_are_filtered(mock_mlx):
     assert "</think>" not in full_text
     assert "こんにちは" in full_text
 
+def _make_gemma4_service(mock_mlx, tokens: list[str]):
+    """Helper: create a Gemma 4 service with the given mock stream tokens."""
+    mock_load, mock_stream, _, mock_tokenizer = mock_mlx
+    mock_tokenizer.apply_chat_template.return_value = "prompt"
+    resps = [MagicMock(text=t) for t in tokens]
+    mock_stream.return_value = iter(resps)
+    mock_cm = MagicMock()
+    mock_cm.get_context = AsyncMock(return_value=[])
+    return LocalLLMService(
+        model="mlx-community/gemma-4-e4b-it-4bit",
+        system_prompt="test",
+        context_manager=mock_cm,
+    )
+
+
+@pytest.mark.asyncio
+async def test_gemma4_thinking_block_is_stripped(mock_mlx):
+    """Gemma 4 の <channel>thought....<channel|> ブロックが TTS に流れないこと。"""
+    tokens = [
+        "<channel>thought",
+        "\nI am thinking hard about this.",
+        "\n<channel|>",  # end of thinking
+        "実際の返答だよ",
+    ]
+    service = _make_gemma4_service(mock_mlx, tokens)
+
+    results = []
+    async for chunk in service.get_llm_stream_response("ctx", "user", [{"role": "user", "content": "hi"}], None, None):
+        results.append(chunk.text)
+
+    full = "".join(results)
+    assert "thinking" not in full
+    assert "実際の返答だよ" in full
+
+
+@pytest.mark.asyncio
+async def test_gemma4_no_thinking_block_streams_normally(mock_mlx):
+    """Gemma 4 でも thinking なし応答はそのまま流れること。"""
+    tokens = ["こんにちは", "！"]
+    service = _make_gemma4_service(mock_mlx, tokens)
+
+    results = []
+    async for chunk in service.get_llm_stream_response("ctx", "user", [{"role": "user", "content": "hi"}], None, None):
+        results.append(chunk.text)
+
+    assert "こんにちは" in "".join(results)
+
+
+@pytest.mark.asyncio
+async def test_gemma4_min_tokens_boost(mock_mlx):
+    """Gemma 4 は max_tokens が _G4_MIN_TOKENS 未満の場合に自動引き上げされること。"""
+    mock_load, mock_stream, _, mock_tokenizer = mock_mlx
+    mock_tokenizer.apply_chat_template.return_value = "prompt"
+    mock_stream.return_value = iter([MagicMock(text="ok")])
+    mock_cm = MagicMock()
+    mock_cm.get_context = AsyncMock(return_value=[])
+
+    service = LocalLLMService(
+        model="mlx-community/gemma-4-e4b-it-4bit",
+        system_prompt="test",
+        context_manager=mock_cm,
+        max_tokens=50,  # below _G4_MIN_TOKENS
+    )
+    async for _ in service.get_llm_stream_response("ctx", "user", [{"role": "user", "content": "hi"}]):
+        pass
+
+    _, call_kwargs = mock_stream.call_args
+    assert call_kwargs["max_tokens"] >= LocalLLMService._G4_MIN_TOKENS
+
+
 @pytest.mark.asyncio
 async def test_local_llm_service_cache_behavior():
     """_load_model caches the model for the same path and reloads for a different path."""
