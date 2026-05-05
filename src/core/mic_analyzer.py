@@ -2,8 +2,14 @@
 MicAnalyzer: sounddevice-based microphone capture for OBS Browser Source support.
 
 Captures audio from the system microphone, then:
-1. Broadcasts user_lipsync events (vowel + amplitude) to all WS clients
+1. Broadcasts user_lipsync events (vowel + amplitude + speaking) to all WS clients
 2. Feeds audio to the STT pipeline via a simple energy-based VAD
+
+The ``amplitude`` field carries the raw linear RMS so the frontend peak meter
+reflects the actual physical level — allowing users to calibrate
+``vad.volume_db_threshold`` against what they see on the meter.
+The ``speaking`` field is the VAD decision at the Python threshold, freeing
+the frontend from running a redundant amplitude comparison.
 """
 
 import asyncio
@@ -24,67 +30,22 @@ MIN_SPEECH_CHUNKS = 5         # ~160ms minimum speech to reject brief noise spik
 _VOWEL_BOUNDARIES_HZ = {'u': 600, 'o': 1500, 'a': 3000, 'e': 5000}
 
 
-class _SoftwareAGC:
-    """
-    Peak-hold AGC that normalises raw mic RMS to a consistent target level.
-
-    Mimics the browser's WebRTC Automatic Gain Control: speech is boosted to
-    TARGET_RMS regardless of the physical microphone gain, while a noise gate
-    (NOISE_FLOOR) prevents amplifying silence into false positives.
-
-    Algorithm:
-      - If current RMS > tracked peak  → update peak, reset hold counter
-      - While hold counter > 0         → keep peak stable (prevents pumping)
-      - After hold expires             → peak decays slowly (handles level drops)
-      - Gain = TARGET_RMS / peak, capped at MAX_GAIN
-    """
-
-    TARGET_RMS = 0.12       # Normalise speech to ~-18 dBFS (matches browser AGC)
-    MAX_GAIN = 40.0         # Cap at +32 dB to avoid amplifying deep silence
-    NOISE_FLOOR = 0.0005    # Below this RMS, apply no gain (pure silence / noise gate)
-    HOLD_CHUNKS = 30        # Hold peak for ~1 s before allowing decay
-    DECAY_PER_CHUNK = 0.995 # ~0.5 dB/s decay — slow enough to avoid pumping artefacts
-
-    def __init__(self) -> None:
-        self._peak: float = 0.001
-        self._hold: int = 0
-
-    def process(self, rms: float) -> float:
-        """Return the AGC-normalised RMS for *rms*; also updates internal state."""
-        # Update peak tracker
-        if rms > self._peak:
-            self._peak = rms
-            self._hold = self.HOLD_CHUNKS
-        elif self._hold > 0:
-            self._hold -= 1
-        else:
-            self._peak = max(self._peak * self.DECAY_PER_CHUNK, 0.001)
-
-        # Noise gate: don't boost near-silence
-        if rms < self.NOISE_FLOOR:
-            return rms
-
-        gain = min(self.TARGET_RMS / self._peak, self.MAX_GAIN)
-        return float(np.clip(rms * gain, 0.0, 1.0))
-
-
 class MicAnalyzer:
     """
     Captures microphone audio via sounddevice and performs two duties:
     - Broadcasts ``user_lipsync`` JSON events to all connected WebSocket clients
-      (used by OBS Browser Source user avatar).
+      (used by both OBS Browser Source and the Tauri User Window).
     - Runs a lightweight energy-based VAD and feeds detected utterances to the
-      STT pipeline so that STT no longer depends on browser PCM streaming.
+      STT pipeline.
     """
 
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
         self._stream = None
         self._mic_device: Optional[str] = None
-        # With software AGC normalising to ~-18 dBFS, a -25 dB threshold gives
-        # comfortable headroom for detecting speech while ignoring residual noise.
-        self._threshold_db: float = -25.0
-        self._agc = _SoftwareAGC()
+        # Default threshold tuned for typical system microphone without browser AGC.
+        # Users adjust vad.volume_db_threshold in settings to match their meter reading.
+        self._threshold_db: float = -35.0
 
         # VAD state
         self._vad_buffer: list[bytes] = []
@@ -126,7 +87,7 @@ class MicAnalyzer:
             self._stream.start()
             logger.info(
                 f"MicAnalyzer started (device={self._mic_device or 'default'}, "
-                f"threshold={self._threshold_db}dB, AGC target={_SoftwareAGC.TARGET_RMS})"
+                f"threshold={self._threshold_db}dB)"
             )
         except Exception as e:
             logger.error(f"MicAnalyzer failed to start: {e}")
@@ -147,25 +108,28 @@ class MicAnalyzer:
         audio_int16 = indata[:, 0].copy()  # mono, shape (frames,), dtype int16
         audio_float = audio_int16.astype(np.float32) / 32768.0
 
-        raw_rms = float(np.sqrt(np.mean(audio_float ** 2)))
-        boosted_rms = self._agc.process(raw_rms)
+        rms = float(np.sqrt(np.mean(audio_float ** 2)))
+        db = 20.0 * np.log10(max(rms, 1e-10))
+        speaking = bool(db > self._threshold_db)
 
-        # --- Lipsync broadcast (AGC-normalised amplitude) ---
-        vowel = self._estimate_vowel(audio_float, raw_rms)
+        # --- Lipsync broadcast ---
+        # amplitude = raw linear RMS so the frontend peak meter shows the
+        # physical signal level, making vad.volume_db_threshold calibratable.
+        vowel = self._estimate_vowel(audio_float, rms)
         if self._broadcast_callback:
             asyncio.run_coroutine_threadsafe(
                 self._broadcast_callback({
                     "type": "user_lipsync",
                     "vowel": vowel,
-                    "amplitude": boosted_rms,
+                    "amplitude": rms,
+                    "speaking": speaking,
                 }),
                 self._loop,
             )
 
-        # --- Energy VAD for STT (using AGC-normalised dB) ---
+        # --- Energy VAD for STT ---
         if self._stt_callback:
-            db = 20.0 * np.log10(max(boosted_rms, 1e-10))
-            if db > self._threshold_db:
+            if speaking:
                 self._is_speaking = True
                 self._silence_count = 0
                 self._speech_chunk_count += 1

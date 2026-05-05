@@ -64,10 +64,10 @@ function updateVisuals(): void {
     avatarImage.style.setProperty('--breathe-current-scale', `${currentScale}`);
   }
 
-  // --- Audio Analysis (or external lipsync for OBS user mode) ---
+  // --- Audio Analysis (or external lipsync driven by Python MicAnalyzer) ---
   const extLipsync = getExternalLipsync();
   const env = extLipsync !== null ? extLipsync.env : getEnvelope();
-  const rmsRaw = extLipsync !== null ? extLipsync.env : getRMS();
+  const rmsRaw = extLipsync !== null ? extLipsync.rawAmplitude : getRMS(); // raw Python RMS for dB meter
   const vowel = extLipsync !== null
     ? (extLipsync.env > TALK_THRESHOLD ? (extLipsync.vowel || '-') : '-')
     : (env > TALK_THRESHOLD ? (getVowel() || '?') : '-');

@@ -290,7 +290,8 @@ export function startLipsyncWebSocket(): void {
       if (data.type === 'user_lipsync') {
         const vowel = (data.vowel as Vowel) || null;
         const amplitude = typeof data.amplitude === 'number' ? data.amplitude : 0;
-        setExternalLipsync(vowel, amplitude);
+        const speaking = typeof data.speaking === 'boolean' ? data.speaking : false;
+        setExternalLipsync(vowel, amplitude, speaking);
       }
     } catch { /* skip malformed */ }
   };

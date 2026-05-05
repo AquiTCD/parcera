@@ -54,24 +54,36 @@ let currentAnalyserSource: AudioNode | null = null;
 const fData = new Float32Array(FFT_SIZE / 2);
 const tData = new Float32Array(FFT_SIZE);
 
-// --- External Lipsync Override (OBS user mode) ---
-// When set, visual.ts reads these instead of analyzing browser AudioContext.
-let _externalEnv: number | null = null;
-let _externalVowel: Vowel | null = null;
+// --- External Lipsync Override (Python MicAnalyzer driven) ---
+// Used by both OBS browser source and the Tauri User Window.
+// visual.ts reads these instead of analyzing browser AudioContext.
+//
+// rawAmplitude: raw linear RMS from Python — shown on the dB peak meter so
+//   users can calibrate vad.volume_db_threshold against what they see.
+// env: lipsync activation value — set above TALK_THRESHOLD when Python's
+//   VAD says "speaking", otherwise equals rawAmplitude (stays low = no lip).
+interface _ExternalState {
+  env: number;
+  rawAmplitude: number;
+  vowel: Vowel | null;
+}
+let _externalLipsync: _ExternalState | null = null;
 
-export function setExternalLipsync(vowel: Vowel | null, amplitude: number): void {
-  _externalEnv = amplitude;
-  _externalVowel = vowel;
+export function setExternalLipsync(vowel: Vowel | null, amplitude: number, speaking: boolean): void {
+  _externalLipsync = {
+    // When Python VAD is active, drive env above TALK_THRESHOLD so mouth animates.
+    env: speaking ? Math.max(amplitude, TALK_THRESHOLD + 0.01) : amplitude,
+    rawAmplitude: amplitude,
+    vowel,
+  };
 }
 
 export function clearExternalLipsync(): void {
-  _externalEnv = null;
-  _externalVowel = null;
+  _externalLipsync = null;
 }
 
-export function getExternalLipsync(): { env: number; vowel: Vowel | null } | null {
-  if (_externalEnv === null) return null;
-  return { env: _externalEnv, vowel: _externalVowel };
+export function getExternalLipsync(): _ExternalState | null {
+  return _externalLipsync;
 }
 
 // --- Adaptive Normalization State ---

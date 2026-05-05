@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { state, logStatus } from '../state';
 import type { AvatarConfig, ParceraSettings } from '../state';
-import { initAudioContext, getContext, setNoiseGateDb, connectToAnalyser } from '../audio';
+import { initAudioContext, getContext, setNoiseGateDb } from '../audio';
 import { initVisual } from '../visual';
 import { startWebSocket, startLipsyncWebSocket } from '../comm';
 
@@ -90,78 +90,27 @@ export function useAvatar() {
       }
 
       // Standard Tauri mode
-      logStatus('Initializing Audio...');
-      initAudioContext();
-      const ctx = getContext();
-      if (!ctx || ctx.state === 'closed') return;
-      if (ctx.state === 'suspended') {
-        await Promise.race([
-          ctx.resume(),
-          new Promise<void>(resolve => setTimeout(resolve, 500)),
-        ]).catch(() => {});
-      }
-
       if (state.avatarType === 'ai') {
         // AI avatar: Python sounddevice handles STT; browser only plays TTS audio.
+        logStatus('Initializing Audio...');
+        initAudioContext();
+        const ctx = getContext();
+        if (!ctx || ctx.state === 'closed') return;
+        if (ctx.state === 'suspended') {
+          await Promise.race([
+            ctx.resume(),
+            new Promise<void>(resolve => setTimeout(resolve, 500)),
+          ]).catch(() => {});
+        }
         startWebSocket();
         if (active) logStatus('AI System Live');
         return;
       }
 
-      // User avatar: getUserMedia for local visual lipsync only.
-      try {
-        if (micTrackRef.current) {
-          micTrackRef.current.stop();
-        }
-
-        const constraints: MediaStreamConstraints = {
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 16000,
-            channelCount: 1,
-            deviceId: micId && micId !== 'default' ? { exact: micId } : undefined
-          }
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        const track = stream.getAudioTracks()[0];
-        micTrackRef.current = track;
-
-        const s = await api.getSettings();
-        const initialMute = s.vad?.start_muted ?? false;
-        const winConf = s.app?.windows?.[state.avatarType];
-
-        if (winConf?.locked) {
-          setIsLocked(true);
-        }
-        if (winConf?.control_corner) setControlCorner(winConf.control_corner);
-
-        setIsMuted(initialMute);
-        track.enabled = !initialMute;
-
-        const micSource = ctx.createMediaStreamSource(stream);
-        // Connecting a MediaStreamSource sometimes unblocks suspended AudioContext
-        // on macOS WKWebView — attempt resume again after mic is granted.
-        if (ctx.state === 'suspended') {
-          await ctx.resume().catch(() => {});
-        }
-
-        connectToAnalyser(micSource);
-        logStatus('User Mic Active');
-      } catch (err) {
-        console.error('Mic Access Error:', err);
-        if (micId && micId !== 'default') {
-          console.warn('[Parcera] Specific mic failed, falling back to default...');
-          logStatus('Mic Fallback');
-          setMicId('default');
-          return;
-        }
-        logStatus('Mic Error');
-      }
-
-      if (active) logStatus('System Live');
+      // User avatar: Python MicAnalyzer is the authoritative audio source.
+      // Subscribe to its lipsync WS events — no getUserMedia needed.
+      startLipsyncWebSocket();
+      if (active) logStatus('User Live');
     };
 
     startup();
