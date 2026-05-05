@@ -9,6 +9,9 @@ vi.mock('../lib/audio', () => ({
   getAnalyser: vi.fn(),
   connectToAnalyser: vi.fn(),
   setNoiseGateDb: vi.fn(),
+  getExternalLipsync: vi.fn(() => null),
+  setExternalLipsync: vi.fn(),
+  clearExternalLipsync: vi.fn(),
 }));
 
 vi.mock('../lib/visual', () => ({

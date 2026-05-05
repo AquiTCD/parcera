@@ -36,6 +36,9 @@ vi.mock('../lib/audio', () => ({
   getEnvelope: vi.fn(() => 0),
   getRMS: vi.fn(() => 0),
   getVowel: vi.fn(() => null),
+  getExternalLipsync: vi.fn(() => null),
+  setExternalLipsync: vi.fn(),
+  clearExternalLipsync: vi.fn(),
   TALK_THRESHOLD: 0.05,
 }));
 
