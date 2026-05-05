@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import sys
@@ -23,7 +24,9 @@ class LoggingTqdm(tqdm):
         # Discard visual output — progress is tracked via _current_progress dict
         # for SSE polling. Writing to stdout floods the sidecar pipe on large
         # models (e.g. Gemma 4) and causes [Errno 32] Broken pipe.
-        kwargs["file"] = open(os.devnull, "w")
+        # io.StringIO() avoids the FD leak that open(os.devnull) would cause
+        # when tqdm creates many instances (one per shard on multi-file models).
+        kwargs["file"] = io.StringIO()
         super().__init__(*args, **kwargs)
 
     def update(self, n=1):
