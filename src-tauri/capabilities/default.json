@@ -21,6 +21,8 @@
     "opener:allow-open-url",
     "shell:allow-spawn",
     "shell:allow-kill",
-    "shell:allow-stdin-write"
+    "shell:allow-stdin-write",
+    "window-state:allow-restore-state",
+    "window-state:allow-save-window-state"
   ]
 }
