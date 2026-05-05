@@ -148,7 +148,7 @@ describe('AdvancedSection', () => {
 
     it('shows Gemma preset option when local is selected', () => {
       render(<AdvancedSection {...localProps} />);
-      expect(screen.getByText('Gemma 2 9B (MLX)')).toBeInTheDocument();
+      expect(screen.getByText('Gemma 4 4B (MLX)')).toBeInTheDocument();
     });
 
     it('shows model select and hides API key when local is selected', () => {
