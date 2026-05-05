@@ -112,7 +112,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                   <SelectItem value="gemini">Google Gemini（推奨）</SelectItem>
                   <SelectItem value="openai">OpenAI（GPT-4o等）</SelectItem>
                   {!isWindows && (
-                    <SelectItem value="local">Local Brain（Gemma 2 / Qwen / MLX）</SelectItem>
+                    <SelectItem value="local">Local Brain（Gemma / Qwen / MLX）</SelectItem>
                   )}
                 </SelectContent>
               </Select>
