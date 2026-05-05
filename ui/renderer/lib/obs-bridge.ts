@@ -12,6 +12,9 @@ import type { ParceraSettings } from '../../shared/types';
 
 function getPythonPort(): number {
   const frontendPort = parseInt(window.location.port, 10);
+  // Vite dev server runs on 5000–6000 range; Python is still at its default port (8676)
+  if (frontendPort >= 5000 && frontendPort < 6000) return 8676;
+  // Production via tauri-plugin-localhost: frontend_port = python_port + 1
   return frontendPort > 1 ? frontendPort - 1 : 8676;
 }
 
