@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import queue
 from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncGenerator, ClassVar, List, Dict, Any, Optional
 from aiavatar.sts.llm.base import LLMService, LLMResponse
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 # and the weight arrays are always on the same thread.
 _mlx_executor = ThreadPoolExecutor(max_workers=1)
 
+
 class LocalLLMService(LLMService):
     _model = None
     _tokenizer = None
@@ -24,7 +26,8 @@ class LocalLLMService(LLMService):
 
     _GEMMA_TAGS = ["<end_of_turn>", "<start_of_turn>", "<|end|>", "<|assistant|>", "<|user|>"]
     _QWEN_TAGS = ["<|im_end|>", "<|im_start|>", "<|endoftext|>", "<think>", "</think>"]
-    SPECIAL_TAGS: List[str] = list(set(_GEMMA_TAGS + _QWEN_TAGS))
+    # dict.fromkeys preserves insertion order while removing duplicates
+    SPECIAL_TAGS: List[str] = list(dict.fromkeys(_GEMMA_TAGS + _QWEN_TAGS))
 
     # Gemma 4 thinking-block markers (soc_token + "thought" / eoc_token).
     # The tokenizer config stores soc_token as '<|channel>' but it decodes to '<channel>'
@@ -37,7 +40,6 @@ class LocalLLMService(LLMService):
 
     @staticmethod
     def _detect_model_family(model_path: str) -> str:
-        """Detect model family from model path string."""
         path_lower = model_path.lower()
         if "qwen" in path_lower:
             return "qwen"
@@ -77,6 +79,16 @@ class LocalLLMService(LLMService):
     def dynamic_tool_name(self) -> str:
         return "local_tool"
 
+    @property
+    def _supports_system_role(self) -> bool:
+        """True for models that accept {"role": "system"} natively (Gemma 4, Qwen, unknown)."""
+        return self._model_family != "gemma"
+
+    @property
+    def _uses_model_role(self) -> bool:
+        """True for models that expect "model" as the assistant role (Gemma family)."""
+        return self._model_family in ("gemma", "gemma4")
+
     @classmethod
     def _load_model(cls, model_path: str, adapter_path: Optional[str] = None):
         if adapter_path and not os.path.exists(adapter_path):
@@ -114,6 +126,76 @@ class LocalLLMService(LLMService):
             gc.collect()
             logger.info("Local LLM: Model unloaded.")
 
+    def _strip_special_tags(self, text: str) -> str:
+        for tag in self.SPECIAL_TAGS:
+            text = text.replace(tag, "")
+        return text
+
+    def _make_response(self, text: str, context_id: str) -> Optional[LLMResponse]:
+        clean = self._strip_special_tags(text)
+        if clean.strip() or clean == " ":
+            return LLMResponse(context_id=context_id, text=clean)
+        return None
+
+    async def _read_token_stream(self, q: queue.Queue) -> AsyncGenerator[str, None]:
+        """Pass tokens straight through; raise if the producer errored."""
+        while True:
+            word = await asyncio.to_thread(q.get)
+            if word is None:
+                return
+            if isinstance(word, Exception):
+                raise word
+            yield word
+
+    async def _filter_gemma4_thinking(self, q: queue.Queue) -> AsyncGenerator[str, None]:
+        """Strip <channel>thought…<channel|> thinking blocks from the Gemma 4 stream.
+
+        Maintains a rolling tail buffer so that tags split across token boundaries
+        are still detected and discarded correctly.
+        """
+        buf = ""
+        thinking = False
+        open_tail = max(len(t) for t in self._G4_THINK_OPEN) - 1
+        close_tail = len(self._G4_THINK_CLOSE) - 1
+
+        while True:
+            word = await asyncio.to_thread(q.get)
+            if word is None:
+                if buf and not thinking:
+                    yield buf
+                return
+            if isinstance(word, Exception):
+                raise word
+
+            buf += word
+            changed = True
+            while changed:
+                changed = False
+                if thinking:
+                    idx = buf.find(self._G4_THINK_CLOSE)
+                    if idx != -1:
+                        buf = buf[idx + len(self._G4_THINK_CLOSE):]
+                        thinking = False
+                        changed = True
+                    else:
+                        buf = buf[-close_tail:] if len(buf) > close_tail else buf
+                else:
+                    earliest, found_tag = len(buf), None
+                    for tag in self._G4_THINK_OPEN:
+                        i = buf.find(tag)
+                        if 0 <= i < earliest:
+                            earliest, found_tag = i, tag
+                    if found_tag:
+                        before = buf[:earliest]
+                        buf = buf[earliest + len(found_tag):]
+                        thinking = True
+                        changed = True
+                        if before:
+                            yield before
+                    elif len(buf) > open_tail:
+                        yield buf[:-open_tail]
+                        buf = buf[-open_tail:]
+
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: List[Dict[str, str]] = None, system_prompt_params: Dict[str, Any] = None) -> List[Dict]:
         messages = []
         system_content = await self._get_system_prompt(context_id, user_id, system_prompt_params)
@@ -125,7 +207,7 @@ class LocalLLMService(LLMService):
             context_id=[context_id] + self.shared_context_ids if self.shared_context_ids else [context_id]
         )
 
-        if self._model_family == "gemma":
+        if not self._supports_system_role:
             # Gemma 2: system role unsupported — force histories to start with user
             while histories and histories[0]["role"] != "user":
                 histories.pop(0)
@@ -135,7 +217,7 @@ class LocalLLMService(LLMService):
         if text:
             messages.append({"role": "user", "content": text})
 
-        if self._model_family == "gemma":
+        if not self._supports_system_role:
             # Gemma 2: embed system_content into first user message
             if messages and messages[0]["role"] == "user":
                 messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
@@ -143,18 +225,17 @@ class LocalLLMService(LLMService):
                 messages.insert(0, {"role": "user", "content": system_content})
                 messages.insert(1, {"role": "model", "content": "了解したわ！よろしくね。"})
         else:
-            # Gemma 4 / Qwen / unknown: system role is natively supported
             if system_content:
                 messages.insert(0, {"role": "system", "content": system_content})
 
         return messages
 
     async def update_context(self, context_id: str, user_id: str, messages: List[Dict], response_text: str):
-        assistant_role = "model" if self._model_family in ("gemma", "gemma4") else "assistant"
+        assistant_role = "model" if self._uses_model_role else "assistant"
 
         current_messages = list(messages)
         current_messages.append({"role": assistant_role, "content": response_text})
-        
+
         if self._update_context_filter:
             if current_messages and "content" in current_messages[-1]:
                 current_messages[-1]["content"] = self._update_context_filter(current_messages[-1]["content"])
@@ -170,8 +251,6 @@ class LocalLLMService(LLMService):
         tools: List[Dict[str, Any]] = None,
         **kwargs
     ) -> AsyncGenerator[LLMResponse, None]:
-        import queue
-
         template_kwargs = {"tokenize": False, "add_generation_prompt": True}
         if self._model_family == "qwen":
             template_kwargs["enable_thinking"] = False
@@ -211,78 +290,15 @@ class LocalLLMService(LLMService):
         # Submit to the dedicated MLX thread (max_workers=1) — never a random thread
         _mlx_executor.submit(producer)
 
-        # --- Gemma 4 thinking-block filter ---
-        # Gemma 4 outputs <channel>thought\n...reasoning...\n<channel|> before the actual
-        # response. We buffer tokens to detect and discard these blocks so they don't reach
-        # the TTS pipeline. We keep a rolling tail equal to (max_open_tag_len - 1) so that
-        # tags split across token boundaries are still detected correctly.
-        g4_buf = ""
-        g4_thinking = False
-        g4_max_tail = max(len(t) for t in self._G4_THINK_OPEN) + len(self._G4_THINK_CLOSE)
+        if self._model_family == "gemma4":
+            token_stream = self._filter_gemma4_thinking(q)
+        else:
+            token_stream = self._read_token_stream(q)
 
-        while True:
-            word = await asyncio.to_thread(q.get)
-
-            if word is None:
-                # Flush any buffered non-thinking content
-                if g4_buf and not g4_thinking:
-                    clean = g4_buf
-                    for tag in self.SPECIAL_TAGS:
-                        clean = clean.replace(tag, "")
-                    if clean.strip() or clean == " ":
-                        yield LLMResponse(context_id=context_id, text=clean)
-                break
-            if isinstance(word, Exception):
-                raise word
-
-            if self._model_family == "gemma4":
-                g4_buf += word
-                # Inner loop: process buffer until nothing changes
-                changed = True
-                while changed:
-                    changed = False
-                    if g4_thinking:
-                        idx = g4_buf.find(self._G4_THINK_CLOSE)
-                        if idx != -1:
-                            g4_buf = g4_buf[idx + len(self._G4_THINK_CLOSE):]
-                            g4_thinking = False
-                            changed = True
-                        else:
-                            tail = len(self._G4_THINK_CLOSE) - 1
-                            g4_buf = g4_buf[-tail:] if len(g4_buf) > tail else g4_buf
-                    else:
-                        earliest, found_tag = len(g4_buf), None
-                        for tag in self._G4_THINK_OPEN:
-                            i = g4_buf.find(tag)
-                            if 0 <= i < earliest:
-                                earliest, found_tag = i, tag
-                        if found_tag:
-                            before = g4_buf[:earliest]
-                            g4_buf = g4_buf[earliest + len(found_tag):]
-                            g4_thinking = True
-                            changed = True
-                            if before:
-                                clean = before
-                                for tag in self.SPECIAL_TAGS:
-                                    clean = clean.replace(tag, "")
-                                if clean.strip() or clean == " ":
-                                    yield LLMResponse(context_id=context_id, text=clean)
-                        else:
-                            tail = max(len(t) for t in self._G4_THINK_OPEN) - 1
-                            if len(g4_buf) > tail:
-                                to_emit = g4_buf[:-tail]
-                                g4_buf = g4_buf[-tail:]
-                                clean = to_emit
-                                for tag in self.SPECIAL_TAGS:
-                                    clean = clean.replace(tag, "")
-                                if clean.strip() or clean == " ":
-                                    yield LLMResponse(context_id=context_id, text=clean)
-            else:
-                clean_text = word
-                for tag in self.SPECIAL_TAGS:
-                    clean_text = clean_text.replace(tag, "")
-                if clean_text.strip() or clean_text == " ":
-                    yield LLMResponse(context_id=context_id, text=clean_text)
+        async for text in token_stream:
+            resp = self._make_response(text, context_id)
+            if resp is not None:
+                yield resp
 
         logger.debug(f"Local LLM: Finished generation for context {context_id}")
 
