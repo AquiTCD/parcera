@@ -5,7 +5,7 @@
  * debug overlay, and the requestAnimationFrame loop.
  */
 import { state } from './state';
-import { getRMS, getEnvelope, getVowel, TALK_THRESHOLD, getContext } from './audio';
+import { getRMS, getEnvelope, getVowel, getExternalLipsync, TALK_THRESHOLD, getContext } from './audio';
 import { api } from './api';
 
 // --- Constants ---
@@ -64,10 +64,13 @@ function updateVisuals(): void {
     avatarImage.style.setProperty('--breathe-current-scale', `${currentScale}`);
   }
 
-  // --- Audio Analysis ---
-  const env = getEnvelope();  // Normalized 0–1, auto-adapting
-  const rmsRaw = getRMS();    // Raw linear for dB meter
-  const vowel = env > TALK_THRESHOLD ? (getVowel() || '?') : '-';
+  // --- Audio Analysis (or external lipsync for OBS user mode) ---
+  const extLipsync = getExternalLipsync();
+  const env = extLipsync !== null ? extLipsync.env : getEnvelope();
+  const rmsRaw = extLipsync !== null ? extLipsync.env : getRMS();
+  const vowel = extLipsync !== null
+    ? (extLipsync.env > TALK_THRESHOLD ? (extLipsync.vowel || '-') : '-')
+    : (env > TALK_THRESHOLD ? (getVowel() || '?') : '-');
 
   // Debug overlay
   if (statusDebug) {

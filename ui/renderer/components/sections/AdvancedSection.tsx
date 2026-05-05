@@ -58,6 +58,19 @@ const OptionalPackageCheck: React.FC<{ provider: OptionalSTTProvider; port: numb
   );
 };
 
+const ObsUrlRow: React.FC<{ label: string; url: string }> = ({ label, url }) => {
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(url);
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <Label className="w-28 shrink-0 text-xs">{label}</Label>
+      <code className="flex-1 truncate rounded bg-muted px-2 py-1 text-xs font-mono">{url}</code>
+      <Button variant="outline" size="sm" onClick={handleCopy}>コピー</Button>
+    </div>
+  );
+};
+
 export const AdvancedSection: React.FC<SectionProps> = ({
   settings,
   defaultSettings,
@@ -86,7 +99,11 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
   const port = settings.app?.port || 8676;
+  const frontendPort = (settings.app as any)?.frontend_port || (port + 1);
   const isWindows = api.platform === 'win32';
+
+  const obsAiUrl = `http://localhost:${frontendPort}/?type=ai&obs=1`;
+  const obsUserUrl = `http://localhost:${frontendPort}/?type=user&obs=1`;
 
   return (
     <div className="space-y-6">
@@ -326,6 +343,20 @@ export const AdvancedSection: React.FC<SectionProps> = ({
           setStatus={setStatus}
         />
       )}
+
+      {/* OBS Browser Source */}
+      <Card>
+        <CardHeader>
+          <CardTitle>OBS Browser Source URL</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            OBS の「ブラウザソース」に以下の URL を貼り付けることで、ウィンドウキャプチャなしにアバターを配信へ組み込めます。
+          </p>
+          <ObsUrlRow label="AI アバター" url={obsAiUrl} />
+          <ObsUrlRow label="User アバター" url={obsUserUrl} />
+        </CardContent>
+      </Card>
     </div>
   );
 };

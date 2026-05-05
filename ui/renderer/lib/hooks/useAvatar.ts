@@ -4,7 +4,9 @@ import { state, logStatus } from '../state';
 import type { AvatarConfig, ParceraSettings } from '../state';
 import { initAudioContext, getContext, setNoiseGateDb, connectToAnalyser } from '../audio';
 import { initVisual } from '../visual';
-import { startWebSocket, setupMicStreaming } from '../comm';
+import { startWebSocket, startLipsyncWebSocket } from '../comm';
+
+const _isObs = new URLSearchParams(window.location.search).get('obs') === '1';
 
 export function useAvatar() {
   const avatarImageRef = useRef<HTMLImageElement>(null);
@@ -64,6 +66,30 @@ export function useAvatar() {
 
     const startup = async () => {
       if (!active) return;
+
+      // OBS mode: Python handles audio capture; browser only needs WS for visuals.
+      if (_isObs) {
+        logStatus('OBS Mode Active');
+        if (state.avatarType === 'ai') {
+          // AI avatar in OBS: standard WS for TTS audio playback.
+          initAudioContext();
+          const ctx = getContext();
+          if (ctx?.state === 'suspended') {
+            await Promise.race([
+              ctx.resume(),
+              new Promise<void>(resolve => setTimeout(resolve, 500)),
+            ]).catch(() => {});
+          }
+          startWebSocket();
+        } else {
+          // User avatar in OBS: WS lipsync subscription (no getUserMedia).
+          startLipsyncWebSocket();
+        }
+        if (active) logStatus('OBS Live');
+        return;
+      }
+
+      // Standard Tauri mode
       logStatus('Initializing Audio...');
       initAudioContext();
       const ctx = getContext();
@@ -75,6 +101,14 @@ export function useAvatar() {
         ]).catch(() => {});
       }
 
+      if (state.avatarType === 'ai') {
+        // AI avatar: Python sounddevice handles STT; browser only plays TTS audio.
+        startWebSocket();
+        if (active) logStatus('AI System Live');
+        return;
+      }
+
+      // User avatar: getUserMedia for local visual lipsync only.
       try {
         if (micTrackRef.current) {
           micTrackRef.current.stop();
@@ -114,13 +148,8 @@ export function useAvatar() {
           await ctx.resume().catch(() => {});
         }
 
-        if (state.avatarType === 'user') {
-          connectToAnalyser(micSource);
-          logStatus('User Mic Active');
-        } else {
-          await setupMicStreaming(micSource);
-          logStatus('AI System Listening...');
-        }
+        connectToAnalyser(micSource);
+        logStatus('User Mic Active');
       } catch (err) {
         console.error('Mic Access Error:', err);
         if (micId && micId !== 'default') {
@@ -132,7 +161,6 @@ export function useAvatar() {
         logStatus('Mic Error');
       }
 
-      if (state.avatarType === 'ai') startWebSocket();
       if (active) logStatus('System Live');
     };
 

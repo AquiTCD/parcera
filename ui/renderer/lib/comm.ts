@@ -2,11 +2,13 @@
  * Parcera: Communication Manager
  *
  * WebSocket connection to the Python AI server, microphone streaming
- * (PCM via AudioWorklet → Base64), and sequential audio playback queue.
+ * (PCM via AudioWorklet → Base64), sequential audio playback queue,
+ * and OBS user-avatar lipsync WS subscription.
  */
 import { state, logStatus } from './state';
 import type { ServerMessage } from './state';
-import { getContext, getAnalyser, connectToAnalyser } from './audio';
+import { getContext, getAnalyser, connectToAnalyser, setExternalLipsync } from './audio';
+import type { Vowel } from './audio';
 import processorUrl from './pcm-processor.js?url';
 
 // --- Constants ---
@@ -255,6 +257,53 @@ let currentWorkletNode: AudioWorkletNode | null = null;
 // while `await addModule` is pending, the older call self-aborts after the
 // await rather than creating a stale worklet that double-sends PCM to Python.
 let micSetupGen = 0;
+
+// =====================
+// OBS User Lipsync WebSocket
+// =====================
+let lipsyncSocket: WebSocket | null = null;
+
+/**
+ * Open a WebSocket session for OBS user-avatar mode.
+ * Subscribes to ``user_lipsync`` events from Python MicAnalyzer and feeds
+ * them into the external lipsync override in audio.ts so visual.ts can
+ * drive mouth animation without a browser mic.
+ */
+export function startLipsyncWebSocket(): void {
+  const port = state.settings.app?.port || DEFAULT_PORT;
+  const wsUrl = buildWsUrl(port);
+
+  if (lipsyncSocket && (lipsyncSocket.readyState === WebSocket.OPEN || lipsyncSocket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  lipsyncSocket = new WebSocket(wsUrl);
+
+  lipsyncSocket.onopen = () => {
+    logStatus('OBS Lipsync Connected');
+    lipsyncSocket?.send(JSON.stringify({ type: 'start', session_id: 'obs-user-session' }));
+  };
+
+  lipsyncSocket.onmessage = (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data as string);
+      if (data.type === 'user_lipsync') {
+        const vowel = (data.vowel as Vowel) || null;
+        const amplitude = typeof data.amplitude === 'number' ? data.amplitude : 0;
+        setExternalLipsync(vowel, amplitude);
+      }
+    } catch { /* skip malformed */ }
+  };
+
+  lipsyncSocket.onclose = () => {
+    logStatus('OBS Lipsync Disconnected');
+    setTimeout(startLipsyncWebSocket, 3000);
+  };
+
+  lipsyncSocket.onerror = () => {
+    logStatus('OBS Lipsync Error');
+  };
+}
 
 export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Promise<void> {
   const audioContext = getContext();

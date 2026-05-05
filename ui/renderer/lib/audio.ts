@@ -54,6 +54,26 @@ let currentAnalyserSource: AudioNode | null = null;
 const fData = new Float32Array(FFT_SIZE / 2);
 const tData = new Float32Array(FFT_SIZE);
 
+// --- External Lipsync Override (OBS user mode) ---
+// When set, visual.ts reads these instead of analyzing browser AudioContext.
+let _externalEnv: number | null = null;
+let _externalVowel: Vowel | null = null;
+
+export function setExternalLipsync(vowel: Vowel | null, amplitude: number): void {
+  _externalEnv = amplitude;
+  _externalVowel = vowel;
+}
+
+export function clearExternalLipsync(): void {
+  _externalEnv = null;
+  _externalVowel = null;
+}
+
+export function getExternalLipsync(): { env: number; vowel: Vowel | null } | null {
+  if (_externalEnv === null) return null;
+  return { env: _externalEnv, vowel: _externalVowel };
+}
+
 // --- Adaptive Normalization State ---
 const normalization = {
   noise: 1e-4,   // Tracked noise floor (adapts slowly)
