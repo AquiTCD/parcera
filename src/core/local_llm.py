@@ -1,12 +1,19 @@
 import asyncio
 import logging
 import os
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncGenerator, ClassVar, List, Dict, Any, Optional
 from aiavatar.sts.llm.base import LLMService, LLMResponse
 from aiavatar.sts.llm.context_manager import ContextManager
 
 logger = logging.getLogger(__name__)
+
+# MLX creates generation_stream as a thread-local at module import time, and model
+# weight arrays are bound to that stream's thread. Mixing threads causes:
+#   "There is no Stream(gpu, N) in current thread"
+# Fix: dedicate one thread for all MLX operations (load + inference) so the stream
+# and the weight arrays are always on the same thread.
+_mlx_executor = ThreadPoolExecutor(max_workers=1)
 
 class LocalLLMService(LLMService):
     _model = None
@@ -154,23 +161,26 @@ class LocalLLMService(LLMService):
         tools: List[Dict[str, Any]] = None,
         **kwargs
     ) -> AsyncGenerator[LLMResponse, None]:
-        from mlx_lm.generate import stream_generate
-        from mlx_lm.sample_utils import make_sampler, make_repetition_penalty
         import queue
 
-        model, tokenizer = self._load_model(self.model, self.adapter_path)
         template_kwargs = {"tokenize": False, "add_generation_prompt": True}
         if self._model_family == "qwen":
             template_kwargs["enable_thinking"] = False
-        prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
-        sampler = make_sampler(self.temperature)
-        logits_processors = [make_repetition_penalty(self.repetition_penalty, self.repetition_context_size)]
 
-        logger.debug(f"Local LLM: Starting threaded generation for context {context_id}")
+        logger.debug(f"Local LLM: Starting generation for context {context_id}")
 
-        q = queue.Queue()
+        q: queue.Queue = queue.Queue()
 
         def producer():
+            from mlx_lm.generate import stream_generate
+            from mlx_lm.sample_utils import make_sampler, make_repetition_penalty
+            # Load model on this thread — all MLX ops (load + generate) must share one thread.
+            # generation_stream is a thread-local created at import time; model weight arrays
+            # are bound to that same thread's stream. Mixing threads → RuntimeError.
+            model, tokenizer = self._load_model(self.model, self.adapter_path)
+            prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
+            sampler = make_sampler(self.temperature)
+            logits_processors = [make_repetition_penalty(self.repetition_penalty, self.repetition_context_size)]
             try:
                 m_tokens = kwargs.get("max_tokens", self.max_tokens)
                 for response in stream_generate(
@@ -187,8 +197,8 @@ class LocalLLMService(LLMService):
                 logger.error(f"Error in MLX generation thread: {e}")
                 q.put(e)
 
-        # Run inference in a separate thread
-        threading.Thread(target=producer, daemon=True).start()
+        # Submit to the dedicated MLX thread (max_workers=1) — never a random thread
+        _mlx_executor.submit(producer)
 
         while True:
             # Yield control back to event loop while waiting for the next word
@@ -211,6 +221,6 @@ class LocalLLMService(LLMService):
     async def warmup(self):
         """Pre-load the model to memory."""
         logger.info("Local LLM: Warming up (pre-loading model)...")
-        # Run loading in thread to avoid blocking loop during startup
-        await asyncio.to_thread(self._load_model, self.model, self.adapter_path)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(_mlx_executor, self._load_model, self.model, self.adapter_path)
         logger.info("Local LLM: Warm-up complete.")
