@@ -26,6 +26,7 @@ from services.twitch_service import TwitchService
 from services.training_service import TrainingService
 
 from core.interaction import InteractionController
+from core.mic_analyzer import MicAnalyzer
 from core.constants import TWITCH_SESSION_ID, DEFAULT_UVICORN_PORT, DEFAULT_UVICORN_HOST
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ class ParceraServer(ParceraAvatarBase):
         self.tts_engine_manager = None
         self._warmup_task: Optional[asyncio.Task] = None
         self._twitch_task: Optional[asyncio.Task] = None
+        self.mic_analyzer: Optional[MicAnalyzer] = None
 
         # Interaction Controller (Orchestrates the pipeline)
         self.controller = InteractionController(self, self.config)
@@ -255,9 +257,41 @@ async def lifespan(app: FastAPI):
     parcera_server._warmup_task = asyncio.create_task(parcera_server.warmup())
     parcera_server._twitch_task = asyncio.create_task(parcera_server.twitch_service.process_queue())
 
+    # Start MicAnalyzer for Python-side audio capture (STT + OBS lipsync broadcast)
+    loop = asyncio.get_event_loop()
+
+    async def _broadcast_user_lipsync(event: dict) -> None:
+        for sid, ws in parcera_server.aiavatar_server.websockets.items():
+            if sid != TWITCH_SESSION_ID:
+                try:
+                    await ws.send_json(event)
+                except Exception:
+                    pass
+
+    async def _handle_stt_audio(audio_data: bytes) -> None:
+        try:
+            result = await parcera_server.stt.recognize("parcera-mic-session", audio_data)
+            if result.text:
+                await parcera_server.controller.on_recognized("parcera-mic-session", result.text)
+        except Exception as e:
+            logger.error(f"MicAnalyzer STT error: {e}")
+
+    mic = MicAnalyzer(loop)
+    mic.set_broadcast_callback(_broadcast_user_lipsync)
+    mic.set_stt_callback(_handle_stt_audio)
+
+    settings = parcera_server.config.settings
+    vad_cfg = settings.get("vad", {})
+    mic.set_threshold_db(vad_cfg.get("volume_db_threshold", -25.0))
+    mic.set_mic_device(settings.get("app", {}).get("mic_device_id"))
+    mic.start()
+    parcera_server.mic_analyzer = mic
+
     yield
 
     # Shutdown
+    if parcera_server.mic_analyzer:
+        parcera_server.mic_analyzer.stop()
     if hasattr(parcera_server, '_warmup_task'): parcera_server._warmup_task.cancel()
     if hasattr(parcera_server, '_twitch_task'): parcera_server._twitch_task.cancel()
     await parcera_server.cleanup()
