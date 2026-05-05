@@ -271,10 +271,41 @@ async def lifespan(app: FastAPI):
     async def _handle_stt_audio(audio_data: bytes) -> None:
         try:
             result = await parcera_server.stt.recognize("parcera-mic-session", audio_data)
-            if result.text:
-                await parcera_server.controller.on_recognized("parcera-mic-session", result.text)
+            if not result.text:
+                return
+
+            text = result.text
+            logger.info(f"MicAnalyzer STT recognized: '{text}'")
+
+            # Use the standard AI session so thinking/response signals reach the UI
+            session_id = "parcera-session"
+            await parcera_server.controller.on_recognized(session_id, text)
+
+            # Invoke STS pipeline (LLM → TTS) and broadcast each chunk to all UI clients
+            import base64 as _b64
+            from aiavatar.sts.models import STSRequest
+            from dataclasses import dataclass
+
+            @dataclass
+            class _MockResp:
+                session_id: str
+
+            async for r in parcera_server.aiavatar_server.sts.invoke(
+                STSRequest(text=text, session_id=session_id)
+            ):
+                msg: dict = {"type": r.type, "text": r.text}
+                if r.audio_data:
+                    msg["audio_data"] = _b64.b64encode(r.audio_data).decode()
+                for sid, ws in parcera_server.aiavatar_server.websockets.items():
+                    if sid != TWITCH_SESSION_ID:
+                        try:
+                            await ws.send_json(msg)
+                        except Exception:
+                            pass
+                if r.type == "final":
+                    await parcera_server.controller.on_response(_MockResp(session_id), r)
         except Exception as e:
-            logger.error(f"MicAnalyzer STT error: {e}")
+            logger.error(f"MicAnalyzer STT error: {e}", exc_info=True)
 
     mic = MicAnalyzer(loop)
     mic.set_broadcast_callback(_broadcast_user_lipsync)
