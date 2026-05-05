@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import sys
@@ -20,8 +21,12 @@ class LoggingTqdm(tqdm):
         kwargs["disable"] = False
         kwargs.setdefault("unit", "B")
         kwargs.setdefault("unit_scale", True)
-        # Redirect to stdout to avoid [Python Error] tag in sidecar logs
-        kwargs.setdefault("file", sys.stdout)
+        # Discard visual output — progress is tracked via _current_progress dict
+        # for SSE polling. Writing to stdout floods the sidecar pipe on large
+        # models (e.g. Gemma 4) and causes [Errno 32] Broken pipe.
+        # io.StringIO() avoids the FD leak that open(os.devnull) would cause
+        # when tqdm creates many instances (one per shard on multi-file models).
+        kwargs["file"] = io.StringIO()
         super().__init__(*args, **kwargs)
 
     def update(self, n=1):
@@ -140,18 +145,23 @@ def download_model_with_progress(model_name: str) -> str:
         # Assume HuggingFace model (MLX compatible)
         from huggingface_hub import snapshot_download
         logger.info(f"Starting download of HuggingFace model: {model_name}")
+        # Suppress HF's own progress bar output to avoid SIGPIPE / BrokenPipeError
+        # when downloading large models with many shards. Progress is tracked via
+        # LoggingTqdm._current_progress for SSE polling instead.
+        os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
         try:
-            # snapshot_download supports tqdm out of the box.
-            # We use LoggingTqdm to capture progress for SSE.
             model_path = snapshot_download(
                 repo_id=model_name,
-                tqdm_class=LoggingTqdm
+                tqdm_class=LoggingTqdm,
+                max_workers=1,
             )
             logger.info(f"HuggingFace model '{model_name}' download complete at {model_path}.")
             return model_path
         except Exception as e:
             logger.error(f"HuggingFace download error: {e}")
             raise
+        finally:
+            os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
 
     else:
         import faster_whisper.utils as fw_utils

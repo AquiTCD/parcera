@@ -1,6 +1,6 @@
 [package]
 name = "parcera"
-version = "0.11.0"
+version = "0.13.0"
 description = "Parcera - AI Avatar Companion"
 authors = []
 edition = "2021"
@@ -22,6 +22,7 @@ tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-http = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 serde_yaml = "0.9"

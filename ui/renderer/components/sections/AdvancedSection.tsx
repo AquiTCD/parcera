@@ -14,6 +14,7 @@ import { ModelDownloaderUI, useModelDownloader } from '../settings/controls/Mode
 import { LocalLLMProfileManager } from '../settings/LocalLLMProfileManager';
 
 const LOCAL_MODEL_PRESETS = [
+  { label: 'Gemma 4 4B (MLX)', value: 'mlx-community/gemma-4-e4b-it-4bit' },
   { label: 'Gemma 2 9B (MLX)', value: 'mlx-community/gemma-2-9b-it-4bit' },
   { label: 'Qwen3.5 9B (MLX)', value: 'mlx-community/Qwen3.5-9B-MLX-4bit' },
   { label: 'Qwen3.5 4B (MLX) - 軽量', value: 'mlx-community/Qwen3.5-4B-MLX-4bit' },
@@ -111,7 +112,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                   <SelectItem value="gemini">Google Gemini（推奨）</SelectItem>
                   <SelectItem value="openai">OpenAI（GPT-4o等）</SelectItem>
                   {!isWindows && (
-                    <SelectItem value="local">Local Brain（Gemma 2 / Qwen / MLX）</SelectItem>
+                    <SelectItem value="local">Local Brain（Gemma / Qwen / MLX）</SelectItem>
                   )}
                 </SelectContent>
               </Select>

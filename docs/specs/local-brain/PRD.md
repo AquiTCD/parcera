@@ -1,4 +1,4 @@
-# Local Brain (Gemma 2 MLX) PRD
+# Local Brain (MLX) PRD
 
 ## 1. 目的 (Objective)
 外部APIへの依存を完全に排除し、Apple Siliconのパワーを最大限に活用することで、爆速かつプライベートな「パルセラの脳」をローカルに構築すること。
@@ -11,10 +11,12 @@ LoRA学習によるパーソナライズを組み合わせることで、ユー�
 
 ## 3. 主要機能 (Main Features)
 
-### 3.1 Gemma 2 9B ローカル推論統合
+### 3.1 ローカルLLM推論エンジン
 - `mlx-lm` を使用したApple Silicon最適化推論。
 - 4-bit 量子化モデルによる VRAM 節約と高速化。
 - 回答のストリーミング表示/読み上げ。
+- **対応モデル**: Gemma 4 E4B / Gemma 2 9B / Qwen3.5 9B・4B（いずれも `mlx-community` 4-bit版）
+- モデルファミリーを自動検出し、システムプロンプトとロール名を適切に処理（Gemma 2 は埋め込み方式、Gemma 4 / Qwen はネイティブ system ロール）。
 
 ### 3.2 2フェーズ実装アプローチ
 - **Phase 1: ローカル推論エンジン** (完了): 学習なしの状態で Gemma 2 を動かし、既存のLLM（Google AI 等）と切り替え可能にする。

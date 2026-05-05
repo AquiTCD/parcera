@@ -47,38 +47,12 @@ impl SidecarManager {
     }
 
     pub async fn start(&self, app: AppHandle) {
-        // In dev mode: if a Python server is already running (developer started it manually),
-        // reuse it. This avoids double-spawning during development.
-        #[cfg(debug_assertions)]
-        if self.is_server_healthy() {
-            log::info!("[Sidecar] Port {} already in use — reusing existing server, no log capture", self.port);
-            let app_clone = app.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                let _ = app_clone.emit("sidecar-ready", ());
-            });
-            return;
-        }
-        // In release: evict any lingering process from a previous session before spawning.
-        // This happens when the previous app crashed/was force-quit before RunEvent::Exit
-        // could kill the child, leaving a stale Python bound to our port.
-        #[cfg(not(debug_assertions))]
         self.evict_port_occupant().await;
-
         self.spawn_python(app).await;
-    }
-
-    #[cfg(debug_assertions)]
-    fn is_server_healthy(&self) -> bool {
-        use std::net::{SocketAddr, TcpStream};
-        use std::time::Duration;
-        let addr: SocketAddr = format!("127.0.0.1:{}", self.port).parse().unwrap();
-        TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
     }
 
     /// Kill any process currently bound to our port (macOS/Linux: via lsof).
     /// Ignores errors — if nothing is there, that's fine.
-    #[cfg(not(debug_assertions))]
     async fn evict_port_occupant(&self) {
         let port = self.port;
         let result = tokio::task::spawn_blocking(move || {
@@ -87,7 +61,6 @@ impl SidecarManager {
                 .status()
         }).await;
         if result.is_ok() {
-            // Give the OS time to release the socket after kill.
             tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
         }
     }
