@@ -200,7 +200,9 @@ export type ServerMessage =
   | { type: 'start' }
   | { type: 'thinking'; text: string }
   | { type: 'chunk'; audio_data: string }
-  | { type: 'stop' };
+  | { type: 'stop' }
+  | { type: 'final'; text?: string }
+  | { type: 'error'; metadata?: Record<string, unknown> };
 
 /** Log message from the Python sidecar process */
 export interface SidecarLogMessage {

@@ -223,7 +223,7 @@ export function startWebSocket(): void {
         logStatus(data.type === 'thinking' ? `Thinking: ${data.text}` : 'AI Responding...');
       } else if (data.type === 'chunk' && data.audio_data) {
         enqueueAudioChunk(data.audio_data);
-      } else if (data.type === 'stop') {
+      } else if (data.type === 'stop' || data.type === 'final' || data.type === 'error') {
         if (audioQueue.length === 0 && !currentSource) {
           state.isAIPlaying = false;
           logStatus('AI Stopped');
