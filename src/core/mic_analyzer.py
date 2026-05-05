@@ -23,11 +23,49 @@ MIN_SPEECH_CHUNKS = 5         # ~160ms minimum speech to reject brief noise spik
 # Matches the thresholds used in ui/renderer/lib/audio.ts VOWEL_BOUNDARIES_HZ.
 _VOWEL_BOUNDARIES_HZ = {'u': 600, 'o': 1500, 'a': 3000, 'e': 5000}
 
-# Amplitude scale applied before sending to the frontend peak meter.
-# Python sounddevice captures raw audio without browser AGC, so levels are
-# typically 3-6x lower than what getUserMedia returns.  Scaling by 10 brings
-# the peak meter into a comparable range without hard-clipping.
-_AMPLITUDE_SCALE = 10.0
+
+class _SoftwareAGC:
+    """
+    Peak-hold AGC that normalises raw mic RMS to a consistent target level.
+
+    Mimics the browser's WebRTC Automatic Gain Control: speech is boosted to
+    TARGET_RMS regardless of the physical microphone gain, while a noise gate
+    (NOISE_FLOOR) prevents amplifying silence into false positives.
+
+    Algorithm:
+      - If current RMS > tracked peak  → update peak, reset hold counter
+      - While hold counter > 0         → keep peak stable (prevents pumping)
+      - After hold expires             → peak decays slowly (handles level drops)
+      - Gain = TARGET_RMS / peak, capped at MAX_GAIN
+    """
+
+    TARGET_RMS = 0.12       # Normalise speech to ~-18 dBFS (matches browser AGC)
+    MAX_GAIN = 40.0         # Cap at +32 dB to avoid amplifying deep silence
+    NOISE_FLOOR = 0.0005    # Below this RMS, apply no gain (pure silence / noise gate)
+    HOLD_CHUNKS = 30        # Hold peak for ~1 s before allowing decay
+    DECAY_PER_CHUNK = 0.995 # ~0.5 dB/s decay — slow enough to avoid pumping artefacts
+
+    def __init__(self) -> None:
+        self._peak: float = 0.001
+        self._hold: int = 0
+
+    def process(self, rms: float) -> float:
+        """Return the AGC-normalised RMS for *rms*; also updates internal state."""
+        # Update peak tracker
+        if rms > self._peak:
+            self._peak = rms
+            self._hold = self.HOLD_CHUNKS
+        elif self._hold > 0:
+            self._hold -= 1
+        else:
+            self._peak = max(self._peak * self.DECAY_PER_CHUNK, 0.001)
+
+        # Noise gate: don't boost near-silence
+        if rms < self.NOISE_FLOOR:
+            return rms
+
+        gain = min(self.TARGET_RMS / self._peak, self.MAX_GAIN)
+        return float(np.clip(rms * gain, 0.0, 1.0))
 
 
 class MicAnalyzer:
@@ -43,10 +81,10 @@ class MicAnalyzer:
         self._loop = loop
         self._stream = None
         self._mic_device: Optional[str] = None
-        # Lower default threshold than browser-based VAD because Python
-        # sounddevice has no Automatic Gain Control; typical speech sits at
-        # -35 to -45 dBFS here vs -15 to -25 dBFS in the browser.
-        self._threshold_db: float = -40.0
+        # With software AGC normalising to ~-18 dBFS, a -25 dB threshold gives
+        # comfortable headroom for detecting speech while ignoring residual noise.
+        self._threshold_db: float = -25.0
+        self._agc = _SoftwareAGC()
 
         # VAD state
         self._vad_buffer: list[bytes] = []
@@ -86,7 +124,10 @@ class MicAnalyzer:
                 callback=self._audio_callback,
             )
             self._stream.start()
-            logger.info(f"MicAnalyzer started (device={self._mic_device or 'default'}, threshold={self._threshold_db}dB)")
+            logger.info(
+                f"MicAnalyzer started (device={self._mic_device or 'default'}, "
+                f"threshold={self._threshold_db}dB, AGC target={_SoftwareAGC.TARGET_RMS})"
+            )
         except Exception as e:
             logger.error(f"MicAnalyzer failed to start: {e}")
 
@@ -106,21 +147,24 @@ class MicAnalyzer:
         audio_int16 = indata[:, 0].copy()  # mono, shape (frames,), dtype int16
         audio_float = audio_int16.astype(np.float32) / 32768.0
 
-        rms = float(np.sqrt(np.mean(audio_float ** 2)))
+        raw_rms = float(np.sqrt(np.mean(audio_float ** 2)))
+        boosted_rms = self._agc.process(raw_rms)
 
-        # --- Lipsync broadcast ---
-        amplitude = float(np.clip(rms * _AMPLITUDE_SCALE, 0.0, 1.0))
-        vowel = self._estimate_vowel(audio_float, rms)
-
+        # --- Lipsync broadcast (AGC-normalised amplitude) ---
+        vowel = self._estimate_vowel(audio_float, raw_rms)
         if self._broadcast_callback:
             asyncio.run_coroutine_threadsafe(
-                self._broadcast_callback({"type": "user_lipsync", "vowel": vowel, "amplitude": amplitude}),
+                self._broadcast_callback({
+                    "type": "user_lipsync",
+                    "vowel": vowel,
+                    "amplitude": boosted_rms,
+                }),
                 self._loop,
             )
 
-        # --- Energy VAD for STT ---
+        # --- Energy VAD for STT (using AGC-normalised dB) ---
         if self._stt_callback:
-            db = 20.0 * np.log10(max(rms, 1e-10))
+            db = 20.0 * np.log10(max(boosted_rms, 1e-10))
             if db > self._threshold_db:
                 self._is_speaking = True
                 self._silence_count = 0
@@ -134,7 +178,7 @@ class MicAnalyzer:
                         audio_data = b''.join(self._vad_buffer)
                         logger.debug(
                             f"VAD flush: {self._speech_chunk_count} speech chunks "
-                            f"({len(audio_data)//2/SAMPLE_RATE:.2f}s), last db={db:.1f}"
+                            f"({len(audio_data) // 2 / SAMPLE_RATE:.2f}s)"
                         )
                         asyncio.run_coroutine_threadsafe(
                             self._stt_callback(audio_data),
@@ -142,8 +186,8 @@ class MicAnalyzer:
                         )
                     else:
                         logger.debug(
-                            f"VAD flush skipped: only {self._speech_chunk_count} speech chunks "
-                            f"(min={MIN_SPEECH_CHUNKS})"
+                            f"VAD: skipped flush — only {self._speech_chunk_count} "
+                            f"speech chunks (min={MIN_SPEECH_CHUNKS})"
                         )
                     self._vad_buffer = []
                     self._is_speaking = False
