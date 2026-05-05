@@ -15,6 +15,8 @@ This workflow automates the repetitive tasks involved in cutting a new release f
 2. **Update Version Strings**:
    - Update the `version` field in `pyproject.toml`.
    - Update the `version` field in `ui/package.json`.
+   - Update the `version` field in `src-tauri/Cargo.toml` (`[package]` section).
+   - Update the `"version"` field in `src-tauri/tauri.conf.json`.
 
 3. **Update CHANGELOG.md**:
    - Read recent git commit history (e.g., `git log`) to summarize the changes since the last version.
@@ -28,7 +30,7 @@ This workflow automates the repetitive tasks involved in cutting a new release f
 5. **Stage and Commit**:
    - Verify visually that the git status is clean except for the release files.
    - Run the commit command: 
-     `git add pyproject.toml ui/package.json CHANGELOG.md uv.lock && git commit -m "chore(release): bump version to <NEW_VERSION>" -m "- Document architecture refactoring and config standardization" -m "- Record frontend stabilization and startup checks"` (adapt the descriptive messages based on the changelog).
+     `git add pyproject.toml ui/package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json CHANGELOG.md uv.lock && git commit -m "chore(release): bump version to <NEW_VERSION>" -m "- Document architecture refactoring and config standardization" -m "- Record frontend stabilization and startup checks"` (adapt the descriptive messages based on the changelog).
 
 6. **Confirmation**:
    - Notify the user that the version has been bumped and the commit is ready. Remind them they can now run `/create-pr` or push.
