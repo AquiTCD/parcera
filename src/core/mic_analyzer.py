@@ -24,6 +24,7 @@ SAMPLE_RATE = 16000
 CHUNK_FRAMES = 512  # ~32ms per callback at 16kHz
 SILENCE_CHUNKS_TO_FLUSH = 15  # ~480ms of post-speech silence before STT trigger
 MIN_SPEECH_CHUNKS = 5         # ~160ms minimum speech to reject brief noise spikes
+MAX_SPEECH_CHUNKS = 300       # ~9.6s max before forcing an early STT flush
 
 # Spectral centroid boundaries (Hz) for Japanese vowel classification.
 # Matches the thresholds used in ui/renderer/lib/audio.ts VOWEL_BOUNDARIES_HZ.
@@ -134,6 +135,12 @@ class MicAnalyzer:
                 self._silence_count = 0
                 self._speech_chunk_count += 1
                 self._vad_buffer.append(audio_int16.tobytes())
+                if self._speech_chunk_count >= MAX_SPEECH_CHUNKS:
+                    audio_data = b''.join(self._vad_buffer)
+                    logger.debug(f"VAD: forced early flush after {self._speech_chunk_count} chunks")
+                    asyncio.run_coroutine_threadsafe(self._stt_callback(audio_data), self._loop)
+                    self._vad_buffer = []
+                    self._speech_chunk_count = 0
             elif self._is_speaking:
                 self._vad_buffer.append(audio_int16.tobytes())
                 self._silence_count += 1

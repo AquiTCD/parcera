@@ -7,7 +7,7 @@
  */
 import { state, logStatus } from './state';
 import type { ServerMessage } from './state';
-import { getContext, getAnalyser, connectToAnalyser, setExternalLipsync } from './audio';
+import { getContext, getAnalyser, connectToAnalyser, setExternalLipsync, clearExternalLipsync } from './audio';
 import type { Vowel } from './audio';
 import processorUrl from './pcm-processor.js?url';
 
@@ -329,6 +329,7 @@ export function startLipsyncWebSocket(): void {
   };
 
   lipsyncSocket.onclose = () => {
+    clearExternalLipsync(); // stop mouth animation while disconnected
     logStatus('OBS Lipsync Disconnected');
     setTimeout(startLipsyncWebSocket, 3000);
   };

@@ -11,7 +11,6 @@ const _isObs = new URLSearchParams(window.location.search).get('obs') === '1';
 export function useAvatar() {
   const avatarImageRef = useRef<HTMLImageElement>(null);
   const statusDebugRef = useRef<HTMLDivElement>(null);
-  const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const [visible, setVisible] = useState(true);
   const [viewMode, setViewMode] = useState<'standard' | 'wide'>('standard');
   const [isLocked, setIsLocked] = useState(false);
@@ -165,9 +164,6 @@ export function useAvatar() {
 
       const newMuted = settings.vad?.start_muted ?? false;
       setIsMuted(newMuted);
-      if (micTrackRef.current) {
-        micTrackRef.current.enabled = !newMuted;
-      }
 
       const winConf = settings.app?.windows?.[state.avatarType];
       if (winConf?.control_corner) {
@@ -205,7 +201,6 @@ export function useAvatar() {
     e.stopPropagation();
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
-    if (micTrackRef.current) micTrackRef.current.enabled = !nextMuted;
     logStatus(nextMuted ? 'Muted' : 'Mic Active');
     await api.updateSetting('vad.start_muted', nextMuted);
   };

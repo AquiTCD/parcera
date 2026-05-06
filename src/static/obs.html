@@ -39,20 +39,19 @@
 (function () {
   // ── Port resolution ──────────────────────────────────────────────────────────
   // This page may be served from:
-  //   port 8676  — Python AI server (canonical OBS URL)
-  //   port 8677  — Tauri localhost plugin (fallback / dev workaround)
+  //   port 8676  — Python AI server (canonical OBS URL via file:// or http://)
+  //   port 8677  — Tauri localhost plugin (fallback)
   //   port 5173  — Vite dev server
-  // In all cases pythonPort = 8676 and frontendPort = 8677 (for Tauri assets).
-  var PYTHON_PORT   = 8676;
-  var FRONTEND_PORT = 8677;
+  // In all cases pythonPort resolves to 8676.
+  var PYTHON_PORT = 8676;
   var locPort = parseInt(location.port, 10);
-  var pythonPort, frontendPort;
+  var pythonPort;
   if (locPort === PYTHON_PORT || (locPort >= 5000 && locPort < 6000)) {
-    pythonPort   = PYTHON_PORT;
-    frontendPort = FRONTEND_PORT;
+    pythonPort = PYTHON_PORT;
   } else {
-    frontendPort = locPort || FRONTEND_PORT;
-    pythonPort   = frontendPort - 1;
+    // file:// → locPort=NaN → default to PYTHON_PORT+1-1=PYTHON_PORT
+    // Tauri (8677) → 8677-1=8676
+    pythonPort = (locPort || (PYTHON_PORT + 1)) - 1;
   }
 
   var p = new URLSearchParams(location.search);
