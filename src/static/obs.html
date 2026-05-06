@@ -175,14 +175,6 @@
 
     dbg.hidden = !(s.avatars && s.avatars.show_debug !== false);
 
-    // Chroma key background (mirrors Tauri avatar window behaviour).
-    var avatarCfg = s.avatars && s.avatars[avatarType];
-    if (avatarCfg && avatarCfg.chroma_key_enabled) {
-      document.body.style.background = avatarCfg.chroma_key_color || 'green';
-    } else {
-      document.body.style.background = 'transparent';
-    }
-
     img.removeAttribute('style');
     img.src = assetsDir + '/base.png?v=' + cacheKey;
   }
