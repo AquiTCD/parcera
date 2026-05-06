@@ -141,9 +141,9 @@ class ParceraServer(ParceraAvatarBase):
             voice_recorder_enabled=False
         )
 
-        # Attach callbacks to controller
-        if hasattr(self.stt, "on_recognized_callback"):
-            self.stt.on_recognized_callback = self.controller.on_recognized
+        # Attach response callback; STT recognition is handled exclusively by MicAnalyzer.
+        # Do NOT set on_recognized_callback here — stt.recognize() would call it internally,
+        # causing a double on_recognized invocation alongside the explicit call in _handle_stt_audio.
         self.aiavatar_server.on_response(self.controller.on_response)
 
         # Initial sync
@@ -188,9 +188,6 @@ class ParceraServer(ParceraAvatarBase):
 
     def _sync_to_server(self):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""
-        if hasattr(self.stt, "on_recognized_callback"):
-            self.stt.on_recognized_callback = self.controller.on_recognized
-
         # Register/Ensure an internal bridge for Twitch responses
         self.aiavatar_server.websockets[TWITCH_SESSION_ID] = InternalWebSocket(self.aiavatar_server)
 
