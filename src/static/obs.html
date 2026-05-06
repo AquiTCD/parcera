@@ -43,11 +43,9 @@
   var locPort = parseInt(location.port, 10);
   var pythonPort, frontendPort;
   if (locPort === PYTHON_PORT || (locPort >= 5000 && locPort < 6000)) {
-    // Served from Python directly, or Vite dev — Python is on the known port.
     pythonPort   = PYTHON_PORT;
     frontendPort = FRONTEND_PORT;
   } else {
-    // Served from Tauri (8677 or custom): Python is one port below.
     frontendPort = locPort || FRONTEND_PORT;
     pythonPort   = frontendPort - 1;
   }
@@ -73,7 +71,7 @@
 
   // ── Mutable state ────────────────────────────────────────────────────────────
   var settings       = {};
-  var extLipsync     = null;
+  var extLipsync     = null;   // user-avatar only: {env, rawAmplitude, vowel}
   var currentMouth   = 'base.png';
   var mouthHoldTimer = 0;
   var isBlinking     = false;
@@ -83,6 +81,61 @@
 
   var img = document.getElementById('avatar');
   var dbg = document.getElementById('dbg');
+
+  // ── AI audio playback (type=ai only) ─────────────────────────────────────────
+  var audioCtx     = null;
+  var aiAnalyser   = null;
+  var aiTimeBuf    = null;
+  var audioQueue   = [];
+  var isAIPlaying  = false;
+
+  function initAudioCtx() {
+    if (audioCtx) return;
+    audioCtx   = new AudioContext();
+    aiAnalyser = audioCtx.createAnalyser();
+    aiAnalyser.fftSize = 256;
+    aiTimeBuf  = new Uint8Array(aiAnalyser.frequencyBinCount);
+    aiAnalyser.connect(audioCtx.destination);
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
+  }
+
+  function getAIRms() {
+    if (!aiAnalyser || !aiTimeBuf) return 0;
+    aiAnalyser.getByteTimeDomainData(aiTimeBuf);
+    var sum = 0;
+    for (var i = 0; i < aiTimeBuf.length; i++) {
+      var v = (aiTimeBuf[i] - 128) / 128;
+      sum += v * v;
+    }
+    return Math.sqrt(sum / aiTimeBuf.length);
+  }
+
+  function playNextChunk() {
+    if (audioQueue.length === 0) { isAIPlaying = false; return; }
+    isAIPlaying = true;
+    var b64 = audioQueue.shift();
+    var raw = atob(b64);
+    var buf = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+    audioCtx.decodeAudioData(buf.buffer, function (decoded) {
+      var src = audioCtx.createBufferSource();
+      src.buffer = decoded;
+      src.connect(aiAnalyser);
+      src.onended = playNextChunk;
+      src.start();
+    }, function () { playNextChunk(); });
+  }
+
+  function enqueueAIChunk(b64) {
+    initAudioCtx();
+    audioQueue.push(b64);
+    if (!isAIPlaying) playNextChunk();
+  }
+
+  function flushAIQueue() {
+    audioQueue.length = 0;
+    isAIPlaying = false;
+  }
 
   // ── Settings ─────────────────────────────────────────────────────────────────
   function applySettings(s) {
@@ -120,7 +173,8 @@
 
   // ── WebSocket ────────────────────────────────────────────────────────────────
   var ws;
-  var wsSessionId = 'lipsync-' + Math.random().toString(36).slice(2, 9);
+  var wsSessionId = (avatarType === 'ai' ? 'obs-ai-' : 'obs-user-') +
+                    Math.random().toString(36).slice(2, 9);
 
   function connectWS() {
     ws = new WebSocket(wsUrl);
@@ -133,19 +187,33 @@
     ws.onmessage = function (e) {
       try {
         var d = JSON.parse(e.data);
-        if (d.type === 'user_lipsync') {
-          var vowel    = d.vowel || null;
-          var amp      = typeof d.amplitude === 'number' ? d.amplitude : 0;
-          var speaking = typeof d.speaking  === 'boolean' ? d.speaking : false;
-          extLipsync   = {
-            env:          speaking ? Math.max(amp, TALK_THRESHOLD + 0.01) : amp,
-            rawAmplitude: amp,
-            vowel:        vowel
-          };
+        if (avatarType === 'ai') {
+          // AI avatar: play TTS audio chunks received from the server.
+          if (d.type === 'start' || d.type === 'thinking') {
+            flushAIQueue();
+          } else if (d.type === 'chunk' && d.audio_data) {
+            enqueueAIChunk(d.audio_data);
+          }
+        } else {
+          // User avatar: animate mouth from Python MicAnalyzer lipsync events.
+          if (d.type === 'user_lipsync') {
+            var vowel    = d.vowel || null;
+            var amp      = typeof d.amplitude === 'number' ? d.amplitude : 0;
+            var speaking = typeof d.speaking  === 'boolean' ? d.speaking : false;
+            extLipsync   = {
+              env:          speaking ? Math.max(amp, TALK_THRESHOLD + 0.01) : amp,
+              rawAmplitude: amp,
+              vowel:        vowel
+            };
+          }
         }
       } catch (_) {}
     };
-    ws.onclose  = function () { extLipsync = null; setTimeout(connectWS, 3000); };
+    ws.onclose  = function () {
+      extLipsync = null;
+      flushAIQueue();
+      setTimeout(connectWS, 3000);
+    };
     ws.onerror  = function () {};
   }
 
@@ -166,11 +234,20 @@
     var scaleV  = 1 + (Math.max(0, norm) * (bScale - 1));
     img.style.transform = 'translateY(' + offsetY + 'px) scale(' + scaleV + ',' + scaleV + ')';
 
-    // Lipsync state
-    var env    = extLipsync ? extLipsync.env          : 0;
-    var rmsRaw = extLipsync ? extLipsync.rawAmplitude : 0;
-    var vowel  = (extLipsync && extLipsync.env > TALK_THRESHOLD)
-      ? (extLipsync.vowel || '-') : '-';
+    // Lipsync state — source differs by avatar type
+    var env, rmsRaw, vowel;
+    if (avatarType === 'ai') {
+      // Derive lipsync from WebAudio analyser (TTS playback amplitude).
+      rmsRaw = getAIRms();
+      env    = rmsRaw;
+      // Simple open/close: no per-vowel detection for synthetic TTS audio.
+      vowel  = env > TALK_THRESHOLD ? 'a' : '-';
+    } else {
+      env    = extLipsync ? extLipsync.env          : 0;
+      rmsRaw = extLipsync ? extLipsync.rawAmplitude : 0;
+      vowel  = (extLipsync && extLipsync.env > TALK_THRESHOLD)
+        ? (extLipsync.vowel || '-') : '-';
+    }
 
     // Debug overlay
     if (!dbg.hidden) {
