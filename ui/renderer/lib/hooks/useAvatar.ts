@@ -4,7 +4,7 @@ import { state, logStatus } from '../state';
 import type { AvatarConfig, ParceraSettings } from '../state';
 import { initAudioContext, getContext, setNoiseGateDb } from '../audio';
 import { initVisual } from '../visual';
-import { startWebSocket, startLipsyncWebSocket } from '../comm';
+import { startWebSocket, startLipsyncWebSocket, startObsServerWatcher } from '../comm';
 
 const _isObs = new URLSearchParams(window.location.search).get('obs') === '1';
 
@@ -70,6 +70,7 @@ export function useAvatar() {
       // OBS mode: Python handles audio capture; browser only needs WS for visuals.
       if (_isObs) {
         logStatus('OBS Mode Active');
+        startObsServerWatcher();
         if (state.avatarType === 'ai') {
           // AI avatar in OBS: standard WS for TTS audio playback.
           initAudioContext();

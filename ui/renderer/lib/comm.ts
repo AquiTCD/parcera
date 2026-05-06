@@ -259,6 +259,37 @@ let currentWorkletNode: AudioWorkletNode | null = null;
 let micSetupGen = 0;
 
 // =====================
+// OBS Server Watcher
+// =====================
+
+/**
+ * In OBS browser-source mode, poll the Python server health endpoint.
+ * When the server goes down and comes back (i.e. Parcera was restarted),
+ * reload the page so every WebSocket and settings fetch starts fresh.
+ *
+ * The watcher runs for the lifetime of the page — no cleanup needed.
+ */
+export function startObsServerWatcher(): void {
+  const port = state.settings.app?.port || DEFAULT_PORT;
+  let wasDown = false;
+
+  const tick = async () => {
+    const healthy = await checkServerHealth(port);
+    if (!healthy) {
+      wasDown = true;
+    } else if (wasDown) {
+      // Server just recovered — reload to re-init WS, settings, and audio.
+      location.reload();
+      return;
+    }
+    setTimeout(tick, 3000);
+  };
+
+  // Kick off the first check after a short delay to avoid racing with startup.
+  setTimeout(tick, 5000);
+}
+
+// =====================
 // OBS User Lipsync WebSocket
 // =====================
 let lipsyncSocket: WebSocket | null = null;
