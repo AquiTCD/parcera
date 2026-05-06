@@ -102,10 +102,11 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const frontendPort = (settings.app as any)?.frontend_port || (port + 1);
   const isWindows = api.platform === 'win32';
 
-  // obs.html is a self-contained static page that survives Parcera restarts
-  // via WebSocket reconnection — no page reload required.
+  // obs.html is served by the Python server (port=8676) so it does not depend
+  // on the Tauri localhost plugin. OBS loads it once; WebSocket reconnection
+  // handles Parcera restarts without a manual browser-source refresh.
   const obsAiUrl = `http://localhost:${frontendPort}/?type=ai&obs=1`;
-  const obsUserUrl = `http://localhost:${frontendPort}/obs.html?type=user`;
+  const obsUserUrl = `http://localhost:${port}/obs.html?type=user`;
 
   return (
     <div className="space-y-6">

@@ -4,15 +4,39 @@ Parcera: Configuration API Router
 Handles /config/reload endpoint for hot-reloading settings.
 """
 import logging
+from pathlib import Path
 from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/config", tags=["Config"])
 
 
+def _find_obs_html() -> Path:
+    """Locate obs.html: bundled next to this file (production) or in ui/public (dev)."""
+    bundled = Path(__file__).parent.parent / "static" / "obs.html"
+    if bundled.exists():
+        return bundled
+    dev_path = Path(__file__).parent.parent.parent / "ui" / "public" / "obs.html"
+    if dev_path.exists():
+        return dev_path
+    return bundled  # let the caller handle the missing-file error
+
+
 def create_config_router(get_server):
     """Create the config router with a server accessor to avoid circular imports."""
+
+    @router.get("/obs.html", response_class=HTMLResponse)
+    async def obs_page():
+        """
+        Serve the standalone OBS browser-source page.
+
+        Loaded once by OBS; all subsequent data arrives via WebSocket so the
+        page survives Parcera restarts without needing a manual refresh.
+        """
+        path = _find_obs_html()
+        return HTMLResponse(content=path.read_text(encoding="utf-8"))
 
     @router.get("/settings")
     async def get_settings():
