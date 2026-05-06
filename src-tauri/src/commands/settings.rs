@@ -38,9 +38,9 @@ pub async fn save_settings(
 
     let _ = app_handle.emit("settings-changed", &settings);
 
-    notify_python_reload(port, &settings).await;
+    let restart_required = notify_python_reload(port, &settings).await;
 
-    Ok(OpResult::ok())
+    Ok(OpResult::ok_with_restart(restart_required))
 }
 
 #[tauri::command]
@@ -64,13 +64,21 @@ pub async fn update_setting(
     Ok(OpResult::ok())
 }
 
-async fn notify_python_reload(port: u16, settings: &Value) {
+async fn notify_python_reload(port: u16, settings: &Value) -> bool {
     let url = python_url(port, "/config/reload");
-    let _ = reqwest::Client::new()
+    if let Ok(resp) = reqwest::Client::new()
         .post(&url)
         .json(settings)
         .send()
-        .await;
+        .await
+    {
+        if let Ok(body) = resp.json::<Value>().await {
+            return body.get("restart_required")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+        }
+    }
+    false
 }
 
 #[cfg(test)]

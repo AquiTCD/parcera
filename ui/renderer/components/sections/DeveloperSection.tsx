@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { SectionProps } from './types';
-import { FieldRow } from './shared';
+import { FieldRow, RestartBadge } from './shared';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -160,13 +160,12 @@ export const DeveloperSection: React.FC<SectionProps> = ({
           <CardTitle>システム設定</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <FieldRow label="WebSocketポート番号">
+          <FieldRow label="WebSocketポート番号" restartRequired>
             <Input
               type="number"
               value={settings.app?.port ?? defaultSettings?.app?.port ?? 8676}
               onChange={(e) => updateNested('app', 'port', Number(e.target.value))}
             />
-            <p className="text-xs text-muted-foreground mt-1">変更後は再起動が必要です。</p>
           </FieldRow>
 
           <FieldRow label="内部音声サンプリングレート (Hz)">
@@ -189,7 +188,7 @@ export const DeveloperSection: React.FC<SectionProps> = ({
 
           <div className="flex items-center justify-between">
             <div>
-              <Label>GPUアクセラレーション</Label>
+              <Label>GPUアクセラレーション<RestartBadge /></Label>
               <p className="text-xs text-muted-foreground">OBSキャプチャで問題がある場合はOFFにして再起動。</p>
             </div>
             <Switch

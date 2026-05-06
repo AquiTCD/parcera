@@ -8,14 +8,19 @@ pub struct OpResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restart_required: Option<bool>,
 }
 
 impl OpResult {
     pub fn ok() -> Self {
-        Self { success: true, error: None }
+        Self { success: true, error: None, restart_required: None }
     }
     pub fn err(msg: impl Into<String>) -> Self {
-        Self { success: false, error: Some(msg.into()) }
+        Self { success: false, error: Some(msg.into()), restart_required: None }
+    }
+    pub fn ok_with_restart(restart: bool) -> Self {
+        Self { success: true, error: None, restart_required: if restart { Some(true) } else { None } }
     }
 }
 

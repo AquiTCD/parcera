@@ -10,7 +10,7 @@ export type TwitchStatus = {
   session_id?: string;
 };
 
-export type OpResult = { success: boolean; error?: string };
+export type OpResult = { success: boolean; error?: string; restart_required?: boolean };
 
 export type DownloadProgress = {
   status: 'downloading' | 'complete' | 'error';

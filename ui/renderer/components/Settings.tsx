@@ -76,8 +76,11 @@ export const Settings: React.FC = () => {
           }
         }
       }
-      setStatus({ message: '設定を保存しました！', type: 'success' });
-      setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+      const msg = result.restart_required
+        ? '設定を保存しました。一部の変更は再起動後に反映されます。'
+        : '設定を保存しました！';
+      setStatus({ message: msg, type: 'success' });
+      setTimeout(() => setStatus({ message: '', type: '' }), result.restart_required ? 8000 : 3000);
     } else {
       setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
     }

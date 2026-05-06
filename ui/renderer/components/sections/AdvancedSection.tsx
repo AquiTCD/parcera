@@ -240,7 +240,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
           <div className="space-y-4">
             <h4 className="text-sm font-semibold border-b border-border pb-2">STT</h4>
 
-            <FieldRow label="プロバイダー">
+            <FieldRow label="プロバイダー" restartRequired>
               <Select
                 value={settings.stt?.provider ?? 'moonshine'}
                 onValueChange={(val) => updateNested('stt', 'provider', val)}
@@ -266,7 +266,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
 
             {currentSTTProvider === 'faster_whisper' && (
               <>
-                <FieldRow label="モデル（HuggingFace形式）">
+                <FieldRow label="モデル（HuggingFace形式）" restartRequired>
                   <Input
                     value={settings.stt?.providers?.faster_whisper?.model ?? ''}
                     onChange={(e) => updateProvider('stt', 'faster_whisper', 'model', e.target.value)}
@@ -274,7 +274,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                   />
                 </FieldRow>
                 <div className="grid grid-cols-2 gap-4">
-                  <FieldRow label="演算デバイス">
+                  <FieldRow label="演算デバイス" restartRequired>
                     <Select
                       value={settings.stt?.providers?.faster_whisper?.device ?? 'auto'}
                       onValueChange={(v) => updateProvider('stt', 'faster_whisper', 'device', v)}
@@ -287,7 +287,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                       </SelectContent>
                     </Select>
                   </FieldRow>
-                  <FieldRow label="量子化">
+                  <FieldRow label="量子化" restartRequired>
                     <Select
                       value={settings.stt?.providers?.faster_whisper?.compute_type ?? 'default'}
                       onValueChange={(v) => updateProvider('stt', 'faster_whisper', 'compute_type', v)}
