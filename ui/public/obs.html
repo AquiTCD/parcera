@@ -25,11 +25,16 @@
       border-radius: 2px;
       pointer-events: none;
     }
+    #avatar.chromakey { filter: url(#chromakey-filter); }
   </style>
 </head>
 <body>
   <img id="avatar" alt="">
   <div id="dbg" hidden></div>
+  <!-- SVG chroma key filter — mirrors ChromaKeyFilter.tsx (feColorMatrix alpha extraction) -->
+  <svg width="0" height="0" style="position:absolute;pointer-events:none">
+    <defs><filter id="chromakey-filter"></filter></defs>
+  </svg>
 <script>
 (function () {
   // ── Port resolution ──────────────────────────────────────────────────────────
@@ -175,6 +180,25 @@
 
     var showDebug = !(s.avatars && s.avatars.show_debug === false);
     dbg.hidden = !showDebug;
+
+    // Chroma key: SVG feColorMatrix filter, same logic as ChromaKeyFilter.tsx.
+    var avatarCfg = s.avatars && s.avatars[avatarType];
+    var chromaEnabled = !!(avatarCfg && avatarCfg.chroma_key_enabled);
+    var chromaColor   = (avatarCfg && avatarCfg.chroma_key_color) || 'green';
+    var filterEl = document.getElementById('chromakey-filter');
+    if (chromaEnabled) {
+      var m = chromaColor === 'green'
+        ? '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  3.0 -6.0 3.0 1.0 0.5'
+        : '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  3.0 3.0 -6.0 1.0 0.5';
+      filterEl.setAttribute('color-interpolation-filters', 'sRGB');
+      filterEl.innerHTML = '<feColorMatrix type="matrix" values="' + m + '"/>'
+        + '<feComponentTransfer><feFuncA type="table" tableValues="0 1"/></feComponentTransfer>';
+      img.classList.add('chromakey');
+    } else {
+      filterEl.removeAttribute('color-interpolation-filters');
+      filterEl.innerHTML = '<feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>';
+      img.classList.remove('chromakey');
+    }
 
     img.removeAttribute('style');
     img.src = assetsDir + '/base.png?v=' + cacheKey;
