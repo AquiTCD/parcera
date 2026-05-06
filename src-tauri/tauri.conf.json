@@ -4,7 +4,7 @@
   "version": "0.13.0",
   "identifier": "Parcera",
   "build": {
-    "frontendDist": "../dist",
+    "frontendDist": "../dist/web",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"

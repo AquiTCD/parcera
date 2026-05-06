@@ -10,14 +10,14 @@ env = { RUST_LOG = "info" }
 run = "ui/node_modules/.bin/tauri dev --config src-tauri/tauri.dev.conf.json"
 
 [tasks.build]
-description = "Build Tauri app (production) and copy DMG/app to dist/"
+description = "Build Tauri app (production) and copy DMG/app to releases/"
 run = """
 ui/node_modules/.bin/tauri build
-mkdir -p dist
-cp src-tauri/target/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
-cp -r "src-tauri/target/release/bundle/macos/Parcera.app" dist/ 2>/dev/null || true
-echo "Build artifacts copied to dist/"
-ls dist/
+mkdir -p releases
+cp src-tauri/target/release/bundle/dmg/*.dmg releases/ 2>/dev/null || true
+cp -r "src-tauri/target/release/bundle/macos/Parcera.app" releases/ 2>/dev/null || true
+echo "Build artifacts copied to releases/"
+ls releases/
 """
 
 [tasks.package]

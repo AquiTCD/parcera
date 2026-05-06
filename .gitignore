@@ -156,3 +156,6 @@ cython_debug/
 # Tauri Rust build artifacts
 src-tauri/target/
 src-tauri/WixTools/
+
+# Build distribution artifacts (DMG, .app)
+releases/
