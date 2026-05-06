@@ -63,9 +63,15 @@ def create_config_router(get_server):
         """
         server = get_server()
         avatar_cfg = server.config.get("avatars", {}).get(avatar_type)
+        assets_dir = None
         if isinstance(avatar_cfg, dict) and avatar_cfg.get("assets_dir"):
-            assets_dir = Path(avatar_cfg["assets_dir"])
-        else:
+            candidate = Path(avatar_cfg["assets_dir"])
+            # Only use the configured path if it's a real filesystem directory.
+            # The default config stores Tauri-relative paths like "/assets/user"
+            # which are not valid on the filesystem.
+            if candidate.is_dir():
+                assets_dir = candidate
+        if assets_dir is None:
             assets_dir = _find_bundled_assets(avatar_type)
 
         if assets_dir is None:
