@@ -102,8 +102,10 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const frontendPort = (settings.app as any)?.frontend_port || (port + 1);
   const isWindows = api.platform === 'win32';
 
+  // obs.html is a self-contained static page that survives Parcera restarts
+  // via WebSocket reconnection — no page reload required.
   const obsAiUrl = `http://localhost:${frontendPort}/?type=ai&obs=1`;
-  const obsUserUrl = `http://localhost:${frontendPort}/?type=user&obs=1`;
+  const obsUserUrl = `http://localhost:${frontendPort}/obs.html?type=user`;
 
   return (
     <div className="space-y-6">
@@ -355,6 +357,9 @@ export const AdvancedSection: React.FC<SectionProps> = ({
           </p>
           <ObsUrlRow label="AI アバター" url={obsAiUrl} />
           <ObsUrlRow label="User アバター" url={obsUserUrl} />
+          <p className="text-xs text-muted-foreground">
+            User アバターは独立した静的ページです。Parcera を再起動しても WebSocket が自動的に再接続するため、OBS 側の手動更新は不要です。
+          </p>
         </CardContent>
       </Card>
     </div>
