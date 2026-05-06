@@ -56,8 +56,9 @@
   var avatarType  = p.get('type') || 'user';
   var pythonHttp  = 'http://127.0.0.1:' + pythonPort;
   var wsUrl       = 'ws://127.0.0.1:' + pythonPort + '/ws';
-  // Default bundled assets come from the Tauri static server.
-  var assetsDir   = 'http://127.0.0.1:' + frontendPort + '/assets/' + avatarType;
+  // Images are always served via the Python proxy so obs.html (an http:// page)
+  // can load them without hitting the browser's file:// mixed-content block.
+  var assetsDir   = pythonHttp + '/config/obs-asset/' + avatarType;
 
   // ── Constants ────────────────────────────────────────────────────────────────
   var TALK_THRESHOLD     = 0.05;
@@ -86,17 +87,12 @@
   // ── Settings ─────────────────────────────────────────────────────────────────
   function applySettings(s) {
     settings = s;
-    var avatarCfg = s.avatars && s.avatars[avatarType];
-    if (typeof avatarCfg === 'object' && avatarCfg && avatarCfg.assets_dir) {
-      assetsDir = 'file://' + avatarCfg.assets_dir;
-    } else {
-      assetsDir = 'http://127.0.0.1:' + frontendPort + '/assets/' + avatarType;
-    }
+    // assetsDir always points to the Python proxy (/config/obs-asset/{type}).
+    // Python resolves the actual filesystem path (custom or bundled) server-side,
+    // so obs.html never needs file:// URLs (blocked from http:// pages in Chromium).
     dbg.hidden = !(s.avatars && s.avatars.show_debug !== false);
-    if (img.src !== assetsDir + '/base.png') {
-      img.removeAttribute('style');
-      img.src = assetsDir + '/base.png';
-    }
+    img.removeAttribute('style');
+    img.src = assetsDir + '/base.png';
   }
 
   function fetchSettings() {

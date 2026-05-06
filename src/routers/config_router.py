@@ -5,8 +5,8 @@ Handles /config/reload endpoint for hot-reloading settings.
 """
 import logging
 from pathlib import Path
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,20 @@ def _find_obs_html() -> Path:
     return bundled  # let the caller handle the missing-file error
 
 
+def _find_bundled_assets(avatar_type: str) -> Path | None:
+    """Find bundled avatar assets directory for dev or production builds."""
+    candidates = [
+        # Development: project root / ui / public / assets / {type}
+        Path(__file__).parent.parent.parent / "ui" / "public" / "assets" / avatar_type,
+        # Production (macOS bundle): Contents/Resources/dist/assets/{type}
+        Path(__file__).parent.parent.parent.parent / "Resources" / "dist" / "assets" / avatar_type,
+    ]
+    for p in candidates:
+        if p.is_dir():
+            return p
+    return None
+
+
 def create_config_router(get_server):
     """Create the config router with a server accessor to avoid circular imports."""
 
@@ -37,6 +51,38 @@ def create_config_router(get_server):
         """
         path = _find_obs_html()
         return HTMLResponse(content=path.read_text(encoding="utf-8"))
+
+    @router.get("/obs-asset/{avatar_type}/{filename}")
+    async def serve_obs_asset(avatar_type: str, filename: str):
+        """
+        Serve avatar sprite images for the OBS browser source.
+
+        Proxies local filesystem images through HTTP so obs.html (served via
+        http://) can load them without hitting the file:// mixed-content block.
+        Only serves files within the configured assets_dir or bundled assets.
+        """
+        server = get_server()
+        avatar_cfg = server.config.get("avatars", {}).get(avatar_type)
+        if isinstance(avatar_cfg, dict) and avatar_cfg.get("assets_dir"):
+            assets_dir = Path(avatar_cfg["assets_dir"])
+        else:
+            assets_dir = _find_bundled_assets(avatar_type)
+
+        if assets_dir is None:
+            raise HTTPException(status_code=404, detail="Assets directory not found")
+
+        # Prevent path traversal
+        try:
+            file_path = (assets_dir / filename).resolve()
+            assets_dir.resolve().relative_to  # ensure it's a directory
+            file_path.relative_to(assets_dir.resolve())
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Asset not found")
+
+        return FileResponse(file_path)
 
     @router.get("/settings")
     async def get_settings():

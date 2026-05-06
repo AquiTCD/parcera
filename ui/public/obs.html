@@ -40,8 +40,9 @@
   var pythonPort = (frontendPort >= 5000 && frontendPort < 6000) ? 8676 : (frontendPort - 1);
   var pythonHttp = 'http://127.0.0.1:' + pythonPort;
   var wsUrl     = 'ws://127.0.0.1:' + pythonPort + '/ws';
-  // Default assets come from the Tauri static server (same origin as this page).
-  var assetsDir = 'http://127.0.0.1:' + frontendPort + '/assets/' + avatarType;
+  // Images are always proxied through Python so obs.html (an http:// page)
+  // never needs file:// URLs (blocked by Chromium's mixed-content policy).
+  var assetsDir = pythonHttp + '/config/obs-asset/' + avatarType;
 
   // ── Constants ────────────────────────────────────────────────────────────────
   var TALK_THRESHOLD       = 0.05;
@@ -73,14 +74,7 @@
   function applySettings(s) {
     settings = s;
 
-    var avatarCfg = s.avatars && s.avatars[avatarType];
-    if (typeof avatarCfg === 'object' && avatarCfg && avatarCfg.assets_dir) {
-      // Custom avatar path — use file:// (OBS CEF allows cross-origin file loads).
-      assetsDir = 'file://' + avatarCfg.assets_dir;
-    } else {
-      assetsDir = 'http://127.0.0.1:' + frontendPort + '/assets/' + avatarType;
-    }
-
+    // assetsDir is fixed to the Python proxy — no file:// needed.
     var showDebug = !(s.avatars && s.avatars.show_debug === false);
     dbg.hidden = !showDebug;
 
