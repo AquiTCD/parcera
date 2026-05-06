@@ -138,6 +138,7 @@ export interface AppSettings {
 }
 
 export interface WindowConfig {
+  visible?: boolean; // Whether the Tauri window is shown
   width?: number;
   height?: number;
   x?: number;        // Saved X position

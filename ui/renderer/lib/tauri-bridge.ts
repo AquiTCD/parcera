@@ -41,6 +41,7 @@ export const api: ParceraAPI = {
   },
   saveWindowBounds: (type) => invoke<OpResult>('save_window_bounds', { window_type: type }),
   getAvatarWindowBounds: (type) => invoke<Rect>('get_avatar_window_bounds', { window_type: type }),
+  setWindowVisible: (type, visible) => invoke<void>('set_window_visible', { window_type: type, visible }),
 
   // FS / Dialog
   resolveLocalPath: (filePath) => {

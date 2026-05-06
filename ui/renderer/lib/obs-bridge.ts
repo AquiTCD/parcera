@@ -52,6 +52,7 @@ export const obsApi: ParceraAPI = {
   getWindowBounds: noopPromise(null as Rect | null),
   saveWindowBounds: noopPromise({ success: false } as OpResult),
   getAvatarWindowBounds: noopPromise(null as Rect | null),
+  setWindowVisible: noopPromise(undefined as void),
 
   // FS / Dialog — no-ops
   selectDirectory: noopPromise(null as string | null),

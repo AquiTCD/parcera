@@ -135,6 +135,7 @@ app:
   mic_device_id: "default" # "default" or specific media device ID
   windows:
     ai:
+      visible: true
       width: 400
       height: 400
       x: 400
@@ -143,6 +144,7 @@ app:
       locked: false
       control_corner: "bottom-right"
     user:
+      visible: true
       width: 400
       height: 400
       x: 0

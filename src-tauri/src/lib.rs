@@ -111,6 +111,10 @@ pub fn run() {
                                 tauri::LogicalSize { width: w, height: h },
                             ));
                         }
+                        // Hide window if visible == false (default: show)
+                        if cfg["visible"].as_bool() == Some(false) {
+                            let _ = win.hide();
+                        }
                     }
                 }
             }
@@ -134,6 +138,7 @@ pub fn run() {
             commands::settings::reload_settings,
             commands::windows::save_window_bounds,
             commands::windows::get_avatar_window_bounds,
+            commands::windows::set_window_visible,
             commands::dialogs::select_directory,
             commands::logs::get_log_history,
             commands::twitch::twitch_start_auth,

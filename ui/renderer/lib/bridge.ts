@@ -43,6 +43,7 @@ export interface ParceraAPI {
   getWindowBounds(): Promise<Rect | null>;
   saveWindowBounds(type: 'user' | 'ai'): Promise<OpResult>;
   getAvatarWindowBounds(type: 'user' | 'ai'): Promise<Rect | null>;
+  setWindowVisible(type: 'user' | 'ai', visible: boolean): Promise<void>;
 
   // FS / Dialog
   selectDirectory(currentPath?: string): Promise<string | null>;

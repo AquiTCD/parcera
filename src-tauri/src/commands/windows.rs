@@ -50,6 +50,22 @@ pub async fn get_avatar_window_bounds(
     }))
 }
 
+#[tauri::command]
+pub async fn set_window_visible(
+    app_handle: tauri::AppHandle,
+    window_type: String,
+    visible: bool,
+) -> Result<(), String> {
+    if let Some(win) = app_handle.get_webview_window(&window_type) {
+        if visible {
+            win.show().map_err(|e| e.to_string())?;
+        } else {
+            win.hide().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::types::Rect;
