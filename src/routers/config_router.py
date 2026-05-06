@@ -74,6 +74,10 @@ def create_config_router(get_server):
         http://) can load them without hitting the file:// mixed-content block.
         Only serves files within the configured assets_dir or bundled assets.
         """
+        _VALID_AVATAR_TYPES = frozenset({"user", "ai"})
+        if avatar_type not in _VALID_AVATAR_TYPES:
+            raise HTTPException(status_code=404, detail="Unknown avatar type")
+
         server = get_server()
         avatar_cfg = server.config.get("avatars", {}).get(avatar_type)
         assets_dir = None
@@ -93,7 +97,6 @@ def create_config_router(get_server):
         # Prevent path traversal
         try:
             file_path = (assets_dir / filename).resolve()
-            assets_dir.resolve().relative_to  # ensure it's a directory
             file_path.relative_to(assets_dir.resolve())
         except ValueError:
             raise HTTPException(status_code=403, detail="Access denied")

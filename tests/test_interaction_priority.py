@@ -32,6 +32,41 @@ async def test_on_recognized_drops_when_twitch_busy(mock_avatar, mock_config):
     mock_avatar.set_busy.assert_called_once_with("session", False)
 
 @pytest.mark.anyio
+async def test_on_recognized_returns_false_when_twitch_busy(mock_avatar, mock_config):
+    controller = InteractionController(mock_avatar, mock_config)
+    mock_avatar.is_busy.side_effect = lambda source=None: source == "twitch"
+
+    result = await controller.on_recognized("session", "Hello")
+
+    assert result is False
+
+@pytest.mark.anyio
+async def test_on_recognized_returns_false_when_training_busy(mock_avatar, mock_config):
+    controller = InteractionController(mock_avatar, mock_config)
+    mock_avatar.is_busy.side_effect = lambda source=None: source == "training"
+
+    result = await controller.on_recognized("session", "Hello")
+
+    assert result is False
+
+@pytest.mark.anyio
+async def test_on_recognized_returns_false_when_is_filtered(mock_avatar, mock_config):
+    controller = InteractionController(mock_avatar, mock_config)
+
+    result = await controller.on_recognized("session", "ignored text", is_filtered=True)
+
+    assert result is False
+
+@pytest.mark.anyio
+async def test_on_recognized_returns_true_when_approved(mock_avatar, mock_config):
+    controller = InteractionController(mock_avatar, mock_config)
+    mock_avatar.is_busy.return_value = False
+
+    result = await controller.on_recognized("session", "Hello there")
+
+    assert result is True
+
+@pytest.mark.anyio
 async def test_on_response_sets_source_correctly(mock_avatar, mock_config):
     mock_config.get.return_value = {"chars_per_second": 6.0, "buffer_latency": 1.0}
     controller = InteractionController(mock_avatar, mock_config)

@@ -15,8 +15,12 @@ class InteractionController:
         self.avatar = avatar
         self.config = config
 
-    async def on_recognized(self, session_id: str, text: str, is_filtered: bool = False):
-        """Callback handled after STT processing."""
+    async def on_recognized(self, session_id: str, text: str, is_filtered: bool = False) -> bool:
+        """Callback handled after STT processing.
+
+        Returns True if the utterance was accepted and the STS pipeline should
+        be invoked, False if it was dropped (busy guard, filtered, etc.).
+        """
         # Hot-reload check (Always check, even if filtered, so settings stay fresh)
         if self.config.refresh():
             self.avatar.apply_runtime_config()
@@ -26,18 +30,18 @@ class InteractionController:
         if self.avatar.is_busy(source="twitch"):
             logger.info(f"Dropping user input because AI is busy with Twitch: {text}")
             self.avatar.set_busy(session_id, False)
-            return
-            
+            return False
+
         if self.avatar.is_busy(source="training"):
             logger.info(f"Dropping user input because AI is busy with Training: {text}")
             self.avatar.set_busy(session_id, False)
-            return
+            return False
 
         # 1. Ignored Speech
         if is_filtered:
             chat_logger.log_user(text, ignored=True)
             self.avatar.set_busy(session_id, False)
-            return
+            return False
 
         # 2. Approved Speech
         chat_logger.log_user(text)
@@ -63,6 +67,8 @@ class InteractionController:
                     })
                 except Exception as e:
                     logger.error(f"Error sending 'thinking' signal: {e}")
+
+        return True
 
     async def on_response(self, aiavatar_response, sts_response):
         """Callback handled when AI starts generating a response."""

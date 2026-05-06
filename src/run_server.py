@@ -1,6 +1,8 @@
 import asyncio
+import base64
 import logging
 import os
+from dataclasses import dataclass
 
 # Suppress transformers "PyTorch was not found" warning (we use MLX, not PyTorch)
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
@@ -11,6 +13,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from aiavatar.adapter.websocket.server import AIAvatarWebSocketServer
+from aiavatar.sts.models import STSRequest
 from aiavatar.sts.session_state_manager import SQLiteSessionStateManager
 from aiavatar.sts.performance_recorder.sqlite import SQLitePerformanceRecorder
 from core.avatar import ParceraAvatarBase
@@ -28,6 +31,12 @@ from services.training_service import TrainingService
 from core.interaction import InteractionController
 from core.mic_analyzer import MicAnalyzer
 from core.constants import TWITCH_SESSION_ID, DEFAULT_UVICORN_PORT, DEFAULT_UVICORN_HOST
+
+
+@dataclass
+class _STSResponseAdapter:
+    """Minimal adapter satisfying InteractionController.on_response's aiavatar_response argument."""
+    session_id: str
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +269,7 @@ async def lifespan(app: FastAPI):
     parcera_server._twitch_task = asyncio.create_task(parcera_server.twitch_service.process_queue())
 
     # Start MicAnalyzer for Python-side audio capture (STT + OBS lipsync broadcast)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     async def _broadcast_user_lipsync(event: dict) -> None:
         for sid, ws in parcera_server.aiavatar_server.websockets.items():
@@ -281,23 +290,17 @@ async def lifespan(app: FastAPI):
 
             # Use the standard AI session so thinking/response signals reach the UI
             session_id = "parcera-session"
-            await parcera_server.controller.on_recognized(session_id, text)
+            accepted = await parcera_server.controller.on_recognized(session_id, text)
+            if not accepted:
+                return
 
             # Invoke STS pipeline (LLM → TTS) and broadcast each chunk to all UI clients
-            import base64 as _b64
-            from aiavatar.sts.models import STSRequest
-            from dataclasses import dataclass
-
-            @dataclass
-            class _MockResp:
-                session_id: str
-
             async for r in parcera_server.aiavatar_server.sts.invoke(
                 STSRequest(text=text, session_id=session_id)
             ):
                 msg: dict = {"type": r.type, "text": r.text}
                 if r.audio_data:
-                    msg["audio_data"] = _b64.b64encode(r.audio_data).decode()
+                    msg["audio_data"] = base64.b64encode(r.audio_data).decode()
                 for sid, ws in parcera_server.aiavatar_server.websockets.items():
                     if sid != TWITCH_SESSION_ID:
                         try:
@@ -305,7 +308,7 @@ async def lifespan(app: FastAPI):
                         except Exception:
                             pass
                 if r.type == "final":
-                    await parcera_server.controller.on_response(_MockResp(session_id), r)
+                    await parcera_server.controller.on_response(_STSResponseAdapter(session_id), r)
         except Exception as e:
             logger.error(f"MicAnalyzer STT error: {e}", exc_info=True)
 
@@ -313,9 +316,8 @@ async def lifespan(app: FastAPI):
     mic.set_broadcast_callback(_broadcast_user_lipsync)
     mic.set_stt_callback(_handle_stt_audio)
 
-    settings = parcera_server.config.settings
     vad_cfg = settings.get("vad", {})
-    mic.set_threshold_db(vad_cfg.get("volume_db_threshold", -25.0))
+    mic.set_threshold_db(vad_cfg.get("volume_db_threshold", -20.0))
     mic.set_mic_device(settings.get("app", {}).get("mic_device_id"))
     mic.start()
     parcera_server.mic_analyzer = mic
