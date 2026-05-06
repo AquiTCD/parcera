@@ -58,8 +58,8 @@
   var avatarType  = p.get('type') || 'user';
   var pythonHttp  = 'http://127.0.0.1:' + pythonPort;
   var wsUrl       = 'ws://127.0.0.1:' + pythonPort + '/ws';
-  // Images are always proxied through Python so obs.html (an http:// page)
-  // never needs file:// URLs (blocked by Chromium's mixed-content policy).
+  // Images are always served via the Python proxy so obs.html (an http:// page)
+  // can load them without hitting the browser's file:// mixed-content block.
   var assetsDir   = pythonHttp + '/config/obs-asset/' + avatarType;
 
   // ── Constants ────────────────────────────────────────────────────────────────
@@ -237,8 +237,8 @@
     ws = new WebSocket(wsUrl);
     ws.onopen = function () {
       ws.send(JSON.stringify({ type: 'start', session_id: wsSessionId }));
-      // Refresh settings on every (re)connect so a Parcera restart picks up
-      // any config changes without needing a manual page reload.
+      // Re-fetch settings on every (re)connect so Parcera restarts pick up
+      // config changes without a manual OBS refresh.
       fetchSettings();
     };
     ws.onmessage = function (e) {
@@ -258,7 +258,7 @@
             var amp      = typeof d.amplitude === 'number' ? d.amplitude : 0;
             var speaking = typeof d.speaking  === 'boolean' ? d.speaking : false;
             extLipsync   = {
-              env:         speaking ? Math.max(amp, TALK_THRESHOLD + 0.01) : amp,
+              env:          speaking ? Math.max(amp, TALK_THRESHOLD + 0.01) : amp,
               rawAmplitude: amp,
               vowel:        vowel
             };
@@ -266,12 +266,12 @@
         }
       } catch (_) {}
     };
-    ws.onclose = function () {
+    ws.onclose  = function () {
       extLipsync = null;
       flushAIQueue();
       setTimeout(connectWS, 3000);
     };
-    ws.onerror = function () {};
+    ws.onerror  = function () {};
   }
 
   // ── Animation loop ───────────────────────────────────────────────────────────
@@ -285,8 +285,8 @@
     var bScale = (settings.avatars && settings.avatars.breathe_scale)     || 1.005;
     var bAmp   = (settings.avatars && settings.avatars.breathe_amplitude) || 2;
     breatheTime += dt * (2 * Math.PI) / (bDur / 1000);
-    var wave   = Math.sin(breatheTime) + 0.5 * Math.sin(breatheTime * 1.618);
-    var norm   = wave / 1.5;
+    var wave    = Math.sin(breatheTime) + 0.5 * Math.sin(breatheTime * 1.618);
+    var norm    = wave / 1.5;
     var offsetY = (norm + 1) * 0.5 * bAmp;
     var scaleV  = 1 + (Math.max(0, norm) * (bScale - 1));
     img.style.transform = 'scaleX(' + flipX + ') translateY(' + offsetY + 'px) scale(' + scaleV + ',' + scaleV + ')';
@@ -309,13 +309,12 @@
 
     // Debug overlay
     if (!dbg.hidden) {
-      var db     = 20 * Math.log10(Math.max(rmsRaw, 0.00001));
-      var span   = DB_CEIL - DB_FLOOR;
-      var lvl    = Math.max(0, Math.min(1, (db - DB_FLOOR) / span));
-      var on     = Math.floor(lvl * METER_SIZE);
-      var tDbV   = (settings.vad && settings.vad.volume_db_threshold) || -20;
-      var tPos   = Math.floor(Math.max(0, Math.min(1, (tDbV - DB_FLOOR) / span)) * METER_SIZE);
-      var meter  = '';
+      var db   = 20 * Math.log10(Math.max(rmsRaw, 0.00001));
+      var span = DB_CEIL - DB_FLOOR;
+      var on   = Math.floor(Math.max(0, Math.min(1, (db - DB_FLOOR) / span)) * METER_SIZE);
+      var tDb  = (settings.vad && settings.vad.volume_db_threshold) || -20;
+      var tPos = Math.floor(Math.max(0, Math.min(1, (tDb - DB_FLOOR) / span)) * METER_SIZE);
+      var meter = '';
       for (var i = 0; i < METER_SIZE; i++) {
         if (i === tPos) {
           meter += '<span style="color:#ff0;font-weight:bold">|</span>';
@@ -326,16 +325,15 @@
           meter += '<span style="color:#444">░</span>';
         }
       }
-      var envPct = (env * 100).toFixed(0);
-      dbg.innerHTML = '[' + meter + '] ' + db.toFixed(1) + 'dB | Env:' + envPct + '% | Vowel:' + vowel;
+      dbg.innerHTML = '[' + meter + '] ' + db.toFixed(1) + 'dB | Env:' + (env * 100).toFixed(0) + '% | Vowel:' + vowel;
     }
 
     // Blink
-    var nowMs   = Date.now();
-    var minBl   = (settings.avatars && settings.avatars.blink_interval_min) || DEFAULT_BLINK_MIN;
-    var maxBl   = (settings.avatars && settings.avatars.blink_interval_max) || DEFAULT_BLINK_MAX;
-    var holdMs  = (settings.avatars && settings.avatars.mouth_hold_time)    || DEFAULT_MOUTH_HOLD;
-    var target  = 'base.png';
+    var nowMs  = Date.now();
+    var minBl  = (settings.avatars && settings.avatars.blink_interval_min) || DEFAULT_BLINK_MIN;
+    var maxBl  = (settings.avatars && settings.avatars.blink_interval_max) || DEFAULT_BLINK_MAX;
+    var holdMs = (settings.avatars && settings.avatars.mouth_hold_time)    || DEFAULT_MOUTH_HOLD;
+    var target = 'base.png';
 
     if (nowMs > blinkTimer) {
       if (!isBlinking) {
@@ -373,18 +371,12 @@
           currentMouth   = 'base.png';
           mouthHoldTimer = 0;
         }
-        img.src      = assetsDir + '/base.png?v=' + cacheKey;
-        img.onerror  = null;
+        img.src     = assetsDir + '/base.png?v=' + cacheKey;
+        img.onerror = null;
       };
     }
 
-    // Use setTimeout when hidden so animation keeps running at ~30 fps
-    // even when the OBS source is not in the active scene.
-    if (document.hidden) {
-      setTimeout(frame, 33);
-    } else {
-      requestAnimationFrame(frame);
-    }
+    if (document.hidden) { setTimeout(frame, 33); } else { requestAnimationFrame(frame); }
   }
 
   // ── Boot ─────────────────────────────────────────────────────────────────────
