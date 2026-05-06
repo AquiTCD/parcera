@@ -77,6 +77,7 @@
   // ── Mutable state ────────────────────────────────────────────────────────────
   var settings       = {};
   var cacheKey       = 0;     // bumped on every applySettings; busts asset cache
+  var flipX          = 1;     // 1 = normal, -1 = horizontal flip
   var extLipsync     = null;   // user-avatar only: {env, rawAmplitude, vowel}
   var currentMouth   = 'base.png';
   var mouthHoldTimer = 0;
@@ -199,6 +200,8 @@
       img.classList.remove('chromakey');
     }
 
+    flipX = (avatarCfg && avatarCfg.flip_horizontal) ? -1 : 1;
+
     img.removeAttribute('style');
     img.src = assetsDir + '/base.png?v=' + cacheKey;
   }
@@ -287,7 +290,7 @@
     var norm    = wave / 1.5;
     var offsetY = (norm + 1) * 0.5 * bAmp;
     var scaleV  = 1 + (Math.max(0, norm) * (bScale - 1));
-    img.style.transform = 'translateY(' + offsetY + 'px) scale(' + scaleV + ',' + scaleV + ')';
+    img.style.transform = 'scaleX(' + flipX + ') translateY(' + offsetY + 'px) scale(' + scaleV + ',' + scaleV + ')';
 
     // Lipsync state — source differs by avatar type
     var env, rmsRaw, vowel;
