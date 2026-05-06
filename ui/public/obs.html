@@ -71,6 +71,7 @@
 
   // ── Mutable state ────────────────────────────────────────────────────────────
   var settings       = {};
+  var cacheKey       = 0;     // bumped on every applySettings; busts asset cache
   var extLipsync     = null;   // user-avatar only: {env, rawAmplitude, vowel}
   var currentMouth   = 'base.png';
   var mouthHoldTimer = 0;
@@ -168,15 +169,23 @@
   // ── Settings ─────────────────────────────────────────────────────────────────
   function applySettings(s) {
     settings = s;
-    // assetsDir is fixed to the Python proxy — no file:// needed.
+    // Bump cacheKey so every asset URL gets a fresh ?v= param.
+    // This forces the browser to re-fetch sprites when assets_dir changes.
+    cacheKey = Date.now();
+
     var showDebug = !(s.avatars && s.avatars.show_debug === false);
     dbg.hidden = !showDebug;
 
-    // Reset image to base so the correct assetsDir takes effect immediately.
-    if (img.src !== assetsDir + '/base.png') {
-      img.removeAttribute('style');
-      img.src = assetsDir + '/base.png';
+    // Chroma key background (mirrors Tauri avatar window behaviour).
+    var avatarCfg = s.avatars && s.avatars[avatarType];
+    if (avatarCfg && avatarCfg.chroma_key_enabled) {
+      document.body.style.background = avatarCfg.chroma_key_color || 'green';
+    } else {
+      document.body.style.background = 'transparent';
     }
+
+    img.removeAttribute('style');
+    img.src = assetsDir + '/base.png?v=' + cacheKey;
   }
 
   function fetchSettings() {
@@ -337,8 +346,8 @@
       target = currentMouth;
     }
 
-    // Apply image
-    var newSrc = assetsDir + '/' + target;
+    // Apply image (include cacheKey so asset changes propagate after config reload)
+    var newSrc = assetsDir + '/' + target + '?v=' + cacheKey;
     var absNew = new URL(newSrc, location.href).href;
     if (img.src !== absNew) {
       img.src = newSrc;
@@ -347,7 +356,7 @@
           currentMouth   = 'base.png';
           mouthHoldTimer = 0;
         }
-        img.src      = assetsDir + '/base.png';
+        img.src      = assetsDir + '/base.png?v=' + cacheKey;
         img.onerror  = null;
       };
     }
