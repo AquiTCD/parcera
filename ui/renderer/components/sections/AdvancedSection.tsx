@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { SectionProps } from './types';
 import { FieldRow, PasswordField } from './shared';
@@ -102,11 +102,23 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const frontendPort = (settings.app as any)?.frontend_port || (port + 1);
   const isWindows = api.platform === 'win32';
 
-  // obs.html is served by the Python server (port=8676) so it does not depend
-  // on the Tauri localhost plugin. OBS loads it once; WebSocket reconnection
-  // handles Parcera restarts without a manual browser-source refresh.
-  const obsAiUrl = `http://localhost:${frontendPort}/?type=ai&obs=1`;
-  const obsUserUrl = `http://localhost:${port}/obs.html?type=user`;
+  // Fetch obs.html's file:// URI from Python so OBS can load the page even
+  // before Parcera's HTTP server is running.  The JS retry loops in obs.html
+  // then connect to WebSocket+settings once Parcera starts.
+  const [obsFileUri, setObsFileUri] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`http://localhost:${port}/config/obs-html-path`)
+      .then(r => r.json())
+      .then(d => setObsFileUri(d.file_uri as string))
+      .catch(() => {});
+  }, [port]);
+
+  const obsUserUrl = obsFileUri
+    ? `${obsFileUri}?type=user`
+    : `http://localhost:${port}/config/obs.html?type=user`;
+  const obsAiUrl = obsFileUri
+    ? `${obsFileUri}?type=ai`
+    : `http://localhost:${frontendPort}/?type=ai&obs=1`;
 
   return (
     <div className="space-y-6">
@@ -359,7 +371,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
           <ObsUrlRow label="AI アバター" url={obsAiUrl} />
           <ObsUrlRow label="User アバター" url={obsUserUrl} />
           <p className="text-xs text-muted-foreground">
-            User アバターは独立した静的ページです。Parcera を再起動しても WebSocket が自動的に再接続するため、OBS 側の手動更新は不要です。
+            ローカルファイル（<code>file://</code>）として読み込むため、OBS を先に起動しても問題ありません。Parcera の起動・再起動時に WebSocket が自動的に再接続します。OBS 側の手動更新は不要です。
           </p>
         </CardContent>
       </Card>

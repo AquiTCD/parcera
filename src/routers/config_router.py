@@ -52,6 +52,19 @@ def create_config_router(get_server):
         path = _find_obs_html()
         return HTMLResponse(content=path.read_text(encoding="utf-8"))
 
+    @router.get("/obs-html-path")
+    async def obs_html_path():
+        """
+        Return the file:// URI for obs.html.
+
+        The Tauri settings UI uses this to display a browser-source URL that
+        always resolves from the local filesystem — so OBS can load the page
+        even before Parcera's HTTP server is running.  The JS retry loops then
+        handle connecting to the WebSocket once Parcera starts.
+        """
+        path = _find_obs_html()
+        return {"file_uri": path.as_uri()}
+
     @router.get("/obs-asset/{avatar_type}/{filename}")
     async def serve_obs_asset(avatar_type: str, filename: str):
         """
