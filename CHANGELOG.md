@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-05-06 - OBS Browser Source
+
+### Added
+- **OBS Browser Source support**: Standalone `obs.html` served as `file://` URI so OBS can load the avatar page before Parcera's HTTP server starts; JS retries WebSocket connection automatically on Parcera restart — no manual OBS refresh needed
+- **AI avatar lipsync in OBS**: WebAudio `AnalyserNode` decodes TTS audio chunks received via WebSocket; spectral-centroid vowel detection (`getAIVowel`) drives mouth animation for all five Japanese vowels (u/o/a/e/i)
+- **Python avatar asset proxy**: `GET /config/obs-asset/{type}/{filename}` serves sprite images through FastAPI, bypassing `file://` mixed-content restrictions; resolves configured `assets_dir` with fallback to bundled assets
+- **`file://` URL display in settings UI**: Settings screen fetches `GET /config/obs-html-path` and shows a clickable `file://` URL for each OBS browser source, ready to paste into OBS without running Parcera first
+- **SVG chroma key filter for OBS**: `feColorMatrix` + `feComponentTransfer` filter applied via CSS class to avatar image; matches the Tauri window chroma key implementation; supports green and blue key colors
+- **`flip_horizontal` support in OBS**: Avatar image mirrored via `scaleX(-1)` in the per-frame transform, composing correctly with breathing and lip-sync transforms
+- **Asset cache-busting**: `?v={timestamp}` appended to all asset URLs on each `applySettings` call, ensuring custom avatar changes reflect immediately without OBS restart
+
+### Fixed
+- **Asset 404 in OBS**: `settings.default.yaml` stores Tauri virtual paths (e.g. `/assets/user`) that do not exist on the filesystem; asset proxy now checks `Path.is_dir()` before trusting the configured path and falls back to bundled assets
+- **AI avatar mouthing user mic audio**: OBS `obs.html` was driving the AI avatar with `user_lipsync` WebSocket events regardless of `avatarType`; branched WS message handler and animation loop by type
+- **Spectral vowel detection regression**: Initial OBS AI lipsync used only RMS amplitude (open/close); full spectral-centroid algorithm ported from `audio.ts`, matching Tauri window quality
+- **Custom assets not reflected in OBS**: Browser cache prevented proxy URL changes from taking effect; fixed with per-reload `?v={Date.now()}` cache key
+- **Chroma key showing green background**: Incorrect approach set `document.body.style.background` to the key color (opaque); reverted to CSS SVG filter that makes matched pixels transparent, matching Tauri behavior
+
+### Changed
+- **Build output separation**: Vite web output moved to `dist/web/`; DMG and `.app` bundles copied to `releases/` (gitignored); `emptyOutDir: true` no longer wipes previous release artifacts on each build
+
 ## [0.13.0] - 2026-05-05 - Gemma 4 & Multi-Model MLX Support
 
 ### Added
