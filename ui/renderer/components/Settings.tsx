@@ -63,13 +63,16 @@ export const Settings: React.FC = () => {
     setStatus({ message: '保存中...', type: '' });
     const result = await api.saveSettings(settings);
     if (result.success) {
-      // Apply avatar window visibility immediately on save
+      // Apply avatar window visibility and always-on-top on save
       const windows = settings.app?.windows;
       if (windows) {
         for (const type of ['user', 'ai'] as const) {
-          const vis = windows[type]?.visible;
-          if (vis !== undefined) {
-            await api.setWindowVisible(type, vis);
+          const win = windows[type];
+          if (win?.visible !== undefined) {
+            await api.setWindowVisible(type, win.visible);
+          }
+          if (win?.alwaysOnTop !== undefined) {
+            await api.setWindowAlwaysOnTop(type, win.alwaysOnTop);
           }
         }
       }

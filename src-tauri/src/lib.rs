@@ -115,6 +115,10 @@ pub fn run() {
                         if cfg["visible"].as_bool() == Some(false) {
                             let _ = win.hide();
                         }
+                        // Apply always-on-top if explicitly set to true
+                        if cfg["alwaysOnTop"].as_bool() == Some(true) {
+                            let _ = win.set_always_on_top(true);
+                        }
                     }
                 }
             }
@@ -139,6 +143,7 @@ pub fn run() {
             commands::windows::save_window_bounds,
             commands::windows::get_avatar_window_bounds,
             commands::windows::set_window_visible,
+            commands::windows::set_window_always_on_top,
             commands::dialogs::select_directory,
             commands::logs::get_log_history,
             commands::twitch::twitch_start_auth,
