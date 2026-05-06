@@ -83,9 +83,17 @@
   var dbg = document.getElementById('dbg');
 
   // ── AI audio playback (type=ai only) ─────────────────────────────────────────
+  // Mirror of audio.ts constants for spectral-centroid vowel detection.
+  var AI_FFT_SIZE             = 512;
+  var AI_SMOOTHING            = 0.2;
+  var AI_LOW_FREQ_CUTOFF      = 200;   // Hz — ignore rumble below this
+  var AI_SILENCE_AMP_FLOOR    = 0.001;
+  var AI_VOWEL_HZ             = { u: 600, o: 1500, a: 3000, e: 5000 };
+
   var audioCtx     = null;
   var aiAnalyser   = null;
-  var aiTimeBuf    = null;
+  var aiTimeBuf    = null;   // Float32Array(fftSize) for RMS
+  var aiFreqBuf    = null;   // Float32Array(frequencyBinCount) for vowel
   var audioQueue   = [];
   var isAIPlaying  = false;
 
@@ -93,21 +101,41 @@
     if (audioCtx) return;
     audioCtx   = new AudioContext();
     aiAnalyser = audioCtx.createAnalyser();
-    aiAnalyser.fftSize = 256;
-    aiTimeBuf  = new Uint8Array(aiAnalyser.frequencyBinCount);
+    aiAnalyser.fftSize                = AI_FFT_SIZE;
+    aiAnalyser.smoothingTimeConstant  = AI_SMOOTHING;
+    aiTimeBuf  = new Float32Array(AI_FFT_SIZE);
+    aiFreqBuf  = new Float32Array(aiAnalyser.frequencyBinCount);
     aiAnalyser.connect(audioCtx.destination);
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
   }
 
   function getAIRms() {
     if (!aiAnalyser || !aiTimeBuf) return 0;
-    aiAnalyser.getByteTimeDomainData(aiTimeBuf);
+    aiAnalyser.getFloatTimeDomainData(aiTimeBuf);
     var sum = 0;
-    for (var i = 0; i < aiTimeBuf.length; i++) {
-      var v = (aiTimeBuf[i] - 128) / 128;
-      sum += v * v;
-    }
+    for (var i = 0; i < aiTimeBuf.length; i++) sum += aiTimeBuf[i] * aiTimeBuf[i];
     return Math.sqrt(sum / aiTimeBuf.length);
+  }
+
+  function getAIVowel() {
+    if (!aiAnalyser || !aiFreqBuf) return null;
+    aiAnalyser.getFloatFrequencyData(aiFreqBuf);
+    var nyquist = audioCtx.sampleRate / 2;
+    var weightedSum = 0, totalAmp = 0;
+    for (var i = 0; i < aiFreqBuf.length; i++) {
+      var hz = (i / aiFreqBuf.length) * nyquist;
+      if (hz <= AI_LOW_FREQ_CUTOFF) continue;
+      var amp = Math.pow(10, aiFreqBuf[i] / 20); // dB → linear
+      weightedSum += amp * hz;
+      totalAmp    += amp;
+    }
+    if (totalAmp < AI_SILENCE_AMP_FLOOR) return null;
+    var centroid = weightedSum / totalAmp;
+    if (centroid < AI_VOWEL_HZ.u) return 'u';
+    if (centroid < AI_VOWEL_HZ.o) return 'o';
+    if (centroid < AI_VOWEL_HZ.a) return 'a';
+    if (centroid < AI_VOWEL_HZ.e) return 'e';
+    return 'i';
   }
 
   function playNextChunk() {
@@ -237,11 +265,12 @@
     // Lipsync state — source differs by avatar type
     var env, rmsRaw, vowel;
     if (avatarType === 'ai') {
-      // Derive lipsync from WebAudio analyser (TTS playback amplitude).
+      // Derive lipsync from WebAudio analyser (TTS playback).
+      // Mirrors audio.ts: spectral-centroid vowel detection on the live PCM stream.
       rmsRaw = getAIRms();
       env    = rmsRaw;
-      // Simple open/close: no per-vowel detection for synthetic TTS audio.
-      vowel  = env > TALK_THRESHOLD ? 'a' : '-';
+      var aiVowel = getAIVowel();
+      vowel  = (env > TALK_THRESHOLD && aiVowel) ? aiVowel : '-';
     } else {
       env    = extLipsync ? extLipsync.env          : 0;
       rmsRaw = extLipsync ? extLipsync.rawAmplitude : 0;
