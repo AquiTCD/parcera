@@ -63,6 +63,16 @@ export const Settings: React.FC = () => {
     setStatus({ message: '保存中...', type: '' });
     const result = await api.saveSettings(settings);
     if (result.success) {
+      // Apply avatar window visibility immediately on save
+      const windows = settings.app?.windows;
+      if (windows) {
+        for (const type of ['user', 'ai'] as const) {
+          const vis = windows[type]?.visible;
+          if (vis !== undefined) {
+            await api.setWindowVisible(type, vis);
+          }
+        }
+      }
       setStatus({ message: '設定を保存しました！', type: 'success' });
       setTimeout(() => setStatus({ message: '', type: '' }), 3000);
     } else {

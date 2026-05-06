@@ -36,9 +36,8 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
     });
   };
 
-  const handleVisibleChange = async (checked: boolean) => {
+  const handleVisibleChange = (checked: boolean) => {
     updateWinParam('visible', checked);
-    await api.setWindowVisible(type, checked);
   };
 
   return (
@@ -46,7 +45,7 @@ export const WindowSettingsSection: React.FC<WindowSettingsSectionProps> = ({
       <h5 className="text-sm font-semibold text-foreground">{labelPrefix}ウィンドウ</h5>
 
       <div className="flex items-center justify-between">
-        <Label className="text-sm">Tauriウィンドウを表示する</Label>
+        <Label className="text-sm">アバターウィンドウを表示する</Label>
         <Switch
           checked={isVisible}
           onCheckedChange={handleVisibleChange}
