@@ -3,6 +3,7 @@ Parcera: Configuration API Router
 
 Handles /config/reload endpoint for hot-reloading settings.
 """
+import json
 import logging
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
@@ -132,9 +133,10 @@ def create_config_router(get_server):
 
             stt_changed = new_stt_provider != server.current_stt_provider
             tts_changed = new_tts_provider != server.current_tts_provider
-            llm_changed = new_llm_provider != server.current_llm_provider
-            
-            # If ONLY LLM changed, we can try hot-reload
+            # Detect any LLM config change (provider, model, temperature, api_key, …)
+            llm_changed = json.dumps(llm_cfg, sort_keys=True) != server.current_llm_hash
+
+            # If ONLY LLM changed, hot-reload (handles provider switch, model, temperature)
             if llm_changed and not (stt_changed or tts_changed):
                 await server.reload_llm()
                 restart_required = False

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import json
 import logging
 import os
 from dataclasses import dataclass
@@ -119,6 +120,7 @@ class ParceraServer(ParceraAvatarBase):
         self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
         self.current_tts_provider = self.config.get("tts", {}).get("provider", "aivisspeech")
         self.current_llm_provider = self.config.get("llm", {}).get("provider", "gemini")
+        self.current_llm_hash = json.dumps(self.config.get("llm", {}), sort_keys=True)
 
         # Redirect all side-effect databases and files to writable directory
         db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
@@ -178,6 +180,7 @@ class ParceraServer(ParceraAvatarBase):
         self.llm = self.factory.build_llm()
         
         self.current_llm_provider = new_provider
+        self.current_llm_hash = json.dumps(self.config.get("llm", {}), sort_keys=True)
         self._sync_to_server()
         
         # Trigger warmup for local LLM
@@ -201,11 +204,31 @@ class ParceraServer(ParceraAvatarBase):
         if hasattr(self.llm, "system_prompt"):
             self.llm.system_prompt = self.config.full_system_prompt
 
+        vad_cfg = self.config.get("vad", {})
         if hasattr(self.vad, "volume_db_threshold"):
-            new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
+            new_threshold = vad_cfg.get("volume_db_threshold", -20.0)
             self.vad.volume_db_threshold = new_threshold
             if hasattr(self, "mic_analyzer") and self.mic_analyzer:
                 self.mic_analyzer.set_threshold_db(new_threshold)
+        if hasattr(self.vad, "silence_duration_threshold"):
+            self.vad.silence_duration_threshold = vad_cfg.get("silence_duration_threshold", 0.4)
+        if hasattr(self.vad, "max_duration"):
+            self.vad.max_duration = vad_cfg.get("max_duration", 15.0)
+
+        # merge_request_threshold (STS pipeline)
+        sts = getattr(self.aiavatar_server, "sts", None)
+        if sts and hasattr(sts, "merge_request_threshold"):
+            sts.merge_request_threshold = self.config.get("merge_request_threshold", 0.6)
+
+        # mic_device_id: restart MicAnalyzer only if device actually changed
+        if self.mic_analyzer:
+            new_device = self.config.get("app", {}).get("mic_device_id") or None
+            normalized = None if (not new_device or new_device == "default") else new_device
+            if normalized != self.mic_analyzer._mic_device:
+                logger.info(f"MicAnalyzer: device changed to {normalized!r}, restarting...")
+                self.mic_analyzer.stop()
+                self.mic_analyzer.set_mic_device(new_device)
+                self.mic_analyzer.start()
 
         # Update STT filters
         if hasattr(self.stt, "response_filter") and self.stt.response_filter:
