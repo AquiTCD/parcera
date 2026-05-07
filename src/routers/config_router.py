@@ -121,6 +121,22 @@ def create_config_router(get_server):
 
         return FileResponse(file_path)
 
+    @router.get("/mic-devices")
+    async def list_mic_devices():
+        """List available audio input devices via sounddevice for the settings UI."""
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            inputs = [
+                {"value": d["name"], "label": d["name"]}
+                for d in devices
+                if d.get("max_input_channels", 0) > 0
+            ]
+            return inputs
+        except Exception as e:
+            logger.warning(f"Could not enumerate mic devices: {e}")
+            return []
+
     @router.get("/settings")
     async def get_settings():
         """Return display settings for OBS Browser Source. Credentials are stripped."""

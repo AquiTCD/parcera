@@ -3,6 +3,7 @@ use crate::settings_store::parse_default_yaml;
 use crate::types::OpResult;
 use crate::AppState;
 use serde_json::Value;
+use std::time::Duration;
 use tauri::{Emitter, State};
 
 #[tauri::command]
@@ -38,9 +39,16 @@ pub async fn save_settings(
 
     let _ = app_handle.emit("settings-changed", &settings);
 
-    let restart_required = notify_python_reload(port, &settings).await;
+    // Disk save is complete. Notify Python in the background so the save
+    // response is not blocked by Python startup time or a slow reload.
+    let settings_clone = settings.clone();
+    let app_clone = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        let restart_required = notify_python_reload(port, &settings_clone).await;
+        let _ = app_clone.emit("python-reload-done", restart_required);
+    });
 
-    Ok(OpResult::ok_with_restart(restart_required))
+    Ok(OpResult::ok())
 }
 
 #[tauri::command]
@@ -66,14 +74,14 @@ pub async fn update_setting(
 
 async fn notify_python_reload(port: u16, settings: &Value) -> bool {
     let url = python_url(port, "/config/reload");
-    if let Ok(resp) = reqwest::Client::new()
-        .post(&url)
-        .json(settings)
-        .send()
-        .await
-    {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap_or_default();
+    if let Ok(resp) = client.post(&url).json(settings).send().await {
         if let Ok(body) = resp.json::<Value>().await {
-            return body.get("restart_required")
+            return body
+                .get("restart_required")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
         }
