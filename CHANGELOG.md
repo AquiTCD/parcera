@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.14.0] - 2026-05-06 - OBS Browser Source
+## [0.14.0] - 2026-05-07 - OBS Browser Source & Runtime Settings
 
 ### Added
 - **OBS Browser Source support**: Standalone `obs.html` served as `file://` URI so OBS can load the avatar page before Parcera's HTTP server starts; JS retries WebSocket connection automatically on Parcera restart — no manual OBS refresh needed
@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SVG chroma key filter for OBS**: `feColorMatrix` + `feComponentTransfer` filter applied via CSS class to avatar image; matches the Tauri window chroma key implementation; supports green and blue key colors
 - **`flip_horizontal` support in OBS**: Avatar image mirrored via `scaleX(-1)` in the per-frame transform, composing correctly with breathing and lip-sync transforms
 - **Asset cache-busting**: `?v={timestamp}` appended to all asset URLs on each `applySettings` call, ensuring custom avatar changes reflect immediately without OBS restart
+- **Python `MicAnalyzer`**: `sounddevice`-based capture runs from startup; broadcasts `user_lipsync` WebSocket events (amplitude + vowel + speaking flag) to all clients; feeds speech chunks to STT via energy-based VAD
+- **OBS User avatar lipsync via WebSocket**: User window in OBS mode subscribes to `user_lipsync` events from `MicAnalyzer` instead of running `getUserMedia`, removing the browser permission requirement
+- **Avatar window visibility toggle**: "アバターウィンドウを表示する" switch in Character Settings; when OFF, position/lock/size controls are disabled; changes applied to the Tauri window on save
+- **`alwaysOnTop` runtime control**: `set_window_always_on_top` Tauri command applies window always-on-top state immediately on save and restores it on startup
+- **Instant hot-reload for more settings**: VAD `silence_duration_threshold`, `max_duration`; STS `merge_request_threshold`; mic device (restarts `MicAnalyzer` on change); LLM model and temperature within the same provider — all take effect on save without restart
+- **"要再起動" badges on settings labels**: Muted small badges mark settings that still require a restart (STT provider/model/device/quantization, TTS provider, port, GPU acceleration)
+- **Contextual save message**: Save button shows "一部の変更は再起動後に反映されます" (8 s) when the Python reload endpoint signals `restart_required: true`, otherwise shows the standard confirmation (3 s)
+- **`tauri-plugin-localhost`**: Frontend served on a dedicated `frontend_port` (default 8677) separate from the Python backend port (8676); enables reliable OBS HTTP-mode loading
 
 ### Fixed
 - **Asset 404 in OBS**: `settings.default.yaml` stores Tauri virtual paths (e.g. `/assets/user`) that do not exist on the filesystem; asset proxy now checks `Path.is_dir()` before trusting the configured path and falls back to bundled assets
@@ -22,9 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Spectral vowel detection regression**: Initial OBS AI lipsync used only RMS amplitude (open/close); full spectral-centroid algorithm ported from `audio.ts`, matching Tauri window quality
 - **Custom assets not reflected in OBS**: Browser cache prevented proxy URL changes from taking effect; fixed with per-reload `?v={Date.now()}` cache key
 - **Chroma key showing green background**: Incorrect approach set `document.body.style.background` to the key color (opaque); reverted to CSS SVG filter that makes matched pixels transparent, matching Tauri behavior
+- **Double USER log per utterance**: `on_recognized_callback` was assigned redundantly; when `MicAnalyzer` called `stt.recognize()` the STT fired the callback internally, then `_handle_stt_audio` also called `controller.on_recognized()`, logging every utterance twice
+- **MicAnalyzer early flush losing next utterance**: VAD early flush (after `MAX_SPEECH_CHUNKS`) cleared buffer and count but left `_is_speaking=True`; the next silence chunk immediately entered the post-speech handler against a zero-length buffer, silently discarding trailing audio
+- **`merge_request_threshold` default mismatch**: Constructor used `3.0` s as fallback while `apply_runtime_config` used `0.6` s (matching `settings.default.yaml`); now consistently `0.6` s
+- **Credential leak via OBS settings endpoint**: `GET /config/settings` returned the full raw settings dict including LLM/STT/TTS API keys and Twitch `client_secret`; credentials are now stripped before the response is sent
 
 ### Changed
 - **Build output separation**: Vite web output moved to `dist/web/`; DMG and `.app` bundles copied to `releases/` (gitignored); `emptyOutDir: true` no longer wipes previous release artifacts on each build
+- **`alwaysOnTop` setting now applied at runtime**: Previously saved to YAML but never acted upon; now applied via Tauri command on save and restored on startup
 
 ## [0.13.0] - 2026-05-05 - Gemma 4 & Multi-Model MLX Support
 
