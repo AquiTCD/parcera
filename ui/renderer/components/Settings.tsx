@@ -74,18 +74,22 @@ export const Settings: React.FC = () => {
   const handleSave = useCallback(async () => {
     if (!settings) return;
     setStatus({ message: '保存中...', type: '' });
-    const result = await api.saveSettings(settings);
-    if (result.success) {
-      // Apply avatar window visibility and always-on-top on save
+    try {
+      const result = await api.saveSettings(settings);
+      if (!result.success) {
+        setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
+        return;
+      }
+      // Apply avatar window visibility and always-on-top on save (fire-and-forget)
       const windows = settings.app?.windows;
       if (windows) {
         for (const type of ['user', 'ai'] as const) {
           const win = windows[type];
           if (win?.visible !== undefined) {
-            await api.setWindowVisible(type, win.visible);
+            api.setWindowVisible(type, win.visible).catch((e) => console.error('setWindowVisible failed:', e));
           }
           if (win?.alwaysOnTop !== undefined) {
-            await api.setWindowAlwaysOnTop(type, win.alwaysOnTop);
+            api.setWindowAlwaysOnTop(type, win.alwaysOnTop).catch((e) => console.error('setWindowAlwaysOnTop failed:', e));
           }
         }
       }
@@ -93,8 +97,8 @@ export const Settings: React.FC = () => {
       setStatus({ message: '設定を保存しました！', type: 'success' });
       // python-reload-done event (via useEffect) will update this if restart is needed
       statusTimerRef.current = setTimeout(() => setStatus({ message: '', type: '' }), 3000);
-    } else {
-      setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
+    } catch (e) {
+      setStatus({ message: '保存エラー: ' + String(e), type: 'error' });
     }
   }, [settings]);
 
