@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, isObs } from '../api';
 import { state, logStatus } from '../state';
 import type { AvatarConfig, ParceraSettings } from '../state';
 import { initAudioContext, getContext, setNoiseGateDb } from '../audio';
 import { initVisual } from '../visual';
 import { startWebSocket, startLipsyncWebSocket, startObsServerWatcher } from '../comm';
 
-const _isObs = new URLSearchParams(window.location.search).get('obs') === '1';
+const _isObs = isObs;
 
 export function useAvatar() {
   const avatarImageRef = useRef<HTMLImageElement>(null);

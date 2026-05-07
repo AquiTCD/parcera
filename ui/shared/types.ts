@@ -131,6 +131,7 @@ export interface VADSettings {
 
 export interface AppSettings {
   port?: number;
+  frontend_port?: number;
   ai_audio_sample_rate?: number;
   gpu_acceleration?: boolean;
   mic_device_id?: string;            // Selected microphone device ID

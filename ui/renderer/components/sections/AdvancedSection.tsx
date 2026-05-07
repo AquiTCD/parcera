@@ -99,7 +99,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
   const port = settings.app?.port || 8676;
-  const frontendPort = (settings.app as any)?.frontend_port || (port + 1);
+  const frontendPort = settings.app?.frontend_port ?? (port + 1);
   const isWindows = api.platform === 'win32';
 
   // Fetch obs.html's file:// URI from Python so OBS can load the page even
