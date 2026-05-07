@@ -138,7 +138,7 @@ class ParceraServer(ParceraAvatarBase):
             session_state_manager=session_state_manager,
             performance_recorder=performance_recorder,
             voice_recorder_dir=voices_dir,
-            merge_request_threshold=self.config.get("merge_request_threshold", 3.0),
+            merge_request_threshold=self.config.get("merge_request_threshold", 0.6),
             debug=self.config.verbose,
             voice_recorder_enabled=False
         )
@@ -188,6 +188,15 @@ class ParceraServer(ParceraAvatarBase):
             asyncio.create_task(self.llm.warmup())
             
         logger.info(f"LLM reloaded: {type(self.llm).__name__}")
+
+    async def _broadcast_json(self, data: dict) -> None:
+        """Broadcast a JSON message to all real WebSocket clients (skip internal bridges)."""
+        for sid, ws in self.aiavatar_server.websockets.items():
+            if sid != TWITCH_SESSION_ID:
+                try:
+                    await ws.send_json(data)
+                except Exception:
+                    pass
 
     def _sync_to_server(self):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""
@@ -291,14 +300,6 @@ async def lifespan(app: FastAPI):
     # Start MicAnalyzer for Python-side audio capture (STT + OBS lipsync broadcast)
     loop = asyncio.get_running_loop()
 
-    async def _broadcast_user_lipsync(event: dict) -> None:
-        for sid, ws in parcera_server.aiavatar_server.websockets.items():
-            if sid != TWITCH_SESSION_ID:
-                try:
-                    await ws.send_json(event)
-                except Exception:
-                    pass
-
     async def _handle_stt_audio(audio_data: bytes) -> None:
         try:
             result = await parcera_server.stt.recognize("parcera-mic-session", audio_data)
@@ -321,19 +322,14 @@ async def lifespan(app: FastAPI):
                 msg: dict = {"type": r.type, "text": r.text}
                 if r.audio_data:
                     msg["audio_data"] = base64.b64encode(r.audio_data).decode()
-                for sid, ws in parcera_server.aiavatar_server.websockets.items():
-                    if sid != TWITCH_SESSION_ID:
-                        try:
-                            await ws.send_json(msg)
-                        except Exception:
-                            pass
+                await parcera_server._broadcast_json(msg)
                 if r.type == "final":
                     await parcera_server.controller.on_response(_STSResponseAdapter(session_id), r)
         except Exception as e:
             logger.error(f"MicAnalyzer STT error: {e}", exc_info=True)
 
     mic = MicAnalyzer(loop)
-    mic.set_broadcast_callback(_broadcast_user_lipsync)
+    mic.set_broadcast_callback(parcera_server._broadcast_json)
     mic.set_stt_callback(_handle_stt_audio)
 
     vad_cfg = settings.get("vad", {})
