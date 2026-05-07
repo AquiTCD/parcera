@@ -140,6 +140,8 @@ class MicAnalyzer:
                     logger.debug(f"VAD: forced early flush after {self._speech_chunk_count} chunks")
                     asyncio.run_coroutine_threadsafe(self._stt_callback(audio_data), self._loop)
                     self._vad_buffer = []
+                    self._is_speaking = False
+                    self._silence_count = 0
                     self._speech_chunk_count = 0
             elif self._is_speaking:
                 self._vad_buffer.append(audio_int16.tobytes())
