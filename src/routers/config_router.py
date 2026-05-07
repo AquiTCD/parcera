@@ -11,7 +11,20 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/config", tags=["Config"])
+_SENSITIVE_PROVIDER_KEYS = frozenset({"api_key", "client_secret"})
+
+
+def _strip_credentials(settings: dict) -> dict:
+    """Return a deep copy of settings with all credential fields removed."""
+    import copy
+    safe = copy.deepcopy(settings)
+    for section in ("llm", "stt", "tts"):
+        for provider_cfg in safe.get(section, {}).get("providers", {}).values():
+            if isinstance(provider_cfg, dict):
+                for k in _SENSITIVE_PROVIDER_KEYS:
+                    provider_cfg.pop(k, None)
+    safe.pop("twitch", None)
+    return safe
 
 
 def _find_obs_html() -> Path:
@@ -40,7 +53,8 @@ def _find_bundled_assets(avatar_type: str) -> Path | None:
 
 
 def create_config_router(get_server):
-    """Create the config router with a server accessor to avoid circular imports."""
+    """Create a fresh config router with a server accessor to avoid circular imports."""
+    router = APIRouter(prefix="/config", tags=["Config"])
 
     @router.get("/obs.html", response_class=HTMLResponse)
     async def obs_page():
@@ -109,9 +123,9 @@ def create_config_router(get_server):
 
     @router.get("/settings")
     async def get_settings():
-        """Return all settings as JSON. Used by OBS Browser Source (no Tauri IPC available)."""
+        """Return display settings for OBS Browser Source. Credentials are stripped."""
         server = get_server()
-        return server.config.settings
+        return _strip_credentials(server.config.settings)
 
     @router.post("/reload")
     async def reload_config(request: Request):
