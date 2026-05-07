@@ -67,7 +67,10 @@ pub async fn update_setting(
 
     let _ = app_handle.emit("settings-changed", &all_settings);
 
-    notify_python_reload(port, &all_settings).await;
+    let settings_for_bg = all_settings.clone();
+    tauri::async_runtime::spawn(async move {
+        notify_python_reload(port, &settings_for_bg).await;
+    });
 
     Ok(OpResult::ok())
 }

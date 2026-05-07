@@ -52,7 +52,10 @@ export const Settings: React.FC = () => {
         statusTimerRef.current = setTimeout(() => setStatus({ message: '', type: '' }), 8000);
       }
     });
-    return () => { unlisten.then((fn) => fn()); };
+    return () => {
+      unlisten.then((fn) => fn());
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
   }, []);
 
   const handleRestoreDefaults = useCallback(() => {
