@@ -19,6 +19,7 @@ class TwitchClient:
         AuthScope.CHAT_EDIT,
         AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
         AuthScope.MODERATION_READ,
+        AuthScope.MODERATOR_READ_FOLLOWERS,
         AuthScope.BITS_READ,
         AuthScope.CHANNEL_READ_REDEMPTIONS
     ]
@@ -219,21 +220,9 @@ class TwitchClient:
         # Some versions pass the session object as first arg
         session_id = getattr(self.eventsub, "session_id", "Unknown")
         if session_id == "Unknown" and args:
-            # Try to grab ID from the first argument if it's there
             session_id = getattr(args[0], "session_id", "Unknown")
 
         logger.info(f"Twitch EventSub Connection Ready! Session ID: {session_id}")
-        
-        try:
-            user = await self.get_me()
-            if user:
-                logger.debug(f"Twitch: Registering subscriptions in on_ready for {user.display_name}...")
-                await self.eventsub.listen_channel_raid(self._on_raid, to_broadcaster_user_id=user.id)
-                await self.eventsub.listen_channel_follow_v2(user.id, user.id, self._on_follow)
-                await self.eventsub.listen_channel_subscribe(user.id, self._on_subscribe)
-                logger.info("Twitch: Subscriptions registered successfully via on_ready.")
-        except Exception as e:
-            logger.error(f"Failed to register subscriptions in on_ready: {e}", exc_info=True)
 
     async def _on_eventsub_error(self, event_id: str, message: str):
         """Called when EventSub encountered an error."""
