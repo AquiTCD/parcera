@@ -15,6 +15,15 @@ const mockMediaDevices = {
 };
 vi.stubGlobal('navigator', { ...navigator, mediaDevices: mockMediaDevices });
 
+vi.mock('../lib/comm', () => ({
+  startWebSocket: vi.fn(),
+  startLipsyncWebSocket: vi.fn(),
+  buildWsUrl: vi.fn((port: number) => `ws://127.0.0.1:${port}/ws`),
+  buildServerUrl: vi.fn((port: number, path: string) => `http://127.0.0.1:${port}${path}`),
+  DEFAULT_PORT: 8676,
+  setupMicStreaming: vi.fn(),
+}));
+
 vi.mock('../lib/audio', () => ({
   initAudioContext: vi.fn(),
   getContext: vi.fn(() => ({
@@ -36,6 +45,9 @@ vi.mock('../lib/audio', () => ({
   getEnvelope: vi.fn(() => 0),
   getRMS: vi.fn(() => 0),
   getVowel: vi.fn(() => null),
+  getExternalLipsync: vi.fn(() => null),
+  setExternalLipsync: vi.fn(),
+  clearExternalLipsync: vi.fn(),
   TALK_THRESHOLD: 0.05,
 }));
 
@@ -179,7 +191,11 @@ describe('Avatar Component', () => {
     }));
   });
 
-  it('requests specific microphone device when configured', async () => {
+  it('uses Python lipsync WS for user window (no getUserMedia)', async () => {
+    // User Window now delegates to Python MicAnalyzer via startLipsyncWebSocket.
+    // getUserMedia is no longer called for the user avatar.
+    const { startLipsyncWebSocket } = await import('../lib/comm');
+
     vi.mocked(api.getSettings).mockResolvedValue({
       app: { mic_device_id: 'special-mic' },
       avatars: { user: { assets_dir: '/test' } }
@@ -191,15 +207,12 @@ describe('Avatar Component', () => {
     render(<Avatar />);
 
     await waitFor(() => {
-      expect(mockGetUserMedia).toHaveBeenCalledWith(expect.objectContaining({
-        audio: expect.objectContaining({
-          deviceId: { exact: 'special-mic' }
-        })
-      }));
+      expect(vi.mocked(startLipsyncWebSocket)).toHaveBeenCalled();
+      expect(mockGetUserMedia).not.toHaveBeenCalled();
     });
   });
 
-  it('uses default microphone when no specific id is set', async () => {
+  it('does not call getUserMedia for user window', async () => {
     vi.mocked(api.getSettings).mockResolvedValue({
       app: { mic_device_id: 'default' },
       avatars: { user: { assets_dir: '/test' } }
@@ -211,11 +224,8 @@ describe('Avatar Component', () => {
     render(<Avatar />);
 
     await waitFor(() => {
-      expect(mockGetUserMedia).toHaveBeenCalledWith(expect.objectContaining({
-        audio: expect.not.objectContaining({
-          deviceId: expect.anything()
-        })
-      }));
+      expect(mockGetUserMedia).not.toHaveBeenCalled();
     });
+
   });
 });

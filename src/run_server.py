@@ -1,6 +1,9 @@
 import asyncio
+import base64
+import json
 import logging
 import os
+from dataclasses import dataclass
 
 # Suppress transformers "PyTorch was not found" warning (we use MLX, not PyTorch)
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
@@ -11,6 +14,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from aiavatar.adapter.websocket.server import AIAvatarWebSocketServer
+from aiavatar.sts.models import STSRequest
 from aiavatar.sts.session_state_manager import SQLiteSessionStateManager
 from aiavatar.sts.performance_recorder.sqlite import SQLitePerformanceRecorder
 from core.avatar import ParceraAvatarBase
@@ -26,7 +30,14 @@ from services.twitch_service import TwitchService
 from services.training_service import TrainingService
 
 from core.interaction import InteractionController
+from core.mic_analyzer import MicAnalyzer
 from core.constants import TWITCH_SESSION_ID, DEFAULT_UVICORN_PORT, DEFAULT_UVICORN_HOST
+
+
+@dataclass
+class _STSResponseAdapter:
+    """Minimal adapter satisfying InteractionController.on_response's aiavatar_response argument."""
+    session_id: str
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +77,7 @@ class ParceraServer(ParceraAvatarBase):
         self.tts_engine_manager = None
         self._warmup_task: Optional[asyncio.Task] = None
         self._twitch_task: Optional[asyncio.Task] = None
+        self.mic_analyzer: Optional[MicAnalyzer] = None
 
         # Interaction Controller (Orchestrates the pipeline)
         self.controller = InteractionController(self, self.config)
@@ -108,6 +120,7 @@ class ParceraServer(ParceraAvatarBase):
         self.current_stt_provider = self.config.get("stt", {}).get("provider", "faster_whisper")
         self.current_tts_provider = self.config.get("tts", {}).get("provider", "aivisspeech")
         self.current_llm_provider = self.config.get("llm", {}).get("provider", "gemini")
+        self.current_llm_hash = json.dumps(self.config.get("llm", {}), sort_keys=True)
 
         # Redirect all side-effect databases and files to writable directory
         db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
@@ -125,14 +138,14 @@ class ParceraServer(ParceraAvatarBase):
             session_state_manager=session_state_manager,
             performance_recorder=performance_recorder,
             voice_recorder_dir=voices_dir,
-            merge_request_threshold=self.config.get("merge_request_threshold", 3.0),
+            merge_request_threshold=self.config.get("merge_request_threshold", 0.6),
             debug=self.config.verbose,
             voice_recorder_enabled=False
         )
 
-        # Attach callbacks to controller
-        if hasattr(self.stt, "on_recognized_callback"):
-            self.stt.on_recognized_callback = self.controller.on_recognized
+        # Attach response callback; STT recognition is handled exclusively by MicAnalyzer.
+        # Do NOT set on_recognized_callback here — stt.recognize() would call it internally,
+        # causing a double on_recognized invocation alongside the explicit call in _handle_stt_audio.
         self.aiavatar_server.on_response(self.controller.on_response)
 
         # Initial sync
@@ -167,6 +180,7 @@ class ParceraServer(ParceraAvatarBase):
         self.llm = self.factory.build_llm()
         
         self.current_llm_provider = new_provider
+        self.current_llm_hash = json.dumps(self.config.get("llm", {}), sort_keys=True)
         self._sync_to_server()
         
         # Trigger warmup for local LLM
@@ -175,11 +189,17 @@ class ParceraServer(ParceraAvatarBase):
             
         logger.info(f"LLM reloaded: {type(self.llm).__name__}")
 
+    async def _broadcast_json(self, data: dict) -> None:
+        """Broadcast a JSON message to all real WebSocket clients (skip internal bridges)."""
+        for sid, ws in self.aiavatar_server.websockets.items():
+            if sid != TWITCH_SESSION_ID:
+                try:
+                    await ws.send_json(data)
+                except Exception:
+                    pass
+
     def _sync_to_server(self):
         """Update components and specific settings on the server instance (useful after hot-swapping)."""
-        if hasattr(self.stt, "on_recognized_callback"):
-            self.stt.on_recognized_callback = self.controller.on_recognized
-
         # Register/Ensure an internal bridge for Twitch responses
         self.aiavatar_server.websockets[TWITCH_SESSION_ID] = InternalWebSocket(self.aiavatar_server)
 
@@ -193,9 +213,31 @@ class ParceraServer(ParceraAvatarBase):
         if hasattr(self.llm, "system_prompt"):
             self.llm.system_prompt = self.config.full_system_prompt
 
+        vad_cfg = self.config.get("vad", {})
         if hasattr(self.vad, "volume_db_threshold"):
-            new_threshold = self.config.get("vad", {}).get("volume_db_threshold", -20.0)
+            new_threshold = vad_cfg.get("volume_db_threshold", -20.0)
             self.vad.volume_db_threshold = new_threshold
+            if hasattr(self, "mic_analyzer") and self.mic_analyzer:
+                self.mic_analyzer.set_threshold_db(new_threshold)
+        if hasattr(self.vad, "silence_duration_threshold"):
+            self.vad.silence_duration_threshold = vad_cfg.get("silence_duration_threshold", 0.4)
+        if hasattr(self.vad, "max_duration"):
+            self.vad.max_duration = vad_cfg.get("max_duration", 15.0)
+
+        # merge_request_threshold (STS pipeline)
+        sts = getattr(self.aiavatar_server, "sts", None)
+        if sts and hasattr(sts, "merge_request_threshold"):
+            sts.merge_request_threshold = self.config.get("merge_request_threshold", 0.6)
+
+        # mic_device_id: restart MicAnalyzer only if device actually changed
+        if self.mic_analyzer:
+            new_device = self.config.get("app", {}).get("mic_device_id") or None
+            normalized = None if (not new_device or new_device == "default") else new_device
+            if normalized != self.mic_analyzer._mic_device:
+                logger.info(f"MicAnalyzer: device changed to {normalized!r}, restarting...")
+                self.mic_analyzer.stop()
+                self.mic_analyzer.set_mic_device(new_device)
+                self.mic_analyzer.start()
 
         # Update STT filters
         if hasattr(self.stt, "response_filter") and self.stt.response_filter:
@@ -255,9 +297,52 @@ async def lifespan(app: FastAPI):
     parcera_server._warmup_task = asyncio.create_task(parcera_server.warmup())
     parcera_server._twitch_task = asyncio.create_task(parcera_server.twitch_service.process_queue())
 
+    # Start MicAnalyzer for Python-side audio capture (STT + OBS lipsync broadcast)
+    loop = asyncio.get_running_loop()
+
+    async def _handle_stt_audio(audio_data: bytes) -> None:
+        try:
+            result = await parcera_server.stt.recognize("parcera-mic-session", audio_data)
+            if not result.text:
+                return
+
+            text = result.text
+            logger.info(f"MicAnalyzer STT recognized: '{text}'")
+
+            # Use the standard AI session so thinking/response signals reach the UI
+            session_id = "parcera-session"
+            accepted = await parcera_server.controller.on_recognized(session_id, text)
+            if not accepted:
+                return
+
+            # Invoke STS pipeline (LLM → TTS) and broadcast each chunk to all UI clients
+            async for r in parcera_server.aiavatar_server.sts.invoke(
+                STSRequest(text=text, session_id=session_id)
+            ):
+                msg: dict = {"type": r.type, "text": r.text}
+                if r.audio_data:
+                    msg["audio_data"] = base64.b64encode(r.audio_data).decode()
+                await parcera_server._broadcast_json(msg)
+                if r.type == "final":
+                    await parcera_server.controller.on_response(_STSResponseAdapter(session_id), r)
+        except Exception as e:
+            logger.error(f"MicAnalyzer STT error: {e}", exc_info=True)
+
+    mic = MicAnalyzer(loop)
+    mic.set_broadcast_callback(parcera_server._broadcast_json)
+    mic.set_stt_callback(_handle_stt_audio)
+
+    vad_cfg = settings.get("vad", {})
+    mic.set_threshold_db(vad_cfg.get("volume_db_threshold", -20.0))
+    mic.set_mic_device(settings.get("app", {}).get("mic_device_id"))
+    mic.start()
+    parcera_server.mic_analyzer = mic
+
     yield
 
     # Shutdown
+    if parcera_server.mic_analyzer:
+        parcera_server.mic_analyzer.stop()
     if hasattr(parcera_server, '_warmup_task'): parcera_server._warmup_task.cancel()
     if hasattr(parcera_server, '_twitch_task'): parcera_server._twitch_task.cancel()
     await parcera_server.cleanup()

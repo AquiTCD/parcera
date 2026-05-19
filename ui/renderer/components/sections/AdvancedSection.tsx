@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { SectionProps } from './types';
 import { FieldRow, PasswordField } from './shared';
@@ -58,6 +58,19 @@ const OptionalPackageCheck: React.FC<{ provider: OptionalSTTProvider; port: numb
   );
 };
 
+const ObsUrlRow: React.FC<{ label: string; url: string }> = ({ label, url }) => {
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(url);
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <Label className="w-28 shrink-0 text-xs">{label}</Label>
+      <code className="flex-1 truncate rounded bg-muted px-2 py-1 text-xs font-mono">{url}</code>
+      <Button variant="outline" size="sm" onClick={handleCopy}>コピー</Button>
+    </div>
+  );
+};
+
 export const AdvancedSection: React.FC<SectionProps> = ({
   settings,
   defaultSettings,
@@ -86,7 +99,26 @@ export const AdvancedSection: React.FC<SectionProps> = ({
   const currentSTTProvider = settings.stt?.provider || 'moonshine';
   const currentTTSProvider = settings.tts?.provider || 'aivisspeech';
   const port = settings.app?.port || 8676;
+  const frontendPort = settings.app?.frontend_port ?? (port + 1);
   const isWindows = api.platform === 'win32';
+
+  // Fetch obs.html's file:// URI from Python so OBS can load the page even
+  // before Parcera's HTTP server is running.  The JS retry loops in obs.html
+  // then connect to WebSocket+settings once Parcera starts.
+  const [obsFileUri, setObsFileUri] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`http://localhost:${port}/config/obs-html-path`)
+      .then(r => r.json())
+      .then(d => setObsFileUri(d.file_uri as string))
+      .catch(() => {});
+  }, [port]);
+
+  const obsUserUrl = obsFileUri
+    ? `${obsFileUri}?type=user`
+    : `http://localhost:${port}/config/obs.html?type=user`;
+  const obsAiUrl = obsFileUri
+    ? `${obsFileUri}?type=ai`
+    : `http://localhost:${frontendPort}/?type=ai&obs=1`;
 
   return (
     <div className="space-y-6">
@@ -208,7 +240,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
           <div className="space-y-4">
             <h4 className="text-sm font-semibold border-b border-border pb-2">STT</h4>
 
-            <FieldRow label="プロバイダー">
+            <FieldRow label="プロバイダー" restartRequired>
               <Select
                 value={settings.stt?.provider ?? 'moonshine'}
                 onValueChange={(val) => updateNested('stt', 'provider', val)}
@@ -234,7 +266,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
 
             {currentSTTProvider === 'faster_whisper' && (
               <>
-                <FieldRow label="モデル（HuggingFace形式）">
+                <FieldRow label="モデル（HuggingFace形式）" restartRequired>
                   <Input
                     value={settings.stt?.providers?.faster_whisper?.model ?? ''}
                     onChange={(e) => updateProvider('stt', 'faster_whisper', 'model', e.target.value)}
@@ -242,7 +274,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                   />
                 </FieldRow>
                 <div className="grid grid-cols-2 gap-4">
-                  <FieldRow label="演算デバイス">
+                  <FieldRow label="演算デバイス" restartRequired>
                     <Select
                       value={settings.stt?.providers?.faster_whisper?.device ?? 'auto'}
                       onValueChange={(v) => updateProvider('stt', 'faster_whisper', 'device', v)}
@@ -255,7 +287,7 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                       </SelectContent>
                     </Select>
                   </FieldRow>
-                  <FieldRow label="量子化">
+                  <FieldRow label="量子化" restartRequired>
                     <Select
                       value={settings.stt?.providers?.faster_whisper?.compute_type ?? 'default'}
                       onValueChange={(v) => updateProvider('stt', 'faster_whisper', 'compute_type', v)}
@@ -326,6 +358,23 @@ export const AdvancedSection: React.FC<SectionProps> = ({
           setStatus={setStatus}
         />
       )}
+
+      {/* OBS Browser Source */}
+      <Card>
+        <CardHeader>
+          <CardTitle>OBS Browser Source URL</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            OBS の「ブラウザソース」に以下の URL を貼り付けることで、ウィンドウキャプチャなしにアバターを配信へ組み込めます。
+          </p>
+          <ObsUrlRow label="AI アバター" url={obsAiUrl} />
+          <ObsUrlRow label="User アバター" url={obsUserUrl} />
+          <p className="text-xs text-muted-foreground">
+            ローカルファイル（<code>file://</code>）として読み込むため、OBS を先に起動しても問題ありません。Parcera の起動・再起動時に WebSocket が自動的に再接続します。OBS 側の手動更新は不要です。
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 };

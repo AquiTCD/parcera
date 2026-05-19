@@ -10,7 +10,7 @@ export type TwitchStatus = {
   session_id?: string;
 };
 
-export type OpResult = { success: boolean; error?: string };
+export type OpResult = { success: boolean; error?: string; restart_required?: boolean };
 
 export type DownloadProgress = {
   status: 'downloading' | 'complete' | 'error';
@@ -43,6 +43,8 @@ export interface ParceraAPI {
   getWindowBounds(): Promise<Rect | null>;
   saveWindowBounds(type: 'user' | 'ai'): Promise<OpResult>;
   getAvatarWindowBounds(type: 'user' | 'ai'): Promise<Rect | null>;
+  setWindowVisible(type: 'user' | 'ai', visible: boolean): Promise<void>;
+  setWindowAlwaysOnTop(type: 'user' | 'ai', alwaysOnTop: boolean): Promise<void>;
 
   // FS / Dialog
   selectDirectory(currentPath?: string): Promise<string | null>;

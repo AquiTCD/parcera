@@ -50,6 +50,34 @@ pub async fn get_avatar_window_bounds(
     }))
 }
 
+#[tauri::command]
+pub async fn set_window_always_on_top(
+    app_handle: tauri::AppHandle,
+    window_type: String,
+    always_on_top: bool,
+) -> Result<(), String> {
+    if let Some(win) = app_handle.get_webview_window(&window_type) {
+        win.set_always_on_top(always_on_top).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_window_visible(
+    app_handle: tauri::AppHandle,
+    window_type: String,
+    visible: bool,
+) -> Result<(), String> {
+    if let Some(win) = app_handle.get_webview_window(&window_type) {
+        if visible {
+            win.show().map_err(|e| e.to_string())?;
+        } else {
+            win.hide().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::types::Rect;

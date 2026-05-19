@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
+import { listen } from '@tauri-apps/api/event';
 import type { ParceraSettings } from '../../shared/types';
 import { useSettingsState } from '../lib/hooks/useSettingsState';
 import { SidebarLayout } from './layout/SidebarLayout';
@@ -36,11 +37,26 @@ export const Settings: React.FC = () => {
     type: '',
   });
   const [activeSection, setActiveSection] = useState('character');
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     api.getSettings().then(setSettings);
     api.getDefaultSettings().then(setDefaultSettings);
   }, [setSettings]);
+
+  useEffect(() => {
+    const unlisten = listen<boolean>('python-reload-done', (event) => {
+      if (event.payload) {
+        setStatus({ message: '設定を保存しました。一部の変更は再起動後に反映されます。', type: 'success' });
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+        statusTimerRef.current = setTimeout(() => setStatus({ message: '', type: '' }), 8000);
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, []);
 
   const handleRestoreDefaults = useCallback(() => {
     const label = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? activeSection;
@@ -61,12 +77,31 @@ export const Settings: React.FC = () => {
   const handleSave = useCallback(async () => {
     if (!settings) return;
     setStatus({ message: '保存中...', type: '' });
-    const result = await api.saveSettings(settings);
-    if (result.success) {
+    try {
+      const result = await api.saveSettings(settings);
+      if (!result.success) {
+        setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
+        return;
+      }
+      // Apply avatar window visibility and always-on-top on save (fire-and-forget)
+      const windows = settings.app?.windows;
+      if (windows) {
+        for (const type of ['user', 'ai'] as const) {
+          const win = windows[type];
+          if (win?.visible !== undefined) {
+            api.setWindowVisible(type, win.visible).catch((e) => console.error('setWindowVisible failed:', e));
+          }
+          if (win?.alwaysOnTop !== undefined) {
+            api.setWindowAlwaysOnTop(type, win.alwaysOnTop).catch((e) => console.error('setWindowAlwaysOnTop failed:', e));
+          }
+        }
+      }
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
       setStatus({ message: '設定を保存しました！', type: 'success' });
-      setTimeout(() => setStatus({ message: '', type: '' }), 3000);
-    } else {
-      setStatus({ message: '保存エラー: ' + result.error, type: 'error' });
+      // python-reload-done event (via useEffect) will update this if restart is needed
+      statusTimerRef.current = setTimeout(() => setStatus({ message: '', type: '' }), 3000);
+    } catch (e) {
+      setStatus({ message: '保存エラー: ' + String(e), type: 'error' });
     }
   }, [settings]);
 

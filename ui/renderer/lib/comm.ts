@@ -2,11 +2,13 @@
  * Parcera: Communication Manager
  *
  * WebSocket connection to the Python AI server, microphone streaming
- * (PCM via AudioWorklet → Base64), and sequential audio playback queue.
+ * (PCM via AudioWorklet → Base64), sequential audio playback queue,
+ * and OBS user-avatar lipsync WS subscription.
  */
 import { state, logStatus } from './state';
 import type { ServerMessage } from './state';
-import { getContext, getAnalyser, connectToAnalyser } from './audio';
+import { getContext, getAnalyser, connectToAnalyser, setExternalLipsync, clearExternalLipsync } from './audio';
+import type { Vowel } from './audio';
 import processorUrl from './pcm-processor.js?url';
 
 // --- Constants ---
@@ -255,6 +257,87 @@ let currentWorkletNode: AudioWorkletNode | null = null;
 // while `await addModule` is pending, the older call self-aborts after the
 // await rather than creating a stale worklet that double-sends PCM to Python.
 let micSetupGen = 0;
+
+// =====================
+// OBS Server Watcher
+// =====================
+
+/**
+ * In OBS browser-source mode, poll the Python server health endpoint.
+ * When the server goes down and comes back (i.e. Parcera was restarted),
+ * reload the page so every WebSocket and settings fetch starts fresh.
+ *
+ * The watcher runs for the lifetime of the page — no cleanup needed.
+ */
+export function startObsServerWatcher(): void {
+  const port = state.settings.app?.port || DEFAULT_PORT;
+  let wasDown = false;
+
+  const tick = async () => {
+    const healthy = await checkServerHealth(port);
+    if (!healthy) {
+      wasDown = true;
+    } else if (wasDown) {
+      // Server just recovered — reload to re-init WS, settings, and audio.
+      location.reload();
+      return;
+    }
+    setTimeout(tick, 3000);
+  };
+
+  // Kick off the first check after a short delay to avoid racing with startup.
+  setTimeout(tick, 5000);
+}
+
+// =====================
+// OBS User Lipsync WebSocket
+// =====================
+let lipsyncSocket: WebSocket | null = null;
+
+/**
+ * Open a WebSocket session for OBS user-avatar mode.
+ * Subscribes to ``user_lipsync`` events from Python MicAnalyzer and feeds
+ * them into the external lipsync override in audio.ts so visual.ts can
+ * drive mouth animation without a browser mic.
+ */
+export function startLipsyncWebSocket(): void {
+  const port = state.settings.app?.port || DEFAULT_PORT;
+  const wsUrl = buildWsUrl(port);
+
+  if (lipsyncSocket && (lipsyncSocket.readyState === WebSocket.OPEN || lipsyncSocket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  lipsyncSocket = new WebSocket(wsUrl);
+
+  lipsyncSocket.onopen = () => {
+    logStatus('OBS Lipsync Connected');
+    const sessionId = `lipsync-${Math.random().toString(36).slice(2, 9)}`;
+    lipsyncSocket?.send(JSON.stringify({ type: 'start', session_id: sessionId }));
+  };
+
+  lipsyncSocket.onmessage = (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data as string);
+      if (data.type === 'user_lipsync') {
+        const vowel = (data.vowel as Vowel) || null;
+        const amplitude = typeof data.amplitude === 'number' ? data.amplitude : 0;
+        const speaking = typeof data.speaking === 'boolean' ? data.speaking : false;
+        setExternalLipsync(vowel, amplitude, speaking);
+      }
+    } catch { /* skip malformed */ }
+  };
+
+  lipsyncSocket.onclose = () => {
+    clearExternalLipsync(); // stop mouth animation while disconnected
+    logStatus('OBS Lipsync Disconnected');
+    setTimeout(startLipsyncWebSocket, 3000);
+  };
+
+  lipsyncSocket.onerror = () => {
+    logStatus('OBS Lipsync Error');
+  };
+}
 
 export async function setupMicStreaming(source: MediaStreamAudioSourceNode): Promise<void> {
   const audioContext = getContext();

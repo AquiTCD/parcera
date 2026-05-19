@@ -221,7 +221,7 @@ export const CharacterSection: React.FC<SectionProps> = ({
           <CardTitle>声</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <FieldRow label="TTSプロバイダー">
+          <FieldRow label="TTSプロバイダー" restartRequired>
             <Select
               value={settings.tts?.provider || 'aivisspeech'}
               onValueChange={(val) => updateNested('tts', 'provider', val)}

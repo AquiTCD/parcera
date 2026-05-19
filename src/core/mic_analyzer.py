@@ -1,0 +1,192 @@
+"""
+MicAnalyzer: sounddevice-based microphone capture for OBS Browser Source support.
+
+Captures audio from the system microphone, then:
+1. Broadcasts user_lipsync events (vowel + amplitude + speaking) to all WS clients
+2. Feeds audio to the STT pipeline via a simple energy-based VAD
+
+The ``amplitude`` field carries the raw linear RMS so the frontend peak meter
+reflects the actual physical level — allowing users to calibrate
+``vad.volume_db_threshold`` against what they see on the meter.
+The ``speaking`` field is the VAD decision at the Python threshold, freeing
+the frontend from running a redundant amplitude comparison.
+"""
+
+import asyncio
+import logging
+from typing import Any, Coroutine, Optional, Callable
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+SAMPLE_RATE = 16000
+CHUNK_FRAMES = 512  # ~32ms per callback at 16kHz
+SILENCE_CHUNKS_TO_FLUSH = 15  # ~480ms of post-speech silence before STT trigger
+MIN_SPEECH_CHUNKS = 5         # ~160ms minimum speech to reject brief noise spikes
+MAX_SPEECH_CHUNKS = 300       # ~9.6s max before forcing an early STT flush
+
+# Spectral centroid boundaries (Hz) for Japanese vowel classification.
+# Matches the thresholds used in ui/renderer/lib/audio.ts VOWEL_BOUNDARIES_HZ.
+_VOWEL_BOUNDARIES_HZ = {'u': 600, 'o': 1500, 'a': 3000, 'e': 5000}
+
+
+class MicAnalyzer:
+    """
+    Captures microphone audio via sounddevice and performs two duties:
+    - Broadcasts ``user_lipsync`` JSON events to all connected WebSocket clients
+      (used by both OBS Browser Source and the Tauri User Window).
+    - Runs a lightweight energy-based VAD and feeds detected utterances to the
+      STT pipeline.
+    """
+
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop
+        self._stream: Optional[Any] = None
+        self._mic_device: Optional[str] = None
+        # Default threshold tuned for typical system microphone without browser AGC.
+        # Users adjust vad.volume_db_threshold in settings to match their meter reading.
+        self._threshold_db: float = -35.0
+
+        # VAD state
+        self._vad_buffer: list[bytes] = []
+        self._is_speaking: bool = False
+        self._silence_count: int = 0
+        self._speech_chunk_count: int = 0
+
+        # Callbacks (set before calling start())
+        self._stt_callback: Optional[Callable[[bytes], Coroutine[Any, Any, None]]] = None
+        self._broadcast_callback: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None
+
+    # ── Configuration ─────────────────────────────────────────────────────────
+
+    def set_stt_callback(self, callback: Callable[[bytes], Coroutine[Any, Any, None]]) -> None:
+        self._stt_callback = callback
+
+    def set_broadcast_callback(self, callback: Callable[[dict], Coroutine[Any, Any, None]]) -> None:
+        self._broadcast_callback = callback
+
+    def set_threshold_db(self, db: float) -> None:
+        self._threshold_db = db
+
+    def set_mic_device(self, device: Optional[str]) -> None:
+        self._mic_device = None if (not device or device == 'default') else device
+
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    def start(self) -> None:
+        try:
+            import sounddevice as sd  # type: ignore[import-untyped]  # lazy import — optional dependency
+            self._stream = sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=1,
+                dtype='int16',
+                blocksize=CHUNK_FRAMES,
+                device=self._mic_device,
+                callback=self._audio_callback,
+            )
+            self._stream.start()
+            logger.info(
+                f"MicAnalyzer started (device={self._mic_device or 'default'}, "
+                f"threshold={self._threshold_db}dB)"
+            )
+        except Exception as e:
+            logger.error(f"MicAnalyzer failed to start: {e}")
+
+    def stop(self) -> None:
+        if self._stream:
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except Exception as e:
+                logger.warning(f"MicAnalyzer stop error: {e}")
+            self._stream = None
+            logger.info("MicAnalyzer stopped")
+
+    # ── Audio Processing (sounddevice callback — runs in a C thread) ──────────
+
+    def _audio_callback(self, indata, frames, time, status) -> None:
+        audio_int16 = indata[:, 0].copy()  # mono, shape (frames,), dtype int16
+        audio_float = audio_int16.astype(np.float32) / 32768.0
+
+        rms = float(np.sqrt(np.mean(audio_float ** 2)))
+        db = 20.0 * np.log10(max(rms, 1e-10))
+        speaking = bool(db > self._threshold_db)
+
+        # --- Lipsync broadcast ---
+        # amplitude = raw linear RMS so the frontend peak meter shows the
+        # physical signal level, making vad.volume_db_threshold calibratable.
+        vowel = self._estimate_vowel(audio_float, rms)
+        if self._broadcast_callback:
+            asyncio.run_coroutine_threadsafe(
+                self._broadcast_callback({
+                    "type": "user_lipsync",
+                    "vowel": vowel,
+                    "amplitude": rms,
+                    "speaking": speaking,
+                }),
+                self._loop,
+            )
+
+        # --- Energy VAD for STT ---
+        if self._stt_callback:
+            if speaking:
+                self._is_speaking = True
+                self._silence_count = 0
+                self._speech_chunk_count += 1
+                self._vad_buffer.append(audio_int16.tobytes())
+                if self._speech_chunk_count >= MAX_SPEECH_CHUNKS:
+                    audio_data = b''.join(self._vad_buffer)
+                    logger.debug(f"VAD: forced early flush after {self._speech_chunk_count} chunks")
+                    asyncio.run_coroutine_threadsafe(self._stt_callback(audio_data), self._loop)
+                    self._vad_buffer = []
+                    self._is_speaking = False
+                    self._silence_count = 0
+                    self._speech_chunk_count = 0
+            elif self._is_speaking:
+                self._vad_buffer.append(audio_int16.tobytes())
+                self._silence_count += 1
+                if self._silence_count >= SILENCE_CHUNKS_TO_FLUSH:
+                    if self._speech_chunk_count >= MIN_SPEECH_CHUNKS:
+                        audio_data = b''.join(self._vad_buffer)
+                        logger.debug(
+                            f"VAD flush: {self._speech_chunk_count} speech chunks "
+                            f"({len(audio_data) // 2 / SAMPLE_RATE:.2f}s)"
+                        )
+                        asyncio.run_coroutine_threadsafe(
+                            self._stt_callback(audio_data),
+                            self._loop,
+                        )
+                    else:
+                        logger.debug(
+                            f"VAD: skipped flush — only {self._speech_chunk_count} "
+                            f"speech chunks (min={MIN_SPEECH_CHUNKS})"
+                        )
+                    self._vad_buffer = []
+                    self._is_speaking = False
+                    self._silence_count = 0
+                    self._speech_chunk_count = 0
+
+    # ── Vowel Estimation ──────────────────────────────────────────────────────
+
+    def _estimate_vowel(self, audio: np.ndarray, rms: float) -> str:
+        if rms < 0.005:
+            return 'n'
+
+        fft = np.abs(np.fft.rfft(audio))
+        freqs = np.fft.rfftfreq(len(audio), d=1.0 / SAMPLE_RATE)
+        total = float(np.sum(fft))
+        if total < 1e-10:
+            return 'n'
+
+        centroid = float(np.dot(freqs, fft)) / total
+
+        if centroid < _VOWEL_BOUNDARIES_HZ['u']:
+            return 'u'
+        if centroid < _VOWEL_BOUNDARIES_HZ['o']:
+            return 'o'
+        if centroid < _VOWEL_BOUNDARIES_HZ['a']:
+            return 'a'
+        if centroid < _VOWEL_BOUNDARIES_HZ['e']:
+            return 'e'
+        return 'i'

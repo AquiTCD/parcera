@@ -27,6 +27,14 @@ pub fn run() {
     env_logger::init();
     log::info!("[Parcera] Starting (RUST_LOG={})", std::env::var("RUST_LOG").unwrap_or_else(|_| "unset".into()));
 
+    // Read the default YAML to determine frontend_port before the Tauri builder
+    // is constructed (tauri-plugin-localhost requires the port at registration time).
+    // Falls back to 8677 if parsing fails.
+    let default_frontend_port: u16 = settings_store::parse_default_yaml()
+        .ok()
+        .and_then(|v| v["app"]["frontend_port"].as_u64())
+        .unwrap_or(8677) as u16;
+
     // Hoist python_child to function scope so both the setup closure and the
     // run-event handler can share the same Arc without lifetime issues.
     let python_child: Arc<Mutex<Option<CommandChild>>> = Arc::new(Mutex::new(None));
@@ -38,6 +46,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_localhost::Builder::new(default_frontend_port).build())
         .setup(move |app| {
             let data_dir = app.path().app_data_dir()?;
 
@@ -102,6 +111,14 @@ pub fn run() {
                                 tauri::LogicalSize { width: w, height: h },
                             ));
                         }
+                        // Hide window if visible == false (default: show)
+                        if cfg["visible"].as_bool() == Some(false) {
+                            let _ = win.hide();
+                        }
+                        // Apply always-on-top if explicitly set to true
+                        if cfg["alwaysOnTop"].as_bool() == Some(true) {
+                            let _ = win.set_always_on_top(true);
+                        }
                     }
                 }
             }
@@ -125,6 +142,8 @@ pub fn run() {
             commands::settings::reload_settings,
             commands::windows::save_window_bounds,
             commands::windows::get_avatar_window_bounds,
+            commands::windows::set_window_visible,
+            commands::windows::set_window_always_on_top,
             commands::dialogs::select_directory,
             commands::logs::get_log_history,
             commands::twitch::twitch_start_auth,

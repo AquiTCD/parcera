@@ -9,10 +9,20 @@ vi.mock('../lib/audio', () => ({
   getAnalyser: vi.fn(),
   connectToAnalyser: vi.fn(),
   setNoiseGateDb: vi.fn(),
+  getExternalLipsync: vi.fn(() => null),
+  setExternalLipsync: vi.fn(),
+  clearExternalLipsync: vi.fn(),
 }));
 
 vi.mock('../lib/visual', () => ({
   initVisual: vi.fn(),
+}));
+
+vi.mock('../lib/comm', () => ({
+  startWebSocket: vi.fn(),
+  startLipsyncWebSocket: vi.fn(),
+  buildWsUrl: vi.fn((port: number) => `ws://127.0.0.1:${port}/ws`),
+  DEFAULT_PORT: 8676,
 }));
 
 vi.mock('@/lib/api', () => ({

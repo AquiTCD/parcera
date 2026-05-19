@@ -18,25 +18,16 @@ export const MicInputSection: React.FC<SectionProps> = ({
   ]);
 
   useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        const all = await navigator.mediaDevices.enumerateDevices();
-        const audioInputs = all
-          .filter((d) => d.kind === 'audioinput')
-          .map((d) => ({ value: d.deviceId, label: d.label || 'Microphone' }))
-          .filter((v, i, a) => v.value && a.findIndex((t) => t.value === v.value) === i);
-        setDevices([
-          { value: 'default', label: 'システムデフォルト' },
-          ...audioInputs.filter((d) => d.value !== 'default' && d.value !== ''),
-        ]);
-      } catch {
-        // silently ignore — device list stays as default
-      }
-    };
-    fetchDevices();
-    navigator.mediaDevices.addEventListener('devicechange', fetchDevices);
-    return () => navigator.mediaDevices.removeEventListener('devicechange', fetchDevices);
-  }, []);
+    const port = settings.app?.port ?? 8676;
+    fetch(`http://127.0.0.1:${port}/config/mic-devices`)
+      .then((r) => r.json())
+      .then((list: { value: string; label: string }[]) => {
+        if (list.length > 0) {
+          setDevices([{ value: 'default', label: 'システムデフォルト' }, ...list]);
+        }
+      })
+      .catch(() => {/* server not yet ready — keep default only */});
+  }, [settings.app?.port]);
 
   const volumeDb = settings.vad?.volume_db_threshold ?? defaultSettings?.vad?.volume_db_threshold ?? -20;
   const silenceDuration = settings.vad?.silence_duration_threshold ?? defaultSettings?.vad?.silence_duration_threshold ?? 0.8;

@@ -8,11 +8,14 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
-// Mock audio module — visual.ts calls getRMS/getEnvelope/getVowel every frame
+// Mock audio module — visual.ts calls getRMS/getEnvelope/getVowel/getExternalLipsync every frame
 vi.mock('@/lib/audio', () => ({
   getRMS: vi.fn(() => 0),
   getEnvelope: vi.fn(() => 0),
   getVowel: vi.fn(() => null),
+  getExternalLipsync: vi.fn(() => null),
+  setExternalLipsync: vi.fn(),
+  clearExternalLipsync: vi.fn(),
   TALK_THRESHOLD: 0.06,
   getContext: vi.fn(() => null),
 }));

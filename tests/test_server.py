@@ -1,5 +1,8 @@
 import pytest
 import os
+import re
+import yaml
+from pathlib import Path
 from unittest.mock import MagicMock, patch, AsyncMock
 from fastapi.testclient import TestClient
 
@@ -28,11 +31,14 @@ def test_health_check_endpoint(client):
         assert response.json() == {"status": "ok", "tts_engine": True}
 
 def test_reload_config_endpoint(client):
+    import json as _json
     # Mock nested objects
     parcera_server.config = MagicMock()
     parcera_server.current_stt_provider = "faster_whisper"
     parcera_server.current_tts_provider = "aivisspeech"
     parcera_server.current_llm_provider = "gemini"
+    # Pre-set hash so LLM is not detected as changed (no "llm" key in new_settings)
+    parcera_server.current_llm_hash = _json.dumps({}, sort_keys=True)
     parcera_server.apply_runtime_config = MagicMock()
     parcera_server._sync_to_server = MagicMock()
 
@@ -80,6 +86,26 @@ def test_reload_config_restart_required(client):
     assert response.status_code == 200
     data = response.json()
     assert data["restart_required"] == True
+
+def test_merge_request_threshold_constructor_default_matches_yaml():
+    """Regression: hardcoded fallback in ParceraServer.__init__ must equal the YAML default."""
+    yaml_path = Path(__file__).parent.parent / "configs" / "settings.default.yaml"
+    with yaml_path.open() as f:
+        defaults = yaml.safe_load(f)
+    yaml_default = float(defaults["merge_request_threshold"])
+
+    source = (Path(__file__).parent.parent / "src" / "run_server.py").read_text()
+    m = re.search(
+        r'merge_request_threshold=self\.config\.get\("merge_request_threshold",\s*([\d.]+)\)',
+        source,
+    )
+    assert m is not None, "Could not find merge_request_threshold default in constructor"
+    code_default = float(m.group(1))
+    assert code_default == yaml_default, (
+        f"Constructor fallback {code_default} != YAML default {yaml_default}. "
+        "Both should be 0.6."
+    )
+
 
 def test_get_tts_speakers_endpoint(client):
     # Mock config settings

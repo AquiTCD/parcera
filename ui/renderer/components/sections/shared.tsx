@@ -4,13 +4,22 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Slider } from '../ui/slider';
 
+export const RestartBadge: React.FC = () => (
+  <span className="inline-flex items-center align-middle ml-1.5 text-[10px] text-muted-foreground/50 border border-muted-foreground/20 rounded px-1 py-[1px]">
+    要再起動
+  </span>
+);
+
 export const FieldRow: React.FC<{
   label: string;
   htmlFor?: string;
+  restartRequired?: boolean;
   children: React.ReactNode;
-}> = ({ label, htmlFor, children }) => (
+}> = ({ label, htmlFor, restartRequired, children }) => (
   <div className="space-y-1.5">
-    <Label htmlFor={htmlFor} className="text-sm font-medium">{label}</Label>
+    <Label htmlFor={htmlFor} className="text-sm font-medium">
+      {label}{restartRequired && <RestartBadge />}
+    </Label>
     {children}
   </div>
 );

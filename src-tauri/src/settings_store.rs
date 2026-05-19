@@ -56,6 +56,12 @@ impl SettingsStore {
     pub fn get_port(&self) -> u16 {
         self.data["app"]["port"].as_u64().unwrap_or(8676) as u16
     }
+
+    pub fn get_frontend_port(&self) -> u16 {
+        self.data["app"]["frontend_port"]
+            .as_u64()
+            .unwrap_or_else(|| (self.get_port() as u64) + 1) as u16
+    }
 }
 
 /// Parse the bundled default YAML into a JSON Value.
@@ -201,5 +207,23 @@ mod tests {
         let mut store = SettingsStore::new(path);
         store.set_all(json!({ "app": { "port": 9876 } }));
         assert_eq!(store.get_port(), 9876);
+    }
+
+    #[test]
+    fn store_get_frontend_port_defaults_to_port_plus_one() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        let mut store = SettingsStore::new(path);
+        store.set_all(json!({ "app": { "port": 8676 } }));
+        assert_eq!(store.get_frontend_port(), 8677);
+    }
+
+    #[test]
+    fn store_get_frontend_port_reads_explicit_value() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        let mut store = SettingsStore::new(path);
+        store.set_all(json!({ "app": { "port": 8676, "frontend_port": 9000 } }));
+        assert_eq!(store.get_frontend_port(), 9000);
     }
 }

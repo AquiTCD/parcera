@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+    #avatar {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: top left;
+      transform-origin: top center;
+      pointer-events: none;
+      display: block;
+    }
+    #dbg {
+      position: fixed;
+      bottom: 4px;
+      left: 4px;
+      background: rgba(0,0,0,.75);
+      color: #fff;
+      font: 11px/1.4 monospace;
+      padding: 2px 4px;
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    #avatar.chromakey { filter: url(#chromakey-filter); }
+  </style>
+</head>
+<body>
+  <img id="avatar" alt="">
+  <div id="dbg" hidden></div>
+  <!-- SVG chroma key filter — mirrors ChromaKeyFilter.tsx (feColorMatrix alpha extraction) -->
+  <svg width="0" height="0" style="position:absolute;pointer-events:none">
+    <defs><filter id="chromakey-filter"></filter></defs>
+  </svg>
+<script>
+(function () {
+  // ── Port resolution ──────────────────────────────────────────────────────────
+  // This page may be served from:
+  //   port 8676  — Python AI server (canonical OBS URL via file:// or http://)
+  //   port 8677  — Tauri localhost plugin (fallback)
+  //   port 5173  — Vite dev server
+  // In all cases pythonPort resolves to 8676.
+  var PYTHON_PORT = 8676;
+  var locPort = parseInt(location.port, 10);
+  var pythonPort;
+  if (locPort === PYTHON_PORT || (locPort >= 5000 && locPort < 6000)) {
+    pythonPort = PYTHON_PORT;
+  } else {
+    // file:// → locPort=NaN → default to PYTHON_PORT+1-1=PYTHON_PORT
+    // Tauri (8677) → 8677-1=8676
+    pythonPort = (locPort || (PYTHON_PORT + 1)) - 1;
+  }
+
+  var p = new URLSearchParams(location.search);
+  var avatarType  = p.get('type') || 'user';
+  var pythonHttp  = 'http://127.0.0.1:' + pythonPort;
+  var wsUrl       = 'ws://127.0.0.1:' + pythonPort + '/ws';
+  // Images are always served via the Python proxy so obs.html (an http:// page)
+  // can load them without hitting the browser's file:// mixed-content block.
+  var assetsDir   = pythonHttp + '/config/obs-asset/' + avatarType;
+
+  // ── Constants ────────────────────────────────────────────────────────────────
+  var TALK_THRESHOLD     = 0.05;
+  var BLINK_CLOSE_MS     = 150;
+  var DEFAULT_BLINK_MIN  = 5000;
+  var DEFAULT_BLINK_MAX  = 15000;
+  var DEFAULT_MOUTH_HOLD = 120;
+  var DB_FLOOR           = -55;
+  var DB_CEIL            = -5;
+  var METER_SIZE         = 15;
+  var VOWEL_OVERRIDE     = { n: 'base.png' };
+
+  // ── Mutable state ────────────────────────────────────────────────────────────
+  var settings       = {};
+  var cacheKey       = 0;     // bumped on every applySettings; busts asset cache
+  var flipX          = 1;     // 1 = normal, -1 = horizontal flip
+  var extLipsync     = null;   // user-avatar only: {env, rawAmplitude, vowel}
+  var currentMouth   = 'base.png';
+  var mouthHoldTimer = 0;
+  var isBlinking     = false;
+  var blinkTimer     = Date.now() + 2000;
+  var breatheTime    = Math.random() * 100;
+  var lastFrameTime  = performance.now();
+
+  var img = document.getElementById('avatar');
+  var dbg = document.getElementById('dbg');
+
+  // ── AI audio playback (type=ai only) ─────────────────────────────────────────
+  // Mirror of audio.ts constants for spectral-centroid vowel detection.
+  var AI_FFT_SIZE             = 512;
+  var AI_SMOOTHING            = 0.2;
+  var AI_LOW_FREQ_CUTOFF      = 200;   // Hz — ignore rumble below this
+  var AI_SILENCE_AMP_FLOOR    = 0.001;
+  var AI_VOWEL_HZ             = { u: 600, o: 1500, a: 3000, e: 5000 };
+
+  var audioCtx     = null;
+  var aiAnalyser   = null;
+  var aiTimeBuf    = null;   // Float32Array(fftSize) for RMS
+  var aiFreqBuf    = null;   // Float32Array(frequencyBinCount) for vowel
+  var audioQueue   = [];
+  var isAIPlaying  = false;
+
+  function initAudioCtx() {
+    if (audioCtx) return;
+    audioCtx   = new AudioContext();
+    aiAnalyser = audioCtx.createAnalyser();
+    aiAnalyser.fftSize                = AI_FFT_SIZE;
+    aiAnalyser.smoothingTimeConstant  = AI_SMOOTHING;
+    aiTimeBuf  = new Float32Array(AI_FFT_SIZE);
+    aiFreqBuf  = new Float32Array(aiAnalyser.frequencyBinCount);
+    aiAnalyser.connect(audioCtx.destination);
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
+  }
+
+  function getAIRms() {
+    if (!aiAnalyser || !aiTimeBuf) return 0;
+    aiAnalyser.getFloatTimeDomainData(aiTimeBuf);
+    var sum = 0;
+    for (var i = 0; i < aiTimeBuf.length; i++) sum += aiTimeBuf[i] * aiTimeBuf[i];
+    return Math.sqrt(sum / aiTimeBuf.length);
+  }
+
+  function getAIVowel() {
+    if (!aiAnalyser || !aiFreqBuf) return null;
+    aiAnalyser.getFloatFrequencyData(aiFreqBuf);
+    var nyquist = audioCtx.sampleRate / 2;
+    var weightedSum = 0, totalAmp = 0;
+    for (var i = 0; i < aiFreqBuf.length; i++) {
+      var hz = (i / aiFreqBuf.length) * nyquist;
+      if (hz <= AI_LOW_FREQ_CUTOFF) continue;
+      var amp = Math.pow(10, aiFreqBuf[i] / 20); // dB → linear
+      weightedSum += amp * hz;
+      totalAmp    += amp;
+    }
+    if (totalAmp < AI_SILENCE_AMP_FLOOR) return null;
+    var centroid = weightedSum / totalAmp;
+    if (centroid < AI_VOWEL_HZ.u) return 'u';
+    if (centroid < AI_VOWEL_HZ.o) return 'o';
+    if (centroid < AI_VOWEL_HZ.a) return 'a';
+    if (centroid < AI_VOWEL_HZ.e) return 'e';
+    return 'i';
+  }
+
+  function playNextChunk() {
+    if (audioQueue.length === 0) { isAIPlaying = false; return; }
+    isAIPlaying = true;
+    var b64 = audioQueue.shift();
+    var raw = atob(b64);
+    var buf = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+    audioCtx.decodeAudioData(buf.buffer, function (decoded) {
+      var src = audioCtx.createBufferSource();
+      src.buffer = decoded;
+      src.connect(aiAnalyser);
+      src.onended = playNextChunk;
+      src.start();
+    }, function () { playNextChunk(); });
+  }
+
+  function enqueueAIChunk(b64) {
+    initAudioCtx();
+    audioQueue.push(b64);
+    if (!isAIPlaying) playNextChunk();
+  }
+
+  function flushAIQueue() {
+    audioQueue.length = 0;
+    isAIPlaying = false;
+  }
+
+  // ── Settings ─────────────────────────────────────────────────────────────────
+  function applySettings(s) {
+    settings = s;
+    // Bump cacheKey so every asset URL gets a fresh ?v= param.
+    // This forces the browser to re-fetch sprites when assets_dir changes.
+    cacheKey = Date.now();
+
+    dbg.hidden = !(s.avatars && s.avatars.show_debug !== false);
+
+    // Chroma key: SVG feColorMatrix filter, same logic as ChromaKeyFilter.tsx.
+    var avatarCfg = s.avatars && s.avatars[avatarType];
+    var chromaEnabled = !!(avatarCfg && avatarCfg.chroma_key_enabled);
+    var chromaColor   = (avatarCfg && avatarCfg.chroma_key_color) || 'green';
+    var filterEl = document.getElementById('chromakey-filter');
+    if (chromaEnabled) {
+      var m = chromaColor === 'green'
+        ? '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  3.0 -6.0 3.0 1.0 0.5'
+        : '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  3.0 3.0 -6.0 1.0 0.5';
+      filterEl.setAttribute('color-interpolation-filters', 'sRGB');
+      filterEl.innerHTML = '<feColorMatrix type="matrix" values="' + m + '"/>'
+        + '<feComponentTransfer><feFuncA type="table" tableValues="0 1"/></feComponentTransfer>';
+      img.classList.add('chromakey');
+    } else {
+      filterEl.removeAttribute('color-interpolation-filters');
+      filterEl.innerHTML = '<feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>';
+      img.classList.remove('chromakey');
+    }
+
+    flipX = (avatarCfg && avatarCfg.flip_horizontal) ? -1 : 1;
+
+    img.removeAttribute('style');
+    img.src = assetsDir + '/base.png?v=' + cacheKey;
+  }
+
+  function fetchSettings() {
+    fetch(pythonHttp + '/config/settings', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(applySettings)
+      .catch(function () { setTimeout(fetchSettings, 3000); });
+  }
+
+  // ── Image error recovery ─────────────────────────────────────────────────────
+  img.addEventListener('error', function () {
+    var src = img.src;
+    if (src.endsWith('/e.png')) {
+      img.src = src.replace('/e.png', '/a.png');
+    } else if (src.endsWith('/o.png')) {
+      img.src = src.replace('/o.png', '/u.png');
+    } else if (!src.endsWith('/base.png')) {
+      currentMouth   = 'base.png';
+      mouthHoldTimer = 0;
+      img.src = assetsDir + '/base.png';
+    } else {
+      img.style.opacity = '0.5';
+    }
+  });
+
+  // ── WebSocket ────────────────────────────────────────────────────────────────
+  var ws;
+  var wsSessionId = (avatarType === 'ai' ? 'obs-ai-' : 'obs-user-') +
+                    Math.random().toString(36).slice(2, 9);
+
+  function connectWS() {
+    ws = new WebSocket(wsUrl);
+    ws.onopen = function () {
+      ws.send(JSON.stringify({ type: 'start', session_id: wsSessionId }));
+      // Re-fetch settings on every (re)connect so Parcera restarts pick up
+      // config changes without a manual OBS refresh.
+      fetchSettings();
+    };
+    ws.onmessage = function (e) {
+      try {
+        var d = JSON.parse(e.data);
+        if (avatarType === 'ai') {
+          // AI avatar: play TTS audio chunks received from the server.
+          if (d.type === 'start' || d.type === 'thinking') {
+            flushAIQueue();
+          } else if (d.type === 'chunk' && d.audio_data) {
+            enqueueAIChunk(d.audio_data);
+          }
+        } else {
+          // User avatar: animate mouth from Python MicAnalyzer lipsync events.
+          if (d.type === 'user_lipsync') {
+            var vowel    = d.vowel || null;
+            var amp      = typeof d.amplitude === 'number' ? d.amplitude : 0;
+            var speaking = typeof d.speaking  === 'boolean' ? d.speaking : false;
+            extLipsync   = {
+              env:          speaking ? Math.max(amp, TALK_THRESHOLD + 0.01) : amp,
+              rawAmplitude: amp,
+              vowel:        vowel
+            };
+          }
+        }
+      } catch (_) {}
+    };
+    ws.onclose  = function () {
+      extLipsync = null;
+      flushAIQueue();
+      setTimeout(connectWS, 3000);
+    };
+    ws.onerror  = function () {};
+  }
+
+  // ── Animation loop ───────────────────────────────────────────────────────────
+  function frame() {
+    var now = performance.now();
+    var dt  = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+
+    // Breathing
+    var bDur   = (settings.avatars && settings.avatars.breathe_duration)  || 5000;
+    var bScale = (settings.avatars && settings.avatars.breathe_scale)     || 1.005;
+    var bAmp   = (settings.avatars && settings.avatars.breathe_amplitude) || 2;
+    breatheTime += dt * (2 * Math.PI) / (bDur / 1000);
+    var wave    = Math.sin(breatheTime) + 0.5 * Math.sin(breatheTime * 1.618);
+    var norm    = wave / 1.5;
+    var offsetY = (norm + 1) * 0.5 * bAmp;
+    var scaleV  = 1 + (Math.max(0, norm) * (bScale - 1));
+    img.style.transform = 'scaleX(' + flipX + ') translateY(' + offsetY + 'px) scale(' + scaleV + ',' + scaleV + ')';
+
+    // Lipsync state — source differs by avatar type
+    var env, rmsRaw, vowel;
+    if (avatarType === 'ai') {
+      // Derive lipsync from WebAudio analyser (TTS playback).
+      // Mirrors audio.ts: spectral-centroid vowel detection on the live PCM stream.
+      rmsRaw = getAIRms();
+      env    = rmsRaw;
+      var aiVowel = getAIVowel();
+      vowel  = (env > TALK_THRESHOLD && aiVowel) ? aiVowel : '-';
+    } else {
+      env    = extLipsync ? extLipsync.env          : 0;
+      rmsRaw = extLipsync ? extLipsync.rawAmplitude : 0;
+      vowel  = (extLipsync && extLipsync.env > TALK_THRESHOLD)
+        ? (extLipsync.vowel || '-') : '-';
+    }
+
+    // Debug overlay
+    if (!dbg.hidden) {
+      var db   = 20 * Math.log10(Math.max(rmsRaw, 0.00001));
+      var span = DB_CEIL - DB_FLOOR;
+      var on   = Math.floor(Math.max(0, Math.min(1, (db - DB_FLOOR) / span)) * METER_SIZE);
+      var tDb  = (settings.vad && settings.vad.volume_db_threshold) || -20;
+      var tPos = Math.floor(Math.max(0, Math.min(1, (tDb - DB_FLOOR) / span)) * METER_SIZE);
+      var meter = '';
+      for (var i = 0; i < METER_SIZE; i++) {
+        if (i === tPos) {
+          meter += '<span style="color:#ff0;font-weight:bold">|</span>';
+        } else if (i < on) {
+          var col = db >= DB_CEIL ? '#f44' : env > TALK_THRESHOLD ? '#4f4' : '#999';
+          meter += '<span style="color:' + col + '">█</span>';
+        } else {
+          meter += '<span style="color:#444">░</span>';
+        }
+      }
+      dbg.innerHTML = '[' + meter + '] ' + db.toFixed(1) + 'dB | Env:' + (env * 100).toFixed(0) + '% | Vowel:' + vowel;
+    }
+
+    // Blink
+    var nowMs  = Date.now();
+    var minBl  = (settings.avatars && settings.avatars.blink_interval_min) || DEFAULT_BLINK_MIN;
+    var maxBl  = (settings.avatars && settings.avatars.blink_interval_max) || DEFAULT_BLINK_MAX;
+    var holdMs = (settings.avatars && settings.avatars.mouth_hold_time)    || DEFAULT_MOUTH_HOLD;
+    var target = 'base.png';
+
+    if (nowMs > blinkTimer) {
+      if (!isBlinking) {
+        isBlinking = true;
+        blinkTimer = nowMs + BLINK_CLOSE_MS;
+      } else {
+        isBlinking = false;
+        blinkTimer = nowMs + minBl + Math.random() * (maxBl - minBl);
+      }
+    }
+
+    if (isBlinking) {
+      target = 'closed.png';
+    } else {
+      if (nowMs > mouthHoldTimer) {
+        var next = 'base.png';
+        if (env > TALK_THRESHOLD && vowel && vowel !== '?' && vowel !== '-') {
+          next = VOWEL_OVERRIDE[vowel] || (vowel + '.png');
+        }
+        if (next !== currentMouth) {
+          currentMouth   = next;
+          mouthHoldTimer = nowMs + holdMs;
+        }
+      }
+      target = currentMouth;
+    }
+
+    // Apply image (include cacheKey so asset changes propagate after config reload)
+    var newSrc = assetsDir + '/' + target + '?v=' + cacheKey;
+    var absNew = new URL(newSrc, location.href).href;
+    if (img.src !== absNew) {
+      img.src = newSrc;
+      img.onerror = function () {
+        if (target !== 'base.png' && target !== 'closed.png') {
+          currentMouth   = 'base.png';
+          mouthHoldTimer = 0;
+        }
+        img.src     = assetsDir + '/base.png?v=' + cacheKey;
+        img.onerror = null;
+      };
+    }
+
+    if (document.hidden) { setTimeout(frame, 33); } else { requestAnimationFrame(frame); }
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────────
+  fetchSettings();
+  connectWS();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

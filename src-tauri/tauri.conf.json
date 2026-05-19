@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Parcera",
-  "version": "0.13.0",
+  "version": "0.14.1",
   "identifier": "Parcera",
   "build": {
-    "frontendDist": "../dist",
+    "frontendDist": "../dist/web",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"
