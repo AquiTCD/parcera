@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.4] - 2026-05-20 - GitHub Actions Windows CI Build
+
+### Added
+- **GitHub Actions cross-build CI**: Tag push (`v*`) now triggers automated macOS and Windows parallel builds via matrix strategy. macOS produces a DMG artifact; Windows produces MSI + NSIS EXE artifacts.
+
+### Fixed
+- **Windows sidecar port eviction**: `evict_port_occupant` was using `lsof`/`sh` (macOS-only). Now uses `netstat -ano` + `taskkill /F /PID` on Windows via `#[cfg(target_os = "windows")]`.
+- **Windows Python binary path**: `python_bin_path()` returned `python-runtime/bin/python` on all platforms, but Windows standalone Python places the executable directly at `python-runtime/python.exe`. Now correctly resolved per platform.
+
 ## [0.14.3] - 2026-05-19 - Twitch OAuth Callback Fix
 
 ### Added
