@@ -90,6 +90,19 @@ export const IntegrationSection: React.FC<SectionProps> = ({
                 placeholder="Twitch App Client Secret"
               />
             </FieldRow>
+            <p className="text-xs text-muted-foreground">
+              <a
+                href="https://dev.twitch.tv/console"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Twitch Developer Console
+              </a>
+              のアプリ設定で OAuth Redirect URL に{' '}
+              <code className="bg-muted px-1 rounded text-xs">http://localhost:8678/auth/callback</code>{' '}
+              を登録してください。
+            </p>
             <div className="flex items-center gap-3 mt-2">
               {isAuthorized ? (
                 <>
