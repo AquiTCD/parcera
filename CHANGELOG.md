@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-05-19 - Post-release Stabilization
+
+### Fixed
+- **Settings reload decoupled from save**: Python hot-reload no longer blocks save response; save button no longer stays stuck on "保存中" after mic device changes
+- **`update_setting` made non-blocking**: Timer cleanup added to prevent dangling async tasks on rapid setting changes
+- **Save status no longer sticks**: UI correctly resets save button state after both successful and failed reloads; window-op errors are now logged
+- **Tauri window commands**: Fixed camelCase key mismatch (`windowLabel` → `label` etc.) in IPC bridge calls for `set_window_always_on_top`, `show_window`, `hide_window`
+- **mypy type annotations in `MicAnalyzer`**: `_stream` typed as `Optional[Any]`, callbacks narrowed from `Awaitable[None]` to `Coroutine[Any, Any, None]`; `sounddevice` lazy-import suppressed with `type: ignore[import-untyped]`
+- **`mypy.ini`**: Added `sounddevice` to ignore list via inline suppression
+
 ## [0.14.0] - 2026-05-07 - OBS Browser Source & Runtime Settings
 
 ### Added

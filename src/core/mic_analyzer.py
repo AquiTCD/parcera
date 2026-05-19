@@ -14,7 +14,7 @@ the frontend from running a redundant amplitude comparison.
 
 import asyncio
 import logging
-from typing import Optional, Callable, Awaitable
+from typing import Any, Coroutine, Optional, Callable
 
 import numpy as np
 
@@ -42,7 +42,7 @@ class MicAnalyzer:
 
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
-        self._stream = None
+        self._stream: Optional[Any] = None
         self._mic_device: Optional[str] = None
         # Default threshold tuned for typical system microphone without browser AGC.
         # Users adjust vad.volume_db_threshold in settings to match their meter reading.
@@ -55,15 +55,15 @@ class MicAnalyzer:
         self._speech_chunk_count: int = 0
 
         # Callbacks (set before calling start())
-        self._stt_callback: Optional[Callable[[bytes], Awaitable[None]]] = None
-        self._broadcast_callback: Optional[Callable[[dict], Awaitable[None]]] = None
+        self._stt_callback: Optional[Callable[[bytes], Coroutine[Any, Any, None]]] = None
+        self._broadcast_callback: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None
 
     # ── Configuration ─────────────────────────────────────────────────────────
 
-    def set_stt_callback(self, callback: Callable[[bytes], Awaitable[None]]) -> None:
+    def set_stt_callback(self, callback: Callable[[bytes], Coroutine[Any, Any, None]]) -> None:
         self._stt_callback = callback
 
-    def set_broadcast_callback(self, callback: Callable[[dict], Awaitable[None]]) -> None:
+    def set_broadcast_callback(self, callback: Callable[[dict], Coroutine[Any, Any, None]]) -> None:
         self._broadcast_callback = callback
 
     def set_threshold_db(self, db: float) -> None:
@@ -76,7 +76,7 @@ class MicAnalyzer:
 
     def start(self) -> None:
         try:
-            import sounddevice as sd  # lazy import — optional dependency
+            import sounddevice as sd  # type: ignore[import-untyped]  # lazy import — optional dependency
             self._stream = sd.InputStream(
                 samplerate=SAMPLE_RATE,
                 channels=1,
