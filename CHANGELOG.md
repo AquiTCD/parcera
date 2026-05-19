@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - 2026-05-19 - Twitch Follow Event Fix
+
+### Fixed
+- **Twitch follow events restored**: Added missing `MODERATOR_READ_FOLLOWERS` OAuth scope to `DEFAULT_SCOPES`; `listen_channel_follow_v2` silently dropped all follow events since this scope was omitted when switching from v1 in a prior commit
+- **Eliminated duplicate EventSub subscription registration**: Removed subscription calls from `_on_eventsub_ready`; subscriptions are now registered exclusively by `_subscription_worker`, preventing race-condition double-registration errors on connect
+
+> **Note**: Users must re-authenticate Twitch (re-issue token) to pick up the new scope.
+
 ## [0.14.1] - 2026-05-19 - Post-release Stabilization
 
 ### Fixed
