@@ -8,8 +8,8 @@ fi
 
 # Configuration
 # Updated to match project Python version and latest standalone build
-PYTHON_VERSION="3.13.12"
-BUILD_TAG="20260203"
+PYTHON_VERSION="3.13.13"
+BUILD_TAG="20260510"
 PLATFORM="aarch64-apple-darwin"
 URL="https://github.com/astral-sh/python-build-standalone/releases/download/${BUILD_TAG}/cpython-${PYTHON_VERSION}+${BUILD_TAG}-${PLATFORM}-install_only.tar.gz"
 

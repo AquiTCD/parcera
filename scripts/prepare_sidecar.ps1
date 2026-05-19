@@ -1,9 +1,9 @@
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
-$PythonVersion = "3.13.12"
-$BuildTag = "20260203"
-$Platform = "x86_64-pc-windows-msvc-shared"
+$PythonVersion = "3.13.13"
+$BuildTag = "20260510"
+$Platform = "x86_64-pc-windows-msvc"
 $Url = "https://github.com/astral-sh/python-build-standalone/releases/download/$BuildTag/cpython-$PythonVersion+$BuildTag-$Platform-install_only.tar.gz"
 
 $ResourceDir = "ui\resources"
