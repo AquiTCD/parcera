@@ -5,9 +5,12 @@ use std::net::SocketAddr;
 use tauri::Emitter;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::time::{timeout, Duration};
 
-const OAUTH_PORT: u16 = 8677;
-const REDIRECT_URI: &str = "http://localhost:8677/auth/callback";
+// Port 8677 is occupied by tauri-plugin-localhost (OBS Browser Source frontend).
+const OAUTH_PORT: u16 = 8678;
+const REDIRECT_URI: &str = "http://localhost:8678/auth/callback";
+const AUTH_TIMEOUT_SECS: u64 = 300;
 
 const TWITCH_SCOPES: &str =
     "chat:read chat:edit channel:read:subscriptions moderation:read \
@@ -25,23 +28,25 @@ impl TwitchOAuthHandler {
     ) -> Result<(), String> {
         let state_token = generate_state();
 
+        // Bind BEFORE opening the browser: eliminates the race condition where
+        // Twitch auto-redirects before the listener is ready.
+        let addr: SocketAddr = format!("127.0.0.1:{OAUTH_PORT}").parse().unwrap();
+        let listener = TcpListener::bind(addr).await.map_err(|e| {
+            format!("Failed to bind OAuth callback port {OAUTH_PORT} (already in use?): {e}")
+        })?;
+
         let auth_url = build_auth_url(&client_id, &state_token);
         tauri_plugin_opener::open_url(auth_url, Option::<String>::None)
             .map_err(|e| e.to_string())?;
 
-        let state_token_clone = state_token.clone();
-        let client_id_clone = client_id.clone();
-        let client_secret_clone = client_secret.clone();
-        let token_store_clone = token_store.clone();
-        let app_handle_clone = app_handle.clone();
-
         tokio::spawn(async move {
             if let Err(e) = run_callback_server(
-                state_token_clone,
-                client_id_clone,
-                client_secret_clone,
-                token_store_clone,
-                app_handle_clone,
+                listener,
+                state_token,
+                client_id,
+                client_secret,
+                token_store,
+                app_handle,
                 python_port,
             )
             .await
@@ -69,6 +74,25 @@ fn build_auth_url(client_id: &str, state: &str) -> String {
          &state={state}",
         urlencoding::encode(TWITCH_SCOPES)
     )
+}
+
+/// Extracts (code, state) from a callback path if it is a valid /auth/callback request.
+/// Returns None for unrelated paths (e.g. /favicon.ico) so the server can skip them.
+fn parse_callback_params(path: &str) -> Option<(String, String)> {
+    if !path.starts_with("/auth/callback") {
+        return None;
+    }
+    let query = path.splitn(2, '?').nth(1).unwrap_or("");
+    let params: std::collections::HashMap<&str, &str> = query
+        .split('&')
+        .filter_map(|p| {
+            let mut kv = p.splitn(2, '=');
+            Some((kv.next()?, kv.next()?))
+        })
+        .collect();
+    let code = urlencoding::decode(params.get("code").copied()?).ok()?.into_owned();
+    let state = urlencoding::decode(params.get("state").copied()?).ok()?.into_owned();
+    Some((code, state))
 }
 
 async fn sync_tokens_with_python(port: u16, tokens: &TwitchTokens) {
@@ -101,6 +125,7 @@ fn build_sync_url(port: u16) -> String {
 }
 
 async fn run_callback_server(
+    listener: TcpListener,
     expected_state: String,
     client_id: String,
     client_secret: String,
@@ -108,64 +133,61 @@ async fn run_callback_server(
     app_handle: tauri::AppHandle,
     python_port: u16,
 ) -> Result<(), String> {
-    let addr: SocketAddr = format!("127.0.0.1:{OAUTH_PORT}").parse().unwrap();
-    let listener = TcpListener::bind(addr).await.map_err(|e| e.to_string())?;
+    // Loop to skip unrelated browser requests (favicon, prefetch, etc.) that
+    // arrive before the actual /auth/callback?code=...&state=... request.
+    loop {
+        let (mut stream, _) = timeout(
+            Duration::from_secs(AUTH_TIMEOUT_SECS),
+            listener.accept(),
+        )
+        .await
+        .map_err(|_| "OAuth callback timed out after 5 minutes".to_string())?
+        .map_err(|e| e.to_string())?;
 
-    // Accept a single connection then close the server
-    let (mut stream, _) = listener.accept().await.map_err(|e| e.to_string())?;
+        let mut buf = vec![0u8; 4096];
+        let n = stream.read(&mut buf).await.map_err(|e| e.to_string())?;
+        if n == 0 {
+            continue;
+        }
+        let request = String::from_utf8_lossy(&buf[..n]);
 
-    let mut buf = vec![0u8; 4096];
-    let n = stream.read(&mut buf).await.map_err(|e| e.to_string())?;
-    let request = String::from_utf8_lossy(&buf[..n]);
+        let path = request
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .unwrap_or("/");
 
-    // Extract the request path from the first line
-    let path = request
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .unwrap_or("/");
+        let (code, state) = match parse_callback_params(path) {
+            None => {
+                // Not the auth callback (e.g. /favicon.ico) — acknowledge and keep waiting.
+                let _ = write_http_response(&mut stream, 404, "Not found").await;
+                continue;
+            }
+            Some(params) => params,
+        };
 
-    let query = path.splitn(2, '?').nth(1).unwrap_or("");
-    let params: std::collections::HashMap<&str, &str> = query
-        .split('&')
-        .filter_map(|p| {
-            let mut kv = p.splitn(2, '=');
-            Some((kv.next()?, kv.next()?))
-        })
-        .collect();
+        if state != expected_state {
+            let _ = write_http_response(&mut stream, 400, ERROR_HTML).await;
+            return Err("State mismatch in OAuth callback".into());
+        }
 
-    let code = params.get("code").copied();
-    let state = params.get("state").copied();
-
-    if state != Some(expected_state.as_str()) {
-        let _ = write_http_response(&mut stream, 400, "State mismatch").await;
-        return Err("State mismatch in OAuth callback".into());
-    }
-
-    if let Some(code) = code {
-        match exchange_code(&client_id, &client_secret, code).await {
+        match exchange_code(&client_id, &client_secret, &code).await {
             Ok(tokens) => {
                 token_store.save(&tokens).map_err(|e| e.to_string())?;
                 let _ = write_http_response(&mut stream, 200, SUCCESS_HTML).await;
                 let _ = app_handle.emit("twitch-auth-status", serde_json::json!({ "success": true }));
-                // Sync tokens to Python backend in background (with retry).
-                // Must happen after save so restart also re-syncs from token_store.
                 let tokens_clone = tokens.clone();
                 tokio::spawn(async move {
                     sync_tokens_with_python(python_port, &tokens_clone).await;
                 });
+                return Ok(());
             }
             Err(e) => {
-                let _ = write_http_response(&mut stream, 500, &e).await;
+                let _ = write_http_response(&mut stream, 500, ERROR_HTML).await;
                 return Err(e);
             }
         }
-    } else {
-        let _ = write_http_response(&mut stream, 400, "Authorization code missing").await;
-        return Err("Authorization code missing".into());
     }
-
-    Ok(())
 }
 
 async fn exchange_code(
@@ -219,8 +241,14 @@ async fn write_http_response(
     } else {
         "text/plain"
     };
+    let status_text = match status {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        _ => "Internal Server Error",
+    };
     let response = format!(
-        "HTTP/1.1 {status} OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status} {status_text}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     stream.write_all(response.as_bytes()).await
@@ -232,6 +260,14 @@ const SUCCESS_HTML: &str = r#"<html>
     <h1 style="color:#9146FF;">Authentication Successful!</h1>
     <p>You can close this window and return to Parcera.</p>
     <script>setTimeout(() => window.close(), 3000);</script>
+  </body>
+</html>"#;
+
+const ERROR_HTML: &str = r#"<html>
+  <body style="font-family:sans-serif;display:flex;flex-direction:column;align-items:center;
+               justify-content:center;height:100vh;background:#0f0f0f;color:white;">
+    <h1 style="color:#ff4444;">Authentication Failed</h1>
+    <p>Something went wrong. Please close this window and try again in Parcera.</p>
   </body>
 </html>"#;
 
@@ -261,7 +297,7 @@ mod tests {
     fn build_auth_url_contains_redirect_uri() {
         let url = build_auth_url("id", "state");
         assert!(url.contains("redirect_uri="));
-        assert!(url.contains("8677"));
+        assert!(url.contains("8678"));
     }
 
     #[test]
@@ -289,5 +325,31 @@ mod tests {
         let url = build_sync_url(9999);
         assert!(url.contains(":9999/"));
         assert!(url.ends_with("/twitch/init"));
+    }
+
+    #[test]
+    fn parse_callback_params_extracts_code_and_state() {
+        let result = parse_callback_params("/auth/callback?code=abc123&state=xyz789");
+        assert_eq!(result, Some(("abc123".to_string(), "xyz789".to_string())));
+    }
+
+    #[test]
+    fn parse_callback_params_ignores_non_callback_paths() {
+        assert!(parse_callback_params("/favicon.ico").is_none());
+        assert!(parse_callback_params("/").is_none());
+        assert!(parse_callback_params("/auth/other").is_none());
+    }
+
+    #[test]
+    fn parse_callback_params_requires_both_code_and_state() {
+        assert!(parse_callback_params("/auth/callback?code=abc").is_none());
+        assert!(parse_callback_params("/auth/callback?state=xyz").is_none());
+        assert!(parse_callback_params("/auth/callback").is_none());
+    }
+
+    #[test]
+    fn parse_callback_params_handles_extra_query_params() {
+        let result = parse_callback_params("/auth/callback?scope=chat%3Aread&code=tok&state=st");
+        assert_eq!(result, Some(("tok".to_string(), "st".to_string())));
     }
 }

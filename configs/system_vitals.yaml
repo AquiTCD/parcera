@@ -30,4 +30,4 @@ llm:
 
 # Integration Constants
 twitch:
-  redirect_uri: "http://localhost:8677/auth/callback"
+  redirect_uri: "http://localhost:8678/auth/callback"
