@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.3] - 2026-05-19 - Twitch OAuth Callback Fix
+
+### Added
+- **OAuth Redirect URL setup hint in UI**: Twitch integration settings now show a direct link to the Twitch Developer Console with the exact redirect URI to register (`http://localhost:8678/auth/callback`), including a migration note for users who previously registered port 8677
+
+### Fixed
+- **Blank white page on OAuth callback**: `tauri-plugin-localhost` (OBS Browser Source) occupied port 8677, causing Twitch's redirect to hit the frontend server instead of the OAuth callback listener; moved OAuth callback to port 8678
+- **OAuth race condition**: Listener now binds before the browser is opened, eliminating the window where Twitch could redirect before the server was ready to accept
+- **favicon/prefetch stealing the OAuth connection**: Server now loops to skip unrelated browser requests (favicon, prefetch) and waits for the real `/auth/callback?code=...` request
+- **URL-encoded OAuth params**: `code` and `state` query parameters are now URL-decoded before use, preventing potential token-exchange failures with encoded characters
+
+> **Note**: Users must update their Twitch Developer Console OAuth Redirect URL from `http://localhost:8677/auth/callback` to `http://localhost:8678/auth/callback`.
+
 ## [0.14.2] - 2026-05-19 - Twitch Follow Event Fix
 
 ### Fixed
