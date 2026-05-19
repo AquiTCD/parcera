@@ -53,7 +53,9 @@
     },
     "windows": {
       "nsis": {},
-      "wix": {}
+      "wix": {
+        "upgradeCode": "2818B657-ED1A-4B94-BA70-EFB15D062029"
+      }
     },
     "icon": [
       "icons/32x32.png",

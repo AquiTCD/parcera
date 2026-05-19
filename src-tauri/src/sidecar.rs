@@ -215,8 +215,16 @@ impl SidecarManager {
 // ── Path resolution helpers ────────────────────────────────────────────────
 
 /// Path to the Python binary inside a bundled resource directory.
+/// macOS/Linux standalone: python-runtime/bin/python
+/// Windows standalone: python-runtime/python.exe (no bin/ subdirectory)
+#[cfg(not(target_os = "windows"))]
 pub fn python_bin_path(resource_dir: &Path) -> PathBuf {
     resource_dir.join("python-runtime").join("bin").join("python")
+}
+
+#[cfg(target_os = "windows")]
+pub fn python_bin_path(resource_dir: &Path) -> PathBuf {
+    resource_dir.join("python-runtime").join("python.exe")
 }
 
 /// Path to run_server.py inside a bundled resource directory.
@@ -293,10 +301,19 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn python_bin_path_resolves_correctly() {
         let dir = PathBuf::from("/resources");
         let p = python_bin_path(&dir);
         assert!(p.to_string_lossy().ends_with("python-runtime/bin/python"), "got: {}", p.display());
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn python_bin_path_resolves_correctly() {
+        let dir = PathBuf::from("C:\\resources");
+        let p = python_bin_path(&dir);
+        assert!(p.to_string_lossy().ends_with("python-runtime\\python.exe"), "got: {}", p.display());
     }
 
     #[test]
