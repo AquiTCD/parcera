@@ -7,8 +7,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::time::{timeout, Duration};
 
-const OAUTH_PORT: u16 = 8677;
-const REDIRECT_URI: &str = "http://localhost:8677/auth/callback";
+// Port 8677 is occupied by tauri-plugin-localhost (OBS Browser Source frontend).
+const OAUTH_PORT: u16 = 8678;
+const REDIRECT_URI: &str = "http://localhost:8678/auth/callback";
 const AUTH_TIMEOUT_SECS: u64 = 300;
 
 const TWITCH_SCOPES: &str =
@@ -290,7 +291,7 @@ mod tests {
     fn build_auth_url_contains_redirect_uri() {
         let url = build_auth_url("id", "state");
         assert!(url.contains("redirect_uri="));
-        assert!(url.contains("8677"));
+        assert!(url.contains("8678"));
     }
 
     #[test]
