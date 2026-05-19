@@ -494,3 +494,40 @@ async def test_twitch_service_eventsub_handling():
         
         await cb("follow", {"user_name": "FollowUser"})
         mock_enqueue.assert_called_with("FollowUser", "Follow", event_type="follow")
+
+# --- Bug Fix Tests ---
+
+def test_default_scopes_includes_moderator_read_followers():
+    """Bug A: MODERATOR_READ_FOLLOWERS was missing, breaking listen_channel_follow_v2."""
+    from core.twitch_client import TwitchClient
+    from twitchAPI.type import AuthScope
+
+    assert AuthScope.MODERATOR_READ_FOLLOWERS in TwitchClient.DEFAULT_SCOPES, (
+        "MODERATOR_READ_FOLLOWERS must be in DEFAULT_SCOPES for follow events to work"
+    )
+
+
+@pytest.mark.anyio
+async def test_on_eventsub_ready_does_not_register_subscriptions():
+    """Bug B: _on_eventsub_ready was double-registering subscriptions alongside _subscription_worker."""
+    from core.twitch_client import TwitchClient
+
+    client = TwitchClient("id", "secret")
+
+    mock_eventsub = MagicMock()
+    mock_eventsub.listen_channel_follow_v2 = AsyncMock()
+    mock_eventsub.listen_channel_raid = AsyncMock()
+    mock_eventsub.listen_channel_subscribe = AsyncMock()
+    mock_eventsub.session_id = "test-session-123"
+    client.eventsub = mock_eventsub
+
+    mock_user = MagicMock()
+    mock_user.id = "456"
+    mock_user.display_name = "TestUser"
+    client.get_me = AsyncMock(return_value=mock_user)
+
+    await client._on_eventsub_ready()
+
+    mock_eventsub.listen_channel_follow_v2.assert_not_called()
+    mock_eventsub.listen_channel_raid.assert_not_called()
+    mock_eventsub.listen_channel_subscribe.assert_not_called()
