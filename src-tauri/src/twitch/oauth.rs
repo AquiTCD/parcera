@@ -90,8 +90,8 @@ fn parse_callback_params(path: &str) -> Option<(String, String)> {
             Some((kv.next()?, kv.next()?))
         })
         .collect();
-    let code = params.get("code").copied()?.to_string();
-    let state = params.get("state").copied()?.to_string();
+    let code = urlencoding::decode(params.get("code").copied()?).ok()?.into_owned();
+    let state = urlencoding::decode(params.get("state").copied()?).ok()?.into_owned();
     Some((code, state))
 }
 
@@ -241,8 +241,14 @@ async fn write_http_response(
     } else {
         "text/plain"
     };
+    let status_text = match status {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        _ => "Internal Server Error",
+    };
     let response = format!(
-        "HTTP/1.1 {status} OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status} {status_text}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     stream.write_all(response.as_bytes()).await

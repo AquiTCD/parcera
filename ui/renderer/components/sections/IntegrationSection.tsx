@@ -101,7 +101,7 @@ export const IntegrationSection: React.FC<SectionProps> = ({
               </a>
               のアプリ設定で OAuth Redirect URL に{' '}
               <code className="bg-muted px-1 rounded text-xs">http://localhost:8678/auth/callback</code>{' '}
-              を登録してください。
+              を登録してください。以前 8677 で登録していた場合は 8678 に変更してください。
             </p>
             <div className="flex items-center gap-3 mt-2">
               {isAuthorized ? (
