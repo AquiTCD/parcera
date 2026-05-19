@@ -51,14 +51,46 @@ impl SidecarManager {
         self.spawn_python(app).await;
     }
 
-    /// Kill any process currently bound to our port (macOS/Linux: via lsof).
+    /// Kill any process currently bound to our port.
+    /// macOS/Linux: lsof. Windows: netstat + taskkill.
     /// Ignores errors — if nothing is there, that's fine.
+    #[cfg(not(target_os = "windows"))]
     async fn evict_port_occupant(&self) {
         let port = self.port;
         let result = tokio::task::spawn_blocking(move || {
             std::process::Command::new("sh")
                 .args(["-c", &format!("lsof -ti tcp:{port} | xargs kill -9 2>/dev/null; exit 0")])
                 .status()
+        }).await;
+        if result.is_ok() {
+            tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    async fn evict_port_occupant(&self) {
+        let port = self.port;
+        let result = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            let output = std::process::Command::new("netstat")
+                .args(["-ano"])
+                .output()?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                // netstat -ano columns: Proto, Local, Foreign, State, PID
+                if parts.len() >= 5
+                    && parts[1].ends_with(&format!(":{port}"))
+                    && parts[3] == "LISTENING"
+                {
+                    if let Some(pid) = parts.last() {
+                        let _ = std::process::Command::new("taskkill")
+                            .args(["/F", "/PID", pid])
+                            .status();
+                    }
+                    break;
+                }
+            }
+            Ok(())
         }).await;
         if result.is_ok() {
             tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
