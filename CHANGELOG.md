@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.8] - 2026-05-21 - Fix Corrupted Windows App Icon
+
+### Fixed
+- **Windows build icon**: `icon.ico` was corrupted (91 bytes, CRC mismatch on IDAT chunk), causing `tauri::generate_context!()` to panic at compile time on Windows. Regenerated all icons from `icon.png` (602×602) via `tauri icon`.
+
 ## [0.14.7] - 2026-05-20 - CI Build Pipeline Fixes
 
 ### Fixed
