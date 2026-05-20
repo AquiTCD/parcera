@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.7] - 2026-05-20 - CI Build Pipeline Fixes
+
+### Fixed
+- **macOS pyaudio build**: `uv pip install` now targets the bundled Python 3.13.13 (via `--python` flag) instead of the system Python 3.14, preventing ABI mismatch in the distributed sidecar. Also installs `portaudio` system library on macOS runners as a build dependency.
+- **Windows Tauri project detection**: Tauri CLI was unable to find `src-tauri/` when invoked from the `ui/` subdirectory (Tauri v2 searches only downward). Now invoked from the project root by adding `ui/node_modules/.bin` to `$GITHUB_PATH`.
+- **`beforeBuildCommand` CWD**: Reverted to `pnpm build` after discovering `@tauri-apps/cli` JS wrapper chdirs to `ui/` before invoking the Rust binary, making relative `-C ui` double-resolve to `ui/ui/`.
+
 ## [0.14.4] - 2026-05-20 - GitHub Actions Windows CI Build
 
 ### Added
