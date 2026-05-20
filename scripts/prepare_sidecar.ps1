@@ -42,7 +42,7 @@ Write-Host "Exporting production site-packages..."
 Get-ChildItem -Path $SitePackagesDir -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 
 uv export --no-dev --format requirements-txt | Out-File -FilePath "build_reqs.txt" -Encoding utf8
-uv pip install -r build_reqs.txt --target $SitePackagesDir
+uv pip install -r build_reqs.txt --target $SitePackagesDir --python $PythonVersion
 Remove-Item "build_reqs.txt"
 
 Write-Host "Cleaning up heavy and macOS-only dependencies..."

@@ -52,7 +52,7 @@ rm -rf "${SITE_PACKAGES_DIR}"/*
 
 # Install only production dependencies into the target directory
 uv export --no-dev --format requirements-txt > build_reqs.txt
-uv pip install -r build_reqs.txt --target "${SITE_PACKAGES_DIR}"
+uv pip install -r build_reqs.txt --target "${SITE_PACKAGES_DIR}" --python "${PYTHON_VERSION}"
 rm build_reqs.txt
 
 # Clean up heavy/unneeded dependencies
