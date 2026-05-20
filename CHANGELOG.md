@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.9] - 2026-05-21 - Release Publishing and CI Cache Optimization
+
+### Changed
+- GitHub Actions now creates a proper GitHub Release (with `.dmg`/`.msi`/`.exe` attached) on every version tag push
+- Added pnpm store, uv, and Python sidecar resource caches to significantly reduce CI build times
+- Replaced `/bump-version` slash command with a richer skill that also handles `Cargo.toml`, `tauri.conf.json`, and tag pushing
+
 ## [0.14.8] - 2026-05-21 - Fix Corrupted Windows App Icon
 
 ### Fixed
