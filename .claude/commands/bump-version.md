@@ -1,1 +1,0 @@
-../../.agent/workflows/bump-version.md
