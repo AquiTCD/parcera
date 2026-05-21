@@ -28,6 +28,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup sccache
+        uses: mozilla/sccache-action@v0.0.5
+
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
@@ -77,6 +80,9 @@ jobs:
         run: ${{ matrix.sidecar_script }}
 
       - name: Build Tauri app
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
         run: tauri build
 
       - name: Create GitHub Release
