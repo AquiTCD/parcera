@@ -1,5 +1,17 @@
+import os
+import sys
+
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any, Literal
+
+# --- Platform-aware TTS engine path defaults ---
+if sys.platform == "win32":
+    _localappdata = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
+    _AIVIS_DEFAULT_ENGINE_PATH = os.path.join(_localappdata, "Programs", "AivisSpeech", "AivisSpeech-Engine", "run.exe")
+    _VOICEVOX_DEFAULT_ENGINE_PATH = os.path.join(_localappdata, "Programs", "VOICEVOX", "vv-engine", "run.exe")
+else:
+    _AIVIS_DEFAULT_ENGINE_PATH = "/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run"
+    _VOICEVOX_DEFAULT_ENGINE_PATH = "/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run"
 
 # --- Sub-Models ---
 
@@ -86,13 +98,13 @@ class TTSGlobalSettings(BaseModel):
 class AivisSpeechConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
     api_url: str = Field(default="http://127.0.0.1:10101")
-    engine_path: str = Field(default="/Applications/AivisSpeech.app/Contents/Resources/AivisSpeech-Engine/run")
+    engine_path: str = Field(default=_AIVIS_DEFAULT_ENGINE_PATH)
     style_id: int = Field(default=0)
 
 class VoicevoxConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
     api_url: str = Field(default="http://127.0.0.1:50021")
-    engine_path: str = Field(default="/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run")
+    engine_path: str = Field(default=_VOICEVOX_DEFAULT_ENGINE_PATH)
     speaker_id: int = Field(default=3)
 
 class GoogleTTSConfig(BaseModel):
