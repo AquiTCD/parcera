@@ -1,6 +1,6 @@
 [package]
 name = "parcera"
-version = "0.14.9"
+version = "0.14.10"
 description = "Parcera - AI Avatar Companion"
 authors = []
 edition = "2021"
