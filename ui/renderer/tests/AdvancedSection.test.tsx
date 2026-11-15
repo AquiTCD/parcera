@@ -105,6 +105,30 @@ describe('AdvancedSection', () => {
       render(<AdvancedSection {...mockProps} />);
       expect(screen.getByText(/APIキー/)).toBeInTheDocument();
     });
+
+    it('renders 思考レベル selector and notice for gemini', () => {
+      render(<AdvancedSection {...mockProps} />);
+      expect(screen.getByText('思考レベル')).toBeInTheDocument();
+      expect(screen.getByText(/非対応モデルでは自動的にデフォルト設定へフォールバックします/)).toBeInTheDocument();
+    });
+
+    it('renders 思考レベル selector for openai', () => {
+      const openaiSettings = {
+        ...dummySettings,
+        llm: { ...dummySettings.llm, provider: 'openai' },
+      };
+      render(<AdvancedSection {...mockProps} settings={openaiSettings as any} />);
+      expect(screen.getByText('思考レベル')).toBeInTheDocument();
+    });
+
+    it('hides 思考レベル selector when local is selected', () => {
+      const localSettings = {
+        ...dummySettings,
+        llm: { ...dummySettings.llm, provider: 'local' },
+      };
+      render(<AdvancedSection {...mockProps} settings={localSettings as any} />);
+      expect(screen.queryByText('思考レベル')).not.toBeInTheDocument();
+    });
   });
 
   describe('STT', () => {

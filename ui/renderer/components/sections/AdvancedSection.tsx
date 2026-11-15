@@ -197,7 +197,12 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                 <FieldRow label="モデル">
                   <Select
                     value={settings.llm?.providers?.[currentLLMProvider]?.model ?? ''}
-                    onValueChange={(val) => updateProvider('llm', currentLLMProvider, 'model', val)}
+                    onValueChange={(val) => {
+                      updateProvider('llm', currentLLMProvider, 'model', val);
+                      if (settings.llm?.providers?.[currentLLMProvider]?.thinking_level) {
+                        updateProvider('llm', currentLLMProvider, 'thinking_level', '');
+                      }
+                    }}
                     disabled={isFetchingModels || !models?.length}
                   >
                     <SelectTrigger>
@@ -209,6 +214,26 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                </FieldRow>
+
+                <FieldRow label="思考レベル">
+                  <Select
+                    value={settings.llm?.providers?.[currentLLMProvider]?.thinking_level || '__default__'}
+                    onValueChange={(val) => updateProvider('llm', currentLLMProvider, 'thinking_level', val === '__default__' ? '' : val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__default__">デフォルト（モデル標準）</SelectItem>
+                      <SelectItem value="low">low（速度優先・日常会話向け）</SelectItem>
+                      <SelectItem value="medium">medium（バランス）</SelectItem>
+                      <SelectItem value="high">high（精度・推論重視／応答は遅め）</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    思考が深いほど精度は上がりますが応答が遅くなります。非対応モデルでは自動的にデフォルト設定へフォールバックします。
+                  </p>
                 </FieldRow>
               </>
             )}

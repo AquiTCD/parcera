@@ -47,18 +47,32 @@ class ParceraLLMWrapper(LLMService):
                     pass
             self._system_prompt_logged = True
 
-        # 2. Profiling & Streaming
-        start_time = time.time()
-        first_chunk = True
+        # 2. Profiling & Streaming (with runtime fallback if reasoning_effort is unsupported)
+        for attempt in range(2):
+            start_time = time.time()
+            first_chunk = True
+            try:
+                async for chunk in self.wrapped.get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
+                    if first_chunk:
+                        latency = time.time() - start_time
+                        if self.profile_mode:
+                            logger.info(f"[PERF] LLM First Token Latency: {latency:.3f}s")
+                        first_chunk = False
 
-        async for chunk in self.wrapped.get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
-            if first_chunk:
-                latency = time.time() - start_time
-                if self.profile_mode:
-                    logger.info(f"[PERF] LLM First Token Latency: {latency:.3f}s")
-                first_chunk = False
-
-            yield chunk
+                    yield chunk
+                return
+            except Exception as e:
+                effort = getattr(self.wrapped, "reasoning_effort", None)
+                msg = str(e).lower()
+                is_reasoning_err = "reasoning_effort" in msg and ("400" in msg or "unsupported" in msg or "not supported" in msg)
+                if attempt == 0 and first_chunk and effort is not None and is_reasoning_err:
+                    logger.warning(
+                        f"LLM Wrapper: reasoning_effort '{effort}' is not supported by {getattr(self.wrapped, 'model', 'model')}; "
+                        "falling back to provider default (unset) and retrying."
+                    )
+                    self.wrapped.reasoning_effort = None
+                    continue
+                raise
 
 class ParceraSTTWrapper:
     """
