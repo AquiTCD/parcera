@@ -71,7 +71,7 @@ pub fn run() {
 
             app.manage(state);
 
-            // macOS application menu with Cmd+, → Preferences
+            // macOS application menu with Cmd+, → Preferences, plus standard Edit & Window menus
             let app_menu_submenu = Submenu::with_items(
                 app,
                 "Parcera",
@@ -84,7 +84,32 @@ pub fn run() {
                     &PredefinedMenuItem::quit(app, None)?,
                 ],
             )?;
-            let menu = Menu::with_items(app, &[&app_menu_submenu])?;
+            let edit_menu_submenu = Submenu::with_items(
+                app,
+                "Edit",
+                true,
+                &[
+                    &PredefinedMenuItem::undo(app, None)?,
+                    &PredefinedMenuItem::redo(app, None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::cut(app, None)?,
+                    &PredefinedMenuItem::copy(app, None)?,
+                    &PredefinedMenuItem::paste(app, None)?,
+                    &PredefinedMenuItem::select_all(app, None)?,
+                ],
+            )?;
+            let window_menu_submenu = Submenu::with_items(
+                app,
+                "Window",
+                true,
+                &[
+                    &PredefinedMenuItem::minimize(app, None)?,
+                    &PredefinedMenuItem::maximize(app, None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::close_window(app, None)?,
+                ],
+            )?;
+            let menu = Menu::with_items(app, &[&app_menu_submenu, &edit_menu_submenu, &window_menu_submenu])?;
             app.set_menu(menu)?;
             app.on_menu_event(|app, event| {
                 if event.id().as_ref() == "preferences" {
