@@ -194,6 +194,13 @@ class UserProfileSettings(BaseModel):
     gender: str = Field(default="男性")
     mode: str = Field(default="soliloquy")
 
+class KnowledgePreset(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: str
+    title: str
+    content: str = Field(default="")
+
+
 class TwitchSettings(BaseModel):
     model_config = ConfigDict(extra="allow")
     enabled: bool = Field(default=False)
@@ -233,6 +240,8 @@ class ParceraSettings(BaseModel):
     ai_profile: AIProfileSettings = Field(default_factory=AIProfileSettings)
     user_profile: UserProfileSettings = Field(default_factory=UserProfileSettings)
     knowledge: str = Field(default="")
+    knowledge_presets: List["KnowledgePreset"] = Field(default_factory=list)
+    active_knowledge_preset_id: str = Field(default="")
     
     # Integrations
     twitch: TwitchSettings = Field(default_factory=TwitchSettings)

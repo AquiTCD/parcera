@@ -36,3 +36,32 @@ def test_config_validation_fallback(caplog):
                 
                 # Verify that warning was emitted
                 assert "Config validation failed" in caplog.text
+
+
+def test_knowledge_presets_defaults():
+    from src.core.schema import ParceraSettings
+
+    settings = ParceraSettings()
+    assert settings.knowledge_presets == []
+    assert settings.active_knowledge_preset_id == ""
+
+
+def test_config_loads_knowledge_presets():
+    dummy_yaml = (
+        "active_knowledge_preset_id: sf6\n"
+        "knowledge_presets:\n"
+        "  - id: sf6\n"
+        "    title: スト6配信\n"
+        "    content: バーンアウトしたら攻める\n"
+    )
+    with patch("builtins.open", mock_open(read_data=dummy_yaml)):
+        with patch("os.path.exists", return_value=True):
+            with patch("os.path.getmtime", return_value=123.456):
+                config = ParceraConfig(settings_path="test_settings.yaml")
+                presets = config.get("knowledge_presets")
+                assert len(presets) == 1
+                assert presets[0]["id"] == "sf6"
+                assert presets[0]["title"] == "スト6配信"
+                assert presets[0]["content"] == "バーンアウトしたら攻める"
+                assert config.get("active_knowledge_preset_id") == "sf6"
+

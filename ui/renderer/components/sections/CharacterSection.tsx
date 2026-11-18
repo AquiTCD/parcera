@@ -10,6 +10,7 @@ import { useLocalSpeakers, useGoogleVoices } from '../../hooks/useTTSSpeakers';
 import { AvatarColumn } from '../settings/visuals/AvatarColumn';
 import { WindowSettingsSection } from '../settings/WindowSettingsSection';
 import { BreatheAnimationSettings } from '../settings/visuals/BreatheAnimationSettings';
+import { KnowledgePresetsCard } from '../settings/KnowledgePresetsCard';
 
 export const CharacterSection: React.FC<SectionProps> = ({
   settings,
@@ -131,22 +132,7 @@ export const CharacterSection: React.FC<SectionProps> = ({
       </Card>
 
       {/* 追加知識・シチュエーション */}
-      <Card>
-        <CardHeader>
-          <CardTitle>追加知識・シチュエーション</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">
-            AIが知っておくべき背景情報や攻略情報、現在のシチュエーションを記述します。
-          </p>
-          <Textarea
-            value={settings.knowledge ?? ''}
-            onChange={(e) => updateRoot('knowledge', e.target.value)}
-            placeholder="例: A.K.I.の中足はガードさせて有利"
-            className="min-h-[120px]"
-          />
-        </CardContent>
-      </Card>
+      <KnowledgePresetsCard settings={settings} updateRoot={updateRoot} />
 
       {/* ユーザー設定 */}
       <Card>

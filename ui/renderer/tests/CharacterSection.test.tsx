@@ -136,6 +136,75 @@ describe('CharacterSection', () => {
       fireEvent.change(textarea, { target: { value: '新しい知識' } });
       expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge', '新しい知識');
     });
+
+    it('switches knowledge and active_knowledge_preset_id when selecting a preset', () => {
+      const presetSettings = {
+        ...dummySettings,
+        knowledge: 'スト6の知識',
+        active_knowledge_preset_id: 'sf6',
+        knowledge_presets: [
+          { id: 'sf6', title: 'スト6配信', content: 'スト6の知識' },
+          { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+        ],
+      };
+      render(<CharacterSection {...mockProps} settings={presetSettings as any} />);
+
+      const trigger = screen.getByRole('combobox', { name: '知識プリセット' });
+      fireEvent.click(trigger);
+      fireEvent.click(screen.getByRole('option', { name: 'GTA配信' }));
+
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('active_knowledge_preset_id', 'gta');
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge', 'GTAの知識');
+    });
+
+    it('saves a new knowledge preset with title and current knowledge', () => {
+      const presetSettings = {
+        ...dummySettings,
+        knowledge: '新規ゲーム知識',
+        active_knowledge_preset_id: '',
+        knowledge_presets: [],
+      };
+      render(<CharacterSection {...mockProps} settings={presetSettings as any} />);
+
+      const titleInput = screen.getByPlaceholderText('プリセット名（例: スト6配信）');
+      fireEvent.change(titleInput, { target: { value: 'スト6配信' } });
+      fireEvent.click(screen.getByRole('button', { name: '新規保存' }));
+
+      expect(mockProps.updateRoot).toHaveBeenCalledWith(
+        'knowledge_presets',
+        [expect.objectContaining({ title: 'スト6配信', content: '新規ゲーム知識' })]
+      );
+      expect(mockProps.updateRoot).toHaveBeenCalledWith(
+        'active_knowledge_preset_id',
+        expect.any(String)
+      );
+    });
+
+    it('updates and deletes the active knowledge preset', () => {
+      const presetSettings = {
+        ...dummySettings,
+        knowledge: '編集後のスト6知識',
+        active_knowledge_preset_id: 'sf6',
+        knowledge_presets: [
+          { id: 'sf6', title: 'スト6配信', content: '古いスト6知識' },
+          { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+        ],
+      };
+      render(<CharacterSection {...mockProps} settings={presetSettings as any} />);
+
+      fireEvent.click(screen.getByRole('button', { name: '上書き保存' }));
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge_presets', [
+        { id: 'sf6', title: 'スト6配信', content: '編集後のスト6知識' },
+        { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+      ]);
+
+      vi.clearAllMocks();
+      fireEvent.click(screen.getByRole('button', { name: '削除' }));
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge_presets', [
+        { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+      ]);
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('active_knowledge_preset_id', '');
+    });
   });
 
   describe('ユーザー設定', () => {
