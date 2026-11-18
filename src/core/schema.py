@@ -20,6 +20,7 @@ class GeminiConfig(BaseModel):
     model: str = Field(default="gemini-2.0-flash")
     api_key: str = Field(default="")
     temperature: float = Field(default=1.0)
+    thinking_level: Optional[Literal["low", "medium", "high"]] = Field(default=None)
     persist_history: bool = Field(default=False)
 
 class OpenAIConfig(BaseModel):
@@ -27,6 +28,7 @@ class OpenAIConfig(BaseModel):
     model: str = Field(default="gpt-4o")
     api_key: str = Field(default="")
     temperature: float = Field(default=1.0)
+    thinking_level: Optional[Literal["low", "medium", "high"]] = Field(default=None)
     persist_history: bool = Field(default=False)
 
 class LocalLLMConfig(BaseModel):

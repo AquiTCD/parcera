@@ -14,7 +14,16 @@ class FixedGeminiService(GeminiService):
         self.profile_mode = profile_mode
         self._system_prompt_logged = False
 
+    @staticmethod
+    def _is_unsupported_thinking_error(err: Exception) -> bool:
+        """Return True if the exception indicates thinking_level is unsupported by the model."""
+        msg = str(err).lower()
+        return ("thinking" in msg or "thinking_level" in msg) and (
+            "400" in msg or "invalid_argument" in msg or "unsupported" in msg or "not supported" in msg
+        )
+
     async def get_llm_stream_response(self, context_id: str, user_id: str, messages: List[Any], system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Dict[str, Any]]] = None, **kwargs):
+        user_text = ""
         if messages:
             last_msg = messages[-1]
             if hasattr(last_msg, "parts"):
@@ -26,41 +35,51 @@ class FixedGeminiService(GeminiService):
 
         logger.info(f"LLM: Requesting Gemini (context: {context_id}): {user_text}")
         if not self._system_prompt_logged:
-            logger.debug(f"LLM: System Instruction (First Time): {system_instruction[:200]}...")
+            logger.debug(f"LLM: System Instruction (First Time): {(system_instruction or '')[:200]}...")
             self._system_prompt_logged = True
         else:
             logger.debug("LLM: System Instruction: [Applied]")
 
         logger.debug(f"LLM: Raw Messages to Gemini: {messages}")
 
-        try:
+        for attempt in range(2):
             first_chunk = True
-            async for chunk in super().get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
-                if self.profile_mode:
-                    import time
-                    if first_chunk:
-                        logger.info(f"[PERF] LLM First Chunk Received at {time.time():.3f}")
+            try:
+                async for chunk in super().get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
+                    if self.profile_mode:
+                        import time
+                        if first_chunk:
+                            logger.info(f"[PERF] LLM First Chunk Received at {time.time():.3f}")
+                            first_chunk = False
+                        # Ensure chunk is stringified before slicing to avoid TypeError
+                        logger.debug(f"[PERF] LLM Stream Chunk: {str(chunk)[:50]}...")
+                    elif first_chunk:
+                        logger.debug(f"LLM: First chunk received for context: {context_id}")
                         first_chunk = False
-                    # Ensure chunk is stringified before slicing to avoid TypeError
-                    logger.debug(f"[PERF] LLM Stream Chunk: {str(chunk)[:50]}...")
-                elif first_chunk:
-                    logger.debug(f"LLM: First chunk received for context: {context_id}")
-                    first_chunk = False
 
-                yield chunk
-        except asyncio.CancelledError:
-            logger.info(f"LLM: Request cancelled (context: {context_id}).")
-            raise
-        except Exception as e:
-            # Check for common disconnection errors that can be ignored during cancellation
-            err_msg = str(e)
-            if any(x in err_msg for x in ["Server disconnected", "1006", "RemoteProtocolError"]):
-                logger.debug(f"LLM: Connection closed (context: {context_id}): {err_msg}")
-                # Re-raise as CancelledError to let the pipeline handle it gracefully
-                raise asyncio.CancelledError() from e
-            else:
-                logger.error(f"LLM Error (context: {context_id}): {err_msg}", exc_info=True)
-            raise
+                    yield chunk
+                return
+            except asyncio.CancelledError:
+                logger.info(f"LLM: Request cancelled (context: {context_id}).")
+                raise
+            except Exception as e:
+                if attempt == 0 and first_chunk and self.thinking_level and self._is_unsupported_thinking_error(e):
+                    logger.warning(
+                        f"LLM: thinking_level '{self.thinking_level}' is not supported by {self.model}; "
+                        "falling back to provider default (unset) and retrying."
+                    )
+                    self.thinking_level = None
+                    continue
+
+                # Check for common disconnection errors that can be ignored during cancellation
+                err_msg = str(e)
+                if any(x in err_msg for x in ["Server disconnected", "1006", "RemoteProtocolError"]):
+                    logger.debug(f"LLM: Connection closed (context: {context_id}): {err_msg}")
+                    # Re-raise as CancelledError to let the pipeline handle it gracefully
+                    raise asyncio.CancelledError() from e
+                else:
+                    logger.error(f"LLM Error (context: {context_id}): {err_msg}", exc_info=True)
+                raise
 
     async def update_context(self, context_id: str, user_id: str, messages: List[Any], response_text: str):
         # Add model response to history

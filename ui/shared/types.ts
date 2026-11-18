@@ -59,6 +59,7 @@ export interface LLMSettings {
 export interface LLMProviderConfig {
   model?: string;
   temperature?: number;
+  thinking_level?: 'low' | 'medium' | 'high' | '';
   persist_history?: boolean;
   option_split_threshold?: number;
   api_key?: string;

@@ -42,6 +42,7 @@ class ParceraComponentFactory:
                 context_manager=context_manager,
                 model=gemini_cfg.get("model", "gemini-2.0-flash"),
                 temperature=float(gemini_cfg.get("temperature", 1.0)),
+                thinking_level=gemini_cfg.get("thinking_level") or None,
                 option_split_threshold=int(gemini_cfg.get("option_split_threshold", 15)),
                 system_prompt=self.config.full_system_prompt,
                 profile_mode=self.config.profile_mode,
@@ -62,6 +63,7 @@ class ParceraComponentFactory:
                 context_manager=context_manager,
                 model=openai_cfg.get("model", "gpt-4o"),
                 temperature=float(openai_cfg.get("temperature", 1.0)),
+                reasoning_effort=openai_cfg.get("thinking_level") or None,
                 system_prompt=self.config.full_system_prompt,
             )
             return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
