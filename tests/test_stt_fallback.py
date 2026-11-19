@@ -29,17 +29,19 @@ async def test_stt_wrapper_fallback_on_429_and_cooldown():
         clock=lambda: now[0],
     )
 
-    res1 = await wrapper.recognize("s1", b"audio1")
-    assert res1.text == "サブ認識"
-    assert primary.recognize.await_count == 1
-    assert secondary.recognize.await_count == 1
+    # 3 consecutive failures trip cooldown
+    for i in range(3):
+        res = await wrapper.recognize("s1", f"audio{i}".encode())
+        assert res.text == "サブ認識"
+    assert primary.recognize.await_count == 3
+    assert secondary.recognize.await_count == 3
 
     # Inside cooldown -> skips primary completely
     now[0] += 3600.0
-    res2 = await wrapper.recognize("s1", b"audio2")
+    res2 = await wrapper.recognize("s1", b"audio_skip")
     assert res2.text == "サブ認識"
-    assert primary.recognize.await_count == 1
-    assert secondary.recognize.await_count == 2
+    assert primary.recognize.await_count == 3
+    assert secondary.recognize.await_count == 4
 
 
 @pytest.mark.asyncio
@@ -63,12 +65,13 @@ async def test_stt_wrapper_recovers_after_cooldown():
         clock=lambda: now[0],
     )
 
-    assert (await wrapper.recognize("s1", b"a")).text == "サブ"
+    for i in range(3):
+        assert (await wrapper.recognize("s1", f"a{i}".encode())).text == "サブ"
 
     now[0] += 10800.1
     fail_first[0] = False
     assert (await wrapper.recognize("s1", b"b")).text == "メイン復活"
-    assert secondary.recognize.await_count == 1
+    assert secondary.recognize.await_count == 3
 
 
 @pytest.mark.asyncio

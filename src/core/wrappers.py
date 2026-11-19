@@ -35,13 +35,16 @@ class _LazyCooldownMixin:
         secondary=None,
         secondary_factory: Optional[Callable[[], Any]] = None,
         cooldown_seconds: int = 10800,
+        failure_threshold: int = 3,
         clock: Callable[[], float] = time.monotonic,
     ):
         self._secondary_instance = secondary
         self._secondary_factory = secondary_factory
         self.cooldown_seconds = cooldown_seconds
+        self.failure_threshold = failure_threshold
         self._clock = clock
         self._cooldown_until: Optional[float] = None
+        self._consecutive_failures: int = 0
 
     @property
     def has_secondary(self) -> bool:
@@ -64,10 +67,16 @@ class _LazyCooldownMixin:
             and self._clock() < self._cooldown_until
         )
 
-    def _trip_cooldown(self) -> None:
-        self._cooldown_until = self._clock() + self.cooldown_seconds
+    def _record_primary_failure(self) -> bool:
+        """Record a primary failure and return True if cooldown was entered."""
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.failure_threshold:
+            self._cooldown_until = self._clock() + self.cooldown_seconds
+            return True
+        return False
 
-    def _clear_cooldown(self) -> None:
+    def _record_primary_success(self) -> None:
+        self._consecutive_failures = 0
         self._cooldown_until = None
 
 
@@ -228,17 +237,23 @@ class ParceraLLMWrapper(_LazyCooldownMixin, LLMService):
             ):
                 received_any_chunk = True
                 yield chunk
-            self._cooldown_until = None
+            self._record_primary_success()
             return
         except Exception as e:
             if not received_any_chunk and self.has_secondary and _is_fallback_trigger(e):
                 secondary = self.secondary
-                self._cooldown_until = self._clock() + self.cooldown_seconds
+                entered_cooldown = self._record_primary_failure()
                 self._active_turn_is_secondary = True
-                logger.warning(
-                    f"LLM Wrapper: Primary LLM failed ({type(e).__name__}: {e}). "
-                    f"Switching to fallback LLM for {self.cooldown_seconds}s."
-                )
+                if entered_cooldown:
+                    logger.warning(
+                        f"LLM Wrapper: Primary LLM failed {self._consecutive_failures} times ({type(e).__name__}: {e}). "
+                        f"Switching to fallback LLM for {self.cooldown_seconds}s."
+                    )
+                else:
+                    logger.warning(
+                        f"LLM Wrapper: Primary LLM failed ({self._consecutive_failures}/{self.failure_threshold}) "
+                        f"({type(e).__name__}: {e}). Falling back for this turn."
+                    )
                 fb_context_id = self._fallback_context_id(context_id)
                 if self._last_compose_args is not None:
                     _, u_id, text, files, sys_params = self._last_compose_args
@@ -304,14 +319,20 @@ class ParceraSTTWrapper(_LazyCooldownMixin):
             else:
                 try:
                     result = await self.wrapped.recognize(session_id, data)
-                    self._clear_cooldown()
+                    self._record_primary_success()
                 except Exception as primary_err:
                     if self.has_secondary and _is_fallback_trigger(primary_err):
-                        self._trip_cooldown()
-                        logger.warning(
-                            f"STT Wrapper: Primary STT failed ({type(primary_err).__name__}: {primary_err}). "
-                            f"Switching to fallback STT for {self.cooldown_seconds}s."
-                        )
+                        entered_cooldown = self._record_primary_failure()
+                        if entered_cooldown:
+                            logger.warning(
+                                f"STT Wrapper: Primary STT failed {self._consecutive_failures} times ({type(primary_err).__name__}: {primary_err}). "
+                                f"Switching to fallback STT for {self.cooldown_seconds}s."
+                            )
+                        else:
+                            logger.warning(
+                                f"STT Wrapper: Primary STT failed ({self._consecutive_failures}/{self.failure_threshold}) "
+                                f"({type(primary_err).__name__}: {primary_err}). Falling back for this turn."
+                            )
                         result = await self.secondary.recognize(session_id, data)
                     else:
                         raise

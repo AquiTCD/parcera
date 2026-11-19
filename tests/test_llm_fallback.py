@@ -50,30 +50,48 @@ async def test_wrapper_fallback_on_429_and_skips_primary_during_cooldown():
         clock=lambda: now[0],
     )
 
-    # Turn 1: primary fails -> falls back to secondary & recomposes for secondary
-    msgs1 = await wrapper.compose_messages("ctx1", "user1", "やっほー")
-    out1 = [c async for c in wrapper.get_llm_stream_response("ctx1", "user1", msgs1)]
-    await wrapper.update_context("ctx1", "user1", msgs1, "".join(out1))
+    # Turn 1-3: primary fails 3 times -> each turn falls back, and 3rd failure trips cooldown
+    for i in range(3):
+        msgs = await wrapper.compose_messages("ctx1", "user1", f"やっほー{i}")
+        out = [c async for c in wrapper.get_llm_stream_response("ctx1", "user1", msgs)]
+        await wrapper.update_context("ctx1", "user1", msgs, "".join(out))
+        assert out == ["こん", "にちは"]
 
-    assert out1 == ["こん", "にちは"]
-    assert primary.get_llm_stream_response.call_count == 1
-    assert secondary.compose_messages.call_count == 1
-    assert secondary.get_llm_stream_response.call_count == 1
-    # update_context must go only to secondary with secondary's context_id
+    assert primary.get_llm_stream_response.call_count == 3
+    assert secondary.compose_messages.call_count == 3
+    assert secondary.get_llm_stream_response.call_count == 3
     primary.update_context.assert_not_awaited()
-    secondary.update_context.assert_awaited_once()
+    assert secondary.update_context.await_count == 3
 
-    # Turn 2: 1 hour later (still inside 3h cooldown) -> primary is skipped completely
+    # Turn 4: 1 hour later (inside 3h cooldown) -> primary is skipped completely
     now[0] += 3600.0
     msgs2 = await wrapper.compose_messages("ctx1", "user1", "元気？")
     out2 = [c async for c in wrapper.get_llm_stream_response("ctx1", "user1", msgs2)]
     await wrapper.update_context("ctx1", "user1", msgs2, "".join(out2))
 
     assert out2 == ["こん", "にちは"]
-    assert primary.compose_messages.call_count == 1  # NOT called again
-    assert primary.get_llm_stream_response.call_count == 1
-    assert secondary.compose_messages.call_count == 2
-    assert secondary.get_llm_stream_response.call_count == 2
+    assert primary.compose_messages.call_count == 3  # NOT called again
+    assert primary.get_llm_stream_response.call_count == 3
+    assert secondary.compose_messages.call_count == 4
+    assert secondary.get_llm_stream_response.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_wrapper_does_not_trip_cooldown_before_three_failures():
+    primary = _make_llm_service(error=TimeoutError("transient timeout"))
+    secondary = _make_llm_service(chunks=["サブ"], compose_tag="secondary")
+
+    wrapper = ParceraLLMWrapper(primary, secondary=secondary, cooldown_seconds=10800)
+
+    # 2 failures -> falls back each turn, but still retries primary on turn 3
+    for i in range(2):
+        m = await wrapper.compose_messages("c", "u", str(i))
+        assert [c async for c in wrapper.get_llm_stream_response("c", "u", m)] == ["サブ"]
+
+    assert primary.get_llm_stream_response.call_count == 2
+    m3 = await wrapper.compose_messages("c", "u", "3")
+    assert [c async for c in wrapper.get_llm_stream_response("c", "u", m3)] == ["サブ"]
+    assert primary.get_llm_stream_response.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -97,12 +115,13 @@ async def test_wrapper_recovers_to_primary_after_cooldown():
         clock=lambda: now[0],
     )
 
-    # Turn 1: trips cooldown
-    msgs1 = await wrapper.compose_messages("ctx1", "user1", "hi")
-    out1 = [c async for c in wrapper.get_llm_stream_response("ctx1", "user1", msgs1)]
-    assert out1 == ["サブ応答"]
+    # Turn 1-3: trips cooldown after 3 failures
+    for i in range(3):
+        msgs1 = await wrapper.compose_messages("ctx1", "user1", f"hi{i}")
+        out1 = [c async for c in wrapper.get_llm_stream_response("ctx1", "user1", msgs1)]
+        assert out1 == ["サブ応答"]
 
-    # Turn 2: after 3h+, primary recovers
+    # Turn 4: after 3h+, primary recovers and resets consecutive failure counter
     now[0] += 10800.1
     fail_first[0] = False
     msgs2 = await wrapper.compose_messages("ctx1", "user1", "back?")
@@ -111,7 +130,7 @@ async def test_wrapper_recovers_to_primary_after_cooldown():
 
     assert out2 == ["復活！"]
     primary.update_context.assert_awaited_once()
-    assert secondary.get_llm_stream_response.call_count == 1
+    assert secondary.get_llm_stream_response.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -127,21 +146,22 @@ async def test_wrapper_reenters_cooldown_when_recovery_times_out():
         clock=lambda: now[0],
     )
 
-    # Turn 1: primary times out -> cooldown until 11800
-    m1 = await wrapper.compose_messages("c", "u", "1")
-    assert [c async for c in wrapper.get_llm_stream_response("c", "u", m1)] == ["サブ"]
+    # Turn 1-3: primary times out 3 times -> cooldown until 11800
+    for i in range(3):
+        m1 = await wrapper.compose_messages("c", "u", str(i))
+        assert [c async for c in wrapper.get_llm_stream_response("c", "u", m1)] == ["サブ"]
 
-    # Turn 2: after 3h -> retries primary, still times out -> resets cooldown to 11800 + 10800
+    # Turn 4: after 3h -> retries primary once, still times out -> immediately re-enters cooldown
     now[0] += 10801.0
-    m2 = await wrapper.compose_messages("c", "u", "2")
+    m2 = await wrapper.compose_messages("c", "u", "retry")
     assert [c async for c in wrapper.get_llm_stream_response("c", "u", m2)] == ["サブ"]
-    assert primary.get_llm_stream_response.call_count == 2
+    assert primary.get_llm_stream_response.call_count == 4
 
-    # Turn 3: 100s later -> inside new cooldown -> skips primary
+    # Turn 5: 100s later -> inside new cooldown -> skips primary
     now[0] += 100.0
-    m3 = await wrapper.compose_messages("c", "u", "3")
+    m3 = await wrapper.compose_messages("c", "u", "skip")
     assert [c async for c in wrapper.get_llm_stream_response("c", "u", m3)] == ["サブ"]
-    assert primary.get_llm_stream_response.call_count == 2
+    assert primary.get_llm_stream_response.call_count == 4
 
 
 @pytest.mark.asyncio
