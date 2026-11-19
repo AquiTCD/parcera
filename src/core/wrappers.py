@@ -27,6 +27,14 @@ class ParceraLLMWrapper(LLMService):
     def dynamic_tool_name(self) -> str:
         return self.wrapped.dynamic_tool_name
 
+    @property
+    def system_prompt(self):
+        return self.wrapped.system_prompt
+
+    @system_prompt.setter
+    def system_prompt(self, value):
+        self.wrapped.system_prompt = value
+
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: Optional[List[Any]] = None, system_prompt_params: Optional[Dict[str, Any]] = None):
         return await self.wrapped.compose_messages(context_id, user_id, text, files, system_prompt_params)
 
