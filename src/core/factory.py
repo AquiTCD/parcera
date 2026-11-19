@@ -88,18 +88,16 @@ class ParceraComponentFactory:
 
         fallback_cfg = llm_cfg.get("fallback") or {}
         fallback_provider = fallback_cfg.get("provider", "")
-        secondary_service = None
+        secondary_factory = None
         cooldown_seconds = int(fallback_cfg.get("cooldown_seconds", 10800))
         if fallback_provider:
-            secondary_service = self._build_llm_service(
-                fallback_provider,
-                fallback_cfg.get("providers", {}),
-            )
+            fb_providers = fallback_cfg.get("providers", {})
+            secondary_factory = lambda: self._build_llm_service(fallback_provider, fb_providers)
 
         return ParceraLLMWrapper(
             primary_service,
             profile_mode=self.config.profile_mode,
-            secondary=secondary_service,
+            secondary_factory=secondary_factory,
             cooldown_seconds=cooldown_seconds,
         )
 

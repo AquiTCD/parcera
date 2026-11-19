@@ -173,7 +173,7 @@ def test_factory_builds_llm_with_and_without_fallback(tmp_path):
         factory = ParceraComponentFactory(cfg_no_fb)
         llm = factory.build_llm()
         assert isinstance(llm, ParceraLLMWrapper)
-        assert llm.secondary is None
+        assert not llm.has_secondary
         mock_gem.assert_called_once()
         mock_oai.assert_not_called()
 
@@ -198,7 +198,31 @@ def test_factory_builds_llm_with_and_without_fallback(tmp_path):
         factory = ParceraComponentFactory(cfg_with_fb)
         llm = factory.build_llm()
         assert isinstance(llm, ParceraLLMWrapper)
-        assert llm.secondary is not None
+        assert llm.has_secondary
         assert llm.cooldown_seconds == 10800
         mock_gem.assert_called_once()
+        # Secondary must be lazy-loaded, not constructed at build_llm() time
+        mock_oai.assert_not_called()
+        _ = llm.secondary
         mock_oai.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_wrapper_lazy_loads_secondary_only_on_fallback():
+    primary = _make_llm_service(error=RuntimeError("429 RESOURCE_EXHAUSTED"))
+    secondary = _make_llm_service(chunks=["ローカル応答"], compose_tag="local")
+    factory_fn = MagicMock(return_value=secondary)
+
+    wrapper = ParceraLLMWrapper(primary, secondary_factory=factory_fn)
+    wrapper.system_prompt = "updated prompt"
+
+    # Not constructed before fallback triggers
+    factory_fn.assert_not_called()
+
+    msgs = await wrapper.compose_messages("c", "u", "hi")
+    out = [c async for c in wrapper.get_llm_stream_response("c", "u", msgs)]
+
+    assert out == ["ローカル応答"]
+    factory_fn.assert_called_once()
+    assert secondary.system_prompt == "updated prompt"
+

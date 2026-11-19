@@ -37,12 +37,14 @@ class ParceraLLMWrapper(LLMService):
         wrapped_service: LLMService,
         profile_mode: bool = False,
         secondary: Optional[LLMService] = None,
+        secondary_factory: Optional[Callable[[], LLMService]] = None,
         cooldown_seconds: int = 10800,
         clock: Callable[[], float] = time.monotonic,
     ):
         self.wrapped = wrapped_service
         self.profile_mode = profile_mode
-        self.secondary = secondary
+        self._secondary_instance = secondary
+        self._secondary_factory = secondary_factory
         self.cooldown_seconds = cooldown_seconds
         self._clock = clock
         self._cooldown_until: Optional[float] = None
@@ -51,9 +53,21 @@ class ParceraLLMWrapper(LLMService):
         self._last_secondary_messages: Optional[list] = None
         self._active_turn_is_secondary: bool = False
 
+    @property
+    def has_secondary(self) -> bool:
+        return self._secondary_instance is not None or self._secondary_factory is not None
+
+    @property
+    def secondary(self) -> Optional[LLMService]:
+        if self._secondary_instance is None and self._secondary_factory is not None:
+            self._secondary_instance = self._secondary_factory()
+            if hasattr(self._secondary_instance, "system_prompt") and hasattr(self.wrapped, "system_prompt"):
+                self._secondary_instance.system_prompt = self.wrapped.system_prompt
+        return self._secondary_instance
+
     def _is_in_cooldown(self) -> bool:
         return (
-            self.secondary is not None
+            self.has_secondary
             and self._cooldown_until is not None
             and self._clock() < self._cooldown_until
         )
@@ -82,8 +96,8 @@ class ParceraLLMWrapper(LLMService):
     @system_prompt.setter
     def system_prompt(self, value):
         self.wrapped.system_prompt = value
-        if self.secondary is not None and hasattr(self.secondary, "system_prompt"):
-            self.secondary.system_prompt = value
+        if self._secondary_instance is not None and hasattr(self._secondary_instance, "system_prompt"):
+            self._secondary_instance.system_prompt = value
 
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: Optional[List[Any]] = None, system_prompt_params: Optional[Dict[str, Any]] = None):
         self._last_compose_args = (context_id, user_id, text, files, system_prompt_params)
@@ -187,7 +201,8 @@ class ParceraLLMWrapper(LLMService):
             self._cooldown_until = None
             return
         except Exception as e:
-            if not received_any_chunk and self.secondary is not None and _is_fallback_trigger(e):
+            if not received_any_chunk and self.has_secondary and _is_fallback_trigger(e):
+                secondary = self.secondary
                 self._cooldown_until = self._clock() + self.cooldown_seconds
                 self._active_turn_is_secondary = True
                 logger.warning(
