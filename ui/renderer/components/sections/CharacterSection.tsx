@@ -132,7 +132,7 @@ export const CharacterSection: React.FC<SectionProps> = ({
       </Card>
 
       {/* 追加知識・シチュエーション */}
-      <KnowledgePresetsCard settings={settings} updateRoot={updateRoot} />
+      <KnowledgePresetsCard settings={settings} updateRoot={updateRoot} setStatus={setStatus} />
 
       {/* ユーザー設定 */}
       <Card>
