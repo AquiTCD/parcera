@@ -54,6 +54,17 @@ export interface TwitchSettings {
   queue_expiry_seconds?: number;
 }
 
+export interface LLMFallbackSettings {
+  provider?: string;
+  cooldown_seconds?: number;
+  providers?: {
+    gemini?: LLMProviderConfig;
+    openai?: LLMProviderConfig;
+    local?: LLMProviderConfig;
+    [key: string]: LLMProviderConfig | undefined;
+  };
+}
+
 export interface LLMSettings {
   provider?: string;
   providers?: {
@@ -62,6 +73,7 @@ export interface LLMSettings {
     local?: LLMProviderConfig;
     [key: string]: LLMProviderConfig | undefined;
   };
+  fallback?: LLMFallbackSettings;
 }
 
 export interface LLMProviderConfig {
@@ -75,6 +87,18 @@ export interface LLMProviderConfig {
   adapter_path?: string;
 }
 
+export interface STTFallbackSettings {
+  provider?: string;
+  cooldown_seconds?: number;
+  providers?: {
+    faster_whisper?: STTProviderConfig;
+    google?: STTProviderConfig;
+    azure?: STTProviderConfig;
+    moonshine?: STTProviderConfig;
+    [key: string]: STTProviderConfig | undefined;
+  };
+}
+
 export interface STTSettings {
   provider?: string;
   ignore_sentences?: string[];           // Phrases to ignore after STT
@@ -85,6 +109,7 @@ export interface STTSettings {
     azure?: STTProviderConfig;
     [key: string]: STTProviderConfig | undefined;
   };
+  fallback?: STTFallbackSettings;
 }
 
 export interface STTProviderConfig {

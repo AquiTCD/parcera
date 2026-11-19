@@ -45,6 +45,27 @@ llm:
       persist_history: false
       adapter_path: ""   # Optional path to LoRA adapter.
 
+  fallback:
+    provider: ""            # "" (disabled) | "gemini" | "openai" | "local"
+    cooldown_seconds: 10800 # Seconds before retrying primary after fallback (default: 3h)
+    providers:
+      gemini:
+        model: "gemini-2.0-flash"
+        api_key: ""
+        temperature: 1.0
+        persist_history: false
+      openai:
+        model: "gpt-4o"
+        api_key: ""
+        temperature: 1.0
+        persist_history: false
+      local:
+        model: "mlx-community/Qwen3.5-9B-MLX-4bit"
+        temperature: 0.8
+        max_tokens: 150
+        persist_history: false
+        adapter_path: ""
+
 # ==========================================
 # STT (Speech to Text) Settings
 # ==========================================
@@ -76,6 +97,23 @@ stt:
       api_key: ""
       region: "japaneast"
       language: "ja-JP"
+
+  fallback:
+    provider: ""            # "" (disabled) | "moonshine" | "faster_whisper" | "google" | "azure"
+    cooldown_seconds: 10800 # Seconds before retrying primary after fallback (default: 3h)
+    providers:
+      faster_whisper:
+        model: "longisland3/kotoba-whisper-v2.2-faster"
+        device: "cpu"
+        compute_type: "int8"
+        whisper_vad_filter: false
+      google:
+        api_key: ""
+        language: "ja-JP"
+      azure:
+        api_key: ""
+        region: "japaneast"
+        language: "ja-JP"
 
 # ==========================================
 # TTS (Text to Speech) Settings

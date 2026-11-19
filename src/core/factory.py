@@ -21,12 +21,9 @@ class ParceraComponentFactory:
     def __init__(self, config: ParceraConfig):
         self.config = config
 
-    def build_llm(self):
-        llm_cfg = self.config.get("llm", {})
-        provider = llm_cfg.get("provider", "gemini")
-        providers = llm_cfg.get("providers", {})
-
-        service_instance = None
+    def _build_llm_service(self, provider: str, providers: dict):
+        db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+        context_manager = SQLiteContextManager(db_path=db_path)
 
         if provider == "gemini":
             gemini_cfg = providers.get("gemini", {})
@@ -34,10 +31,7 @@ class ParceraComponentFactory:
             if not api_key:
                 logger.warning("Gemini API key is missing. Set it in Settings -> LLM.")
 
-            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
-            context_manager = SQLiteContextManager(db_path=db_path)
-
-            service_instance = FixedGeminiService(
+            return FixedGeminiService(
                 gemini_api_key=api_key,
                 context_manager=context_manager,
                 model=gemini_cfg.get("model", "gemini-2.0-flash"),
@@ -48,17 +42,14 @@ class ParceraComponentFactory:
                 profile_mode=self.config.profile_mode,
                 debug=self.config.verbose
             )
-        elif provider == "openai":
+        if provider == "openai":
             openai_cfg = providers.get("openai", {})
             api_key = openai_cfg.get("api_key")
             if not api_key:
                 logger.warning("OpenAI API key is missing. Set it in Settings -> LLM.")
 
-            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
-            context_manager = SQLiteContextManager(db_path=db_path)
-
             # NOTE: ChatGPTService arguments differ from ChatGPT
-            service_instance = ChatGPTService(
+            return ChatGPTService(
                 openai_api_key=api_key,
                 context_manager=context_manager,
                 model=openai_cfg.get("model", "gpt-4o"),
@@ -66,9 +57,7 @@ class ParceraComponentFactory:
                 reasoning_effort=openai_cfg.get("thinking_level") or None,
                 system_prompt=self.config.full_system_prompt,
             )
-            return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
-
-        elif provider == "local":
+        if provider == "local":
             if IS_WINDOWS:
                 raise ValueError("Local LLM (mlx-lm) is not supported on Windows. Use Gemini or OpenAI instead.")
             from core.local_llm import LocalLLMService  # lazy: only when local LLM is selected
@@ -76,10 +65,7 @@ class ParceraComponentFactory:
             model_name = local_cfg.get("model", "mlx-community/gemma-2-9b-it-4bit")
             adapter_path = local_cfg.get("adapter_path")
 
-            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
-            context_manager = SQLiteContextManager(db_path=db_path)
-
-            service_instance = LocalLLMService(
+            return LocalLLMService(
                 model=model_name,
                 adapter_path=adapter_path,
                 context_manager=context_manager,
@@ -90,12 +76,108 @@ class ParceraComponentFactory:
                 repetition_context_size=int(local_cfg.get("repetition_context_size", 20)),
                 debug=self.config.verbose
             )
-            return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
 
-        else:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+        raise ValueError(f"Unsupported LLM provider: {provider}")
 
-        return service_instance
+    def build_llm(self):
+        llm_cfg = self.config.get("llm", {})
+        provider = llm_cfg.get("provider", "gemini")
+        providers = llm_cfg.get("providers", {})
+
+        primary_service = self._build_llm_service(provider, providers)
+
+        fallback_cfg = llm_cfg.get("fallback") or {}
+        fallback_provider = fallback_cfg.get("provider", "")
+        secondary_factory = None
+        cooldown_seconds = int(fallback_cfg.get("cooldown_seconds", 10800))
+        if fallback_provider:
+            fb_providers = fallback_cfg.get("providers", {})
+            secondary_factory = lambda: self._build_llm_service(fallback_provider, fb_providers)
+
+        return ParceraLLMWrapper(
+            primary_service,
+            profile_mode=self.config.profile_mode,
+            secondary_factory=secondary_factory,
+            cooldown_seconds=cooldown_seconds,
+        )
+
+    def _build_stt_recognizer(self, provider: str, providers: dict, on_recognized_callback=None):
+        if provider == "faster_whisper":
+            if not is_installed("faster_whisper"):
+                logger.warning(
+                    "STT: faster_whisper optional packages not installed. "
+                    "Select faster_whisper in Settings and click Download."
+                )
+                return NoOpRecognizer(debug=self.config.verbose)
+            from core.stt import KotobaWhisperRecognizer  # lazy: only when faster_whisper is selected
+            fw_cfg = providers.get("faster_whisper", {})
+            whisper_vad_filter = fw_cfg.get("whisper_vad_filter", False)
+            device = fw_cfg.get("device", "cpu")
+            compute_type = fw_cfg.get("compute_type", "int8")
+
+            # CTranslate2 (faster-whisper backend) does not support 'mps'.
+            if device == "mps":
+                logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
+                device = "cpu"
+                compute_type = "int8"
+
+            try:
+                return KotobaWhisperRecognizer(
+                    model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
+                    device=device,
+                    compute_type=compute_type,
+                    initial_prompt=self.config.full_stt_prompt,
+                    whisper_vad_filter=whisper_vad_filter,
+                    on_recognized_callback=on_recognized_callback,
+                    debug=self.config.verbose
+                )
+            except Exception as e:
+                logger.warning(f"STT: Failed to load model (not downloaded yet?). STT disabled until model is downloaded via Settings. Error: {e}")
+                return NoOpRecognizer(debug=self.config.verbose)
+
+        if provider == "moonshine":
+            if not is_installed("moonshine"):
+                logger.warning(
+                    "STT: moonshine optional packages not installed. "
+                    "Select moonshine in Settings and click Download."
+                )
+                return NoOpRecognizer(debug=self.config.verbose)
+            from core.stt import MoonshineRecognizer  # lazy: only when moonshine is selected
+            ms_cfg = providers.get("moonshine", {})
+            try:
+                return MoonshineRecognizer(
+                    model_name=ms_cfg.get("model", "base-ja"),
+                    flags=int(ms_cfg.get("flags", 0)),
+                    on_recognized_callback=on_recognized_callback,
+                    debug=self.config.verbose
+                )
+            except Exception as e:
+                logger.warning(f"STT: Failed to load Moonshine model: {e}")
+                return NoOpRecognizer(debug=self.config.verbose)
+
+        if provider == "google":
+            google_cfg = providers.get("google", {})
+            api_key = google_cfg.get("api_key")
+            if not api_key:
+                logger.warning("Google STT API key is missing. Set it in Settings -> STT.")
+            return GoogleSpeechRecognizer(
+                google_api_key=api_key,
+                language=google_cfg.get("language", "ja-JP"),
+            )
+
+        if provider == "azure":
+            azure_cfg = providers.get("azure", {})
+            api_key = azure_cfg.get("api_key")
+            region = azure_cfg.get("region")
+            if not api_key or not region:
+                logger.warning("Azure Speech API key or Region is missing. Set it in Settings -> STT.")
+            return AzureSpeechRecognizer(
+                azure_api_key=api_key,
+                azure_region=region,
+                language=azure_cfg.get("language", "ja-JP")
+            )
+
+        raise ValueError(f"Unsupported STT provider: {provider}")
 
     def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None):
         stt_cfg = self.config.get("stt", {})
@@ -113,107 +195,33 @@ class ParceraComponentFactory:
             presets=self.config.get("sensitivity_presets")
         )
 
-        recognizer_instance = None
+        recognizer_instance = self._build_stt_recognizer(
+            provider,
+            providers,
+            on_recognized_callback=on_recognized_callback,
+        )
 
-        if provider == "faster_whisper":
-            if not is_installed("faster_whisper"):
-                logger.warning(
-                    "STT: faster_whisper optional packages not installed. "
-                    "Select faster_whisper in Settings and click Download."
-                )
-                recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
-            else:
-                from core.stt import KotobaWhisperRecognizer  # lazy: only when faster_whisper is selected
-                fw_cfg = providers.get("faster_whisper", {})
-                vad_cfg = self.config.get("vad", {})
-                whisper_vad_filter = fw_cfg.get("whisper_vad_filter", False)
-                device = fw_cfg.get("device", "cpu")
-                compute_type = fw_cfg.get("compute_type", "int8")
-
-                # CTranslate2 (faster-whisper backend) does not support 'mps'.
-                # Force to 'cpu' if someone has it set from an older config.
-                # Also reset compute_type since float16 (often paired with mps) is not supported on CPU.
-                if device == "mps":
-                    logger.info("STT: 'mps' is not supported by CTranslate2. Using 'cpu' with 'int8' instead.")
-                    device = "cpu"
-                    compute_type = "int8"
-
-                try:
-                    recognizer_instance = KotobaWhisperRecognizer(
-                        model_name=fw_cfg.get("model", "longisland3/kotoba-whisper-v2.2-faster"),
-                        device=device,
-                        compute_type=compute_type,
-                        initial_prompt=self.config.full_stt_prompt,
-                        whisper_vad_filter=whisper_vad_filter,
-                        on_recognized_callback=on_recognized_callback,
-                        debug=self.config.verbose
-                    )
-                except Exception as e:
-                    logger.warning(f"STT: Failed to load model (not downloaded yet?). STT disabled until model is downloaded via Settings. Error: {e}")
-                    recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
-
-        elif provider == "moonshine":
-            if not is_installed("moonshine"):
-                logger.warning(
-                    "STT: moonshine optional packages not installed. "
-                    "Select moonshine in Settings and click Download."
-                )
-                recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
-            else:
-                from core.stt import MoonshineRecognizer  # lazy: only when moonshine is selected
-                ms_cfg = providers.get("moonshine", {})
-                try:
-                    recognizer_instance = MoonshineRecognizer(
-                        model_name=ms_cfg.get("model", "base-ja"),
-                        flags=int(ms_cfg.get("flags", 0)),
-                        on_recognized_callback=on_recognized_callback,
-                        debug=self.config.verbose
-                    )
-                except Exception as e:
-                    logger.warning(f"STT: Failed to load Moonshine model: {e}")
-                    recognizer_instance = NoOpRecognizer(debug=self.config.verbose)
-
-        elif provider == "google":
-            google_cfg = providers.get("google", {})
-            api_key = google_cfg.get("api_key")
-            if not api_key:
-                 logger.warning("Google STT API key is missing. Set it in Settings -> STT.")
-            recognizer_instance = GoogleSpeechRecognizer(
-                google_api_key=api_key,
-                language=google_cfg.get("language", "ja-JP"),
+        fallback_cfg = stt_cfg.get("fallback") or {}
+        fallback_provider = fallback_cfg.get("provider", "")
+        secondary_factory = None
+        cooldown_seconds = int(fallback_cfg.get("cooldown_seconds", 10800))
+        if fallback_provider:
+            fb_providers = fallback_cfg.get("providers", {})
+            secondary_factory = lambda: self._build_stt_recognizer(
+                fallback_provider,
+                fb_providers,
+                on_recognized_callback=on_recognized_callback,
             )
 
-            return ParceraSTTWrapper(
-                wrapped_recognizer=recognizer_instance,
-                is_busy_handler=is_busy_handler,
-                set_busy_handler=set_busy_handler,
-                response_filter=response_filter,
-                on_recognized_callback=on_recognized_callback
-            )
-
-        elif provider == "azure":
-            azure_cfg = providers.get("azure", {})
-            api_key = azure_cfg.get("api_key")
-            region = azure_cfg.get("region")
-            if not api_key or not region:
-                logger.warning("Azure Speech API key or Region is missing. Set it in Settings -> STT.")
-
-            recognizer_instance = AzureSpeechRecognizer(
-                azure_api_key=api_key,
-                azure_region=region,
-                language=azure_cfg.get("language", "ja-JP")
-            )
-
-        else:
-             raise ValueError(f"Unsupported STT provider: {provider}")
-
-        # Wrap the selected recognizer to provide consistent busy/filter logic
+        # Wrap the selected recognizer to provide consistent busy/filter/fallback logic
         return ParceraSTTWrapper(
             recognizer_instance,
             is_busy_handler=is_busy_handler,
             set_busy_handler=set_busy_handler,
             response_filter=response_filter,
-            on_recognized_callback=on_recognized_callback
+            on_recognized_callback=on_recognized_callback,
+            secondary_factory=secondary_factory,
+            cooldown_seconds=cooldown_seconds,
         )
 
     def build_tts(self):

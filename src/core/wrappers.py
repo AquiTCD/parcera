@@ -1,18 +1,119 @@
+import asyncio
 import logging
 import time
-from typing import AsyncGenerator, Optional, List, Dict, Any
+from typing import AsyncGenerator, Callable, Optional, List, Dict, Any
 from aiavatar.sts.llm import LLMService
 
 logger = logging.getLogger(__name__)
 
-class ParceraLLMWrapper(LLMService):
+_FALLBACK_ERROR_MARKERS = (
+    "429",
+    "resource_exhausted",
+    "rate_limit",
+    "rate limit",
+    "quota",
+    "too many requests",
+    "timeout",
+    "timed out",
+    "503",
+    "overloaded",
+)
+
+
+def _is_fallback_trigger(exc: Exception) -> bool:
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return True
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _FALLBACK_ERROR_MARKERS)
+
+
+class _LazyCooldownMixin:
+    """Shared lazy secondary instantiation and cooldown tracking."""
+
+    def _init_fallback(
+        self,
+        secondary=None,
+        secondary_factory: Optional[Callable[[], Any]] = None,
+        cooldown_seconds: int = 10800,
+        failure_threshold: int = 3,
+        clock: Callable[[], float] = time.monotonic,
+    ):
+        self._secondary_instance = secondary
+        self._secondary_factory = secondary_factory
+        self.cooldown_seconds = cooldown_seconds
+        self.failure_threshold = failure_threshold
+        self._clock = clock
+        self._cooldown_until: Optional[float] = None
+        self._consecutive_failures: int = 0
+
+    @property
+    def has_secondary(self) -> bool:
+        return self._secondary_instance is not None or self._secondary_factory is not None
+
+    @property
+    def secondary(self):
+        if self._secondary_instance is None and self._secondary_factory is not None:
+            self._secondary_instance = self._secondary_factory()
+            self._on_secondary_loaded(self._secondary_instance)
+        return self._secondary_instance
+
+    def _on_secondary_loaded(self, instance) -> None:
+        pass
+
+    def _is_in_cooldown(self) -> bool:
+        return (
+            self.has_secondary
+            and self._cooldown_until is not None
+            and self._clock() < self._cooldown_until
+        )
+
+    def _record_primary_failure(self) -> bool:
+        """Record a primary failure and return True if cooldown was entered."""
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.failure_threshold:
+            self._cooldown_until = self._clock() + self.cooldown_seconds
+            return True
+        return False
+
+    def _record_primary_success(self) -> None:
+        self._consecutive_failures = 0
+        self._cooldown_until = None
+
+
+class ParceraLLMWrapper(_LazyCooldownMixin, LLMService):
     """
-    Wraps any LLMService to provide Parcera-specific profiling and system prompt logging.
+    Wraps any LLMService to provide Parcera-specific profiling, system prompt
+    forwarding, and optional cooldown-based fallback to a secondary LLMService.
     """
-    def __init__(self, wrapped_service: LLMService, profile_mode: bool = False):
+    def __init__(
+        self,
+        wrapped_service: LLMService,
+        profile_mode: bool = False,
+        secondary: Optional[LLMService] = None,
+        secondary_factory: Optional[Callable[[], LLMService]] = None,
+        cooldown_seconds: int = 10800,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self.wrapped = wrapped_service
         self.profile_mode = profile_mode
+        self._init_fallback(
+            secondary=secondary,
+            secondary_factory=secondary_factory,
+            cooldown_seconds=cooldown_seconds,
+            clock=clock,
+        )
         self._system_prompt_logged = False
+        self._last_compose_args: Optional[tuple] = None
+        self._last_secondary_messages: Optional[list] = None
+        self._active_turn_is_secondary: bool = False
+
+    def _on_secondary_loaded(self, instance) -> None:
+        if hasattr(instance, "system_prompt") and hasattr(self.wrapped, "system_prompt"):
+            instance.system_prompt = self.wrapped.system_prompt
+
+    @staticmethod
+    def _fallback_context_id(context_id: str) -> str:
+        return f"{context_id}:fallback"
 
     async def chat(self, *args, **kwargs) -> AsyncGenerator[str, None]:
         # Delegate directly to the wrapped service
@@ -34,65 +135,170 @@ class ParceraLLMWrapper(LLMService):
     @system_prompt.setter
     def system_prompt(self, value):
         self.wrapped.system_prompt = value
+        if self._secondary_instance is not None and hasattr(self._secondary_instance, "system_prompt"):
+            self._secondary_instance.system_prompt = value
 
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: Optional[List[Any]] = None, system_prompt_params: Optional[Dict[str, Any]] = None):
+        self._last_compose_args = (context_id, user_id, text, files, system_prompt_params)
+        self._last_secondary_messages = None
+        if self._is_in_cooldown():
+            self._active_turn_is_secondary = True
+            msgs = await self.secondary.compose_messages(
+                self._fallback_context_id(context_id),
+                user_id,
+                text,
+                files,
+                system_prompt_params,
+            )
+            self._last_secondary_messages = msgs
+            return msgs
+
+        self._active_turn_is_secondary = False
         return await self.wrapped.compose_messages(context_id, user_id, text, files, system_prompt_params)
 
     async def update_context(self, context_id: str, user_id: str, messages: list, response_text: str):
+        if self._active_turn_is_secondary and self.secondary is not None:
+            fb_msgs = self._last_secondary_messages if self._last_secondary_messages is not None else messages
+            return await self.secondary.update_context(
+                self._fallback_context_id(context_id),
+                user_id,
+                fb_msgs,
+                response_text,
+            )
         return await self.wrapped.update_context(context_id, user_id, messages, response_text)
+
+    async def _stream_from_service(
+        self,
+        service: LLMService,
+        context_id: str,
+        user_id: str,
+        messages: list,
+        system_prompt_params: Optional[Dict[str, Any]],
+        tools: Optional[List[Any]],
+        **kwargs,
+    ):
+        for attempt in range(2):
+            start_time = time.time()
+            first_chunk = True
+            try:
+                async for chunk in service.get_llm_stream_response(
+                    context_id, user_id, messages, system_prompt_params, tools, **kwargs
+                ):
+                    if first_chunk:
+                        latency = time.time() - start_time
+                        if self.profile_mode:
+                            logger.info(f"[PERF] LLM First Token Latency: {latency:.3f}s")
+                        first_chunk = False
+                    yield chunk
+                return
+            except Exception as e:
+                effort = getattr(service, "reasoning_effort", None)
+                msg = str(e).lower()
+                is_reasoning_err = "reasoning_effort" in msg and ("400" in msg or "unsupported" in msg or "not supported" in msg)
+                if attempt == 0 and first_chunk and effort is not None and is_reasoning_err:
+                    logger.warning(
+                        f"LLM Wrapper: reasoning_effort '{effort}' is not supported by {getattr(service, 'model', 'model')}; "
+                        "falling back to provider default (unset) and retrying."
+                    )
+                    service.reasoning_effort = None
+                    continue
+                raise
 
     async def get_llm_stream_response(self, context_id: str, user_id: str, messages: list, system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Any]] = None, **kwargs):
         # 1. System Prompt Logging (First time only)
         if not self._system_prompt_logged:
-            # We try to inspect the wrapped service to see if we can log the system prompt
             if hasattr(self.wrapped, "_get_system_prompt"):
                 try:
-                    # Note: This is hacky as it tries to access internal method of base classes
-                    # but useful for debugging.
                     sys_prompt = await self.wrapped._get_system_prompt(context_id, user_id, system_prompt_params)
                     logger.debug(f"LLM Wrapper: System Prompt: {sys_prompt[:200]}...")
                 except Exception:
                     pass
             self._system_prompt_logged = True
 
-        # 2. Profiling & Streaming (with runtime fallback if reasoning_effort is unsupported)
-        for attempt in range(2):
-            start_time = time.time()
-            first_chunk = True
-            try:
-                async for chunk in self.wrapped.get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
-                    if first_chunk:
-                        latency = time.time() - start_time
-                        if self.profile_mode:
-                            logger.info(f"[PERF] LLM First Token Latency: {latency:.3f}s")
-                        first_chunk = False
+        # 2. Direct secondary route when primary is in cooldown
+        if self._active_turn_is_secondary and self.secondary is not None:
+            async for chunk in self._stream_from_service(
+                self.secondary,
+                self._fallback_context_id(context_id),
+                user_id,
+                messages,
+                system_prompt_params,
+                tools,
+                **kwargs,
+            ):
+                yield chunk
+            return
 
+        # 3. Primary route with cooldown fallback on first-chunk failure
+        received_any_chunk = False
+        try:
+            async for chunk in self._stream_from_service(
+                self.wrapped, context_id, user_id, messages, system_prompt_params, tools, **kwargs
+            ):
+                received_any_chunk = True
+                yield chunk
+            self._record_primary_success()
+            return
+        except Exception as e:
+            if not received_any_chunk and self.has_secondary and _is_fallback_trigger(e):
+                secondary = self.secondary
+                entered_cooldown = self._record_primary_failure()
+                self._active_turn_is_secondary = True
+                if entered_cooldown:
+                    logger.warning(
+                        f"LLM Wrapper: Primary LLM failed {self._consecutive_failures} times ({type(e).__name__}: {e}). "
+                        f"Switching to fallback LLM for {self.cooldown_seconds}s."
+                    )
+                else:
+                    logger.warning(
+                        f"LLM Wrapper: Primary LLM failed ({self._consecutive_failures}/{self.failure_threshold}) "
+                        f"({type(e).__name__}: {e}). Falling back for this turn."
+                    )
+                fb_context_id = self._fallback_context_id(context_id)
+                if self._last_compose_args is not None:
+                    _, u_id, text, files, sys_params = self._last_compose_args
+                    fb_messages = await self.secondary.compose_messages(
+                        fb_context_id, u_id, text, files, sys_params
+                    )
+                else:
+                    fb_messages = messages
+                self._last_secondary_messages = fb_messages
+                async for chunk in self._stream_from_service(
+                    self.secondary, fb_context_id, user_id, fb_messages, system_prompt_params, tools, **kwargs
+                ):
                     yield chunk
                 return
-            except Exception as e:
-                effort = getattr(self.wrapped, "reasoning_effort", None)
-                msg = str(e).lower()
-                is_reasoning_err = "reasoning_effort" in msg and ("400" in msg or "unsupported" in msg or "not supported" in msg)
-                if attempt == 0 and first_chunk and effort is not None and is_reasoning_err:
-                    logger.warning(
-                        f"LLM Wrapper: reasoning_effort '{effort}' is not supported by {getattr(self.wrapped, 'model', 'model')}; "
-                        "falling back to provider default (unset) and retrying."
-                    )
-                    self.wrapped.reasoning_effort = None
-                    continue
-                raise
+            raise
 
-class ParceraSTTWrapper:
+class ParceraSTTWrapper(_LazyCooldownMixin):
     """
-    Wraps any SpeechRecognizer to filter inputs when AI is busy or based on content.
+    Wraps any SpeechRecognizer to filter inputs when AI is busy or based on content,
+    with optional lazy-loaded cooldown fallback to a secondary recognizer.
     Note: Can't inherit SpeechRecognizer easily because we need to wrap the instance.
     """
-    def __init__(self, wrapped_recognizer, is_busy_handler=None, set_busy_handler=None, response_filter=None, on_recognized_callback=None):
+    def __init__(
+        self,
+        wrapped_recognizer,
+        is_busy_handler=None,
+        set_busy_handler=None,
+        response_filter=None,
+        on_recognized_callback=None,
+        secondary=None,
+        secondary_factory: Optional[Callable[[], Any]] = None,
+        cooldown_seconds: int = 10800,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self.wrapped = wrapped_recognizer
         self.is_busy_handler = is_busy_handler
         self.set_busy_handler = set_busy_handler
         self.response_filter = response_filter
         self.on_recognized_callback = on_recognized_callback
+        self._init_fallback(
+            secondary=secondary,
+            secondary_factory=secondary_factory,
+            cooldown_seconds=cooldown_seconds,
+            clock=clock,
+        )
 
     async def recognize(self, session_id: str, data: bytes):
         # 1. Busy Check
@@ -106,9 +312,30 @@ class ParceraSTTWrapper:
         if self.set_busy_handler:
             self.set_busy_handler(session_id, True)
 
-        # 2. Delegate to wrapped recognizer
+        # 2. Delegate to wrapped recognizer (or secondary if in cooldown)
         try:
-            result = await self.wrapped.recognize(session_id, data)
+            if self._is_in_cooldown():
+                result = await self.secondary.recognize(session_id, data)
+            else:
+                try:
+                    result = await self.wrapped.recognize(session_id, data)
+                    self._record_primary_success()
+                except Exception as primary_err:
+                    if self.has_secondary and _is_fallback_trigger(primary_err):
+                        entered_cooldown = self._record_primary_failure()
+                        if entered_cooldown:
+                            logger.warning(
+                                f"STT Wrapper: Primary STT failed {self._consecutive_failures} times ({type(primary_err).__name__}: {primary_err}). "
+                                f"Switching to fallback STT for {self.cooldown_seconds}s."
+                            )
+                        else:
+                            logger.warning(
+                                f"STT Wrapper: Primary STT failed ({self._consecutive_failures}/{self.failure_threshold}) "
+                                f"({type(primary_err).__name__}: {primary_err}). Falling back for this turn."
+                            )
+                        result = await self.secondary.recognize(session_id, data)
+                    else:
+                        raise
         except Exception as e:
             logger.error(f"STT Wrapper: Error during delegation: {e}")
             if self.set_busy_handler:
