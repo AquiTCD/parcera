@@ -240,4 +240,33 @@ describe('AdvancedSection', () => {
       expect(screen.getByDisplayValue('fb-key')).toBeInTheDocument();
     });
   });
+
+  describe('フォールバックSTT（2nd）', () => {
+    it('hides 2nd STT config when fallback provider is unset', () => {
+      render(<AdvancedSection {...mockProps} />);
+      expect(screen.getByText('フォールバックSTT（2nd）')).toBeInTheDocument();
+    });
+
+    it('renders 2nd STT settings when fallback provider is set', () => {
+      const fbSttProps = {
+        ...mockProps,
+        settings: {
+          ...dummySettings,
+          stt: {
+            ...dummySettings.stt,
+            fallback: {
+              provider: 'google',
+              cooldown_seconds: 10800,
+              providers: {
+                google: { api_key: 'stt-fb-key' },
+              },
+            },
+          },
+        } as any,
+      };
+      render(<AdvancedSection {...fbSttProps} />);
+      expect(screen.getByText('復帰チェック間隔（時間）')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('stt-fb-key')).toBeInTheDocument();
+    });
+  });
 });

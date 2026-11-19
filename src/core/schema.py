@@ -87,12 +87,19 @@ class STTProviders(BaseModel):
     google: GoogleSTTConfig = Field(default_factory=GoogleSTTConfig)
     azure: AzureSTTConfig = Field(default_factory=AzureSTTConfig)
 
+class STTFallbackSettings(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    provider: str = Field(default="")
+    cooldown_seconds: int = Field(default=10800, ge=1)
+    providers: STTProviders = Field(default_factory=STTProviders)
+
 class STTSettings(BaseModel):
     model_config = ConfigDict(extra="allow")
     provider: str = Field(default="moonshine")
     ignore_sentences: List[str] = Field(default_factory=list)
     dictionary: STTDictionary = Field(default_factory=STTDictionary)
     providers: STTProviders = Field(default_factory=STTProviders)
+    fallback: STTFallbackSettings = Field(default_factory=STTFallbackSettings)
 
 class TTSGlobalSettings(BaseModel):
     model_config = ConfigDict(extra="allow")

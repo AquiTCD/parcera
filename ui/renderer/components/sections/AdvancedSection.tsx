@@ -13,6 +13,7 @@ import { useOptionalPackageInstaller, OptionalPackageInstallerUI } from '../sett
 import { ModelDownloaderUI, useModelDownloader } from '../settings/controls/ModelDownloader';
 import { LocalLLMProfileManager } from '../settings/LocalLLMProfileManager';
 import { LLMFallbackSettings } from '../settings/LLMFallbackSettings';
+import { STTFallbackSettings } from '../settings/STTFallbackSettings';
 
 const LOCAL_MODEL_PRESETS = [
   { label: 'Gemma 4 4B (MLX)', value: 'mlx-community/gemma-4-e4b-it-4bit' },
@@ -346,6 +347,12 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                 />
               </FieldRow>
             )}
+
+            <STTFallbackSettings
+              settings={settings}
+              defaultSettings={defaultSettings}
+              updateNested={updateNested}
+            />
           </div>
 
           {/* TTS接続設定 */}

@@ -87,6 +87,18 @@ export interface LLMProviderConfig {
   adapter_path?: string;
 }
 
+export interface STTFallbackSettings {
+  provider?: string;
+  cooldown_seconds?: number;
+  providers?: {
+    faster_whisper?: STTProviderConfig;
+    google?: STTProviderConfig;
+    azure?: STTProviderConfig;
+    moonshine?: STTProviderConfig;
+    [key: string]: STTProviderConfig | undefined;
+  };
+}
+
 export interface STTSettings {
   provider?: string;
   ignore_sentences?: string[];           // Phrases to ignore after STT
@@ -97,6 +109,7 @@ export interface STTSettings {
     azure?: STTProviderConfig;
     [key: string]: STTProviderConfig | undefined;
   };
+  fallback?: STTFallbackSettings;
 }
 
 export interface STTProviderConfig {

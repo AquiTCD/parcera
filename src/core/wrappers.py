@@ -27,7 +27,51 @@ def _is_fallback_trigger(exc: Exception) -> bool:
     return any(marker in msg for marker in _FALLBACK_ERROR_MARKERS)
 
 
-class ParceraLLMWrapper(LLMService):
+class _LazyCooldownMixin:
+    """Shared lazy secondary instantiation and cooldown tracking."""
+
+    def _init_fallback(
+        self,
+        secondary=None,
+        secondary_factory: Optional[Callable[[], Any]] = None,
+        cooldown_seconds: int = 10800,
+        clock: Callable[[], float] = time.monotonic,
+    ):
+        self._secondary_instance = secondary
+        self._secondary_factory = secondary_factory
+        self.cooldown_seconds = cooldown_seconds
+        self._clock = clock
+        self._cooldown_until: Optional[float] = None
+
+    @property
+    def has_secondary(self) -> bool:
+        return self._secondary_instance is not None or self._secondary_factory is not None
+
+    @property
+    def secondary(self):
+        if self._secondary_instance is None and self._secondary_factory is not None:
+            self._secondary_instance = self._secondary_factory()
+            self._on_secondary_loaded(self._secondary_instance)
+        return self._secondary_instance
+
+    def _on_secondary_loaded(self, instance) -> None:
+        pass
+
+    def _is_in_cooldown(self) -> bool:
+        return (
+            self.has_secondary
+            and self._cooldown_until is not None
+            and self._clock() < self._cooldown_until
+        )
+
+    def _trip_cooldown(self) -> None:
+        self._cooldown_until = self._clock() + self.cooldown_seconds
+
+    def _clear_cooldown(self) -> None:
+        self._cooldown_until = None
+
+
+class ParceraLLMWrapper(_LazyCooldownMixin, LLMService):
     """
     Wraps any LLMService to provide Parcera-specific profiling, system prompt
     forwarding, and optional cooldown-based fallback to a secondary LLMService.
@@ -43,34 +87,20 @@ class ParceraLLMWrapper(LLMService):
     ):
         self.wrapped = wrapped_service
         self.profile_mode = profile_mode
-        self._secondary_instance = secondary
-        self._secondary_factory = secondary_factory
-        self.cooldown_seconds = cooldown_seconds
-        self._clock = clock
-        self._cooldown_until: Optional[float] = None
+        self._init_fallback(
+            secondary=secondary,
+            secondary_factory=secondary_factory,
+            cooldown_seconds=cooldown_seconds,
+            clock=clock,
+        )
         self._system_prompt_logged = False
         self._last_compose_args: Optional[tuple] = None
         self._last_secondary_messages: Optional[list] = None
         self._active_turn_is_secondary: bool = False
 
-    @property
-    def has_secondary(self) -> bool:
-        return self._secondary_instance is not None or self._secondary_factory is not None
-
-    @property
-    def secondary(self) -> Optional[LLMService]:
-        if self._secondary_instance is None and self._secondary_factory is not None:
-            self._secondary_instance = self._secondary_factory()
-            if hasattr(self._secondary_instance, "system_prompt") and hasattr(self.wrapped, "system_prompt"):
-                self._secondary_instance.system_prompt = self.wrapped.system_prompt
-        return self._secondary_instance
-
-    def _is_in_cooldown(self) -> bool:
-        return (
-            self.has_secondary
-            and self._cooldown_until is not None
-            and self._clock() < self._cooldown_until
-        )
+    def _on_secondary_loaded(self, instance) -> None:
+        if hasattr(instance, "system_prompt") and hasattr(self.wrapped, "system_prompt"):
+            instance.system_prompt = self.wrapped.system_prompt
 
     @staticmethod
     def _fallback_context_id(context_id: str) -> str:
@@ -225,17 +255,35 @@ class ParceraLLMWrapper(LLMService):
                 return
             raise
 
-class ParceraSTTWrapper:
+class ParceraSTTWrapper(_LazyCooldownMixin):
     """
-    Wraps any SpeechRecognizer to filter inputs when AI is busy or based on content.
+    Wraps any SpeechRecognizer to filter inputs when AI is busy or based on content,
+    with optional lazy-loaded cooldown fallback to a secondary recognizer.
     Note: Can't inherit SpeechRecognizer easily because we need to wrap the instance.
     """
-    def __init__(self, wrapped_recognizer, is_busy_handler=None, set_busy_handler=None, response_filter=None, on_recognized_callback=None):
+    def __init__(
+        self,
+        wrapped_recognizer,
+        is_busy_handler=None,
+        set_busy_handler=None,
+        response_filter=None,
+        on_recognized_callback=None,
+        secondary=None,
+        secondary_factory: Optional[Callable[[], Any]] = None,
+        cooldown_seconds: int = 10800,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self.wrapped = wrapped_recognizer
         self.is_busy_handler = is_busy_handler
         self.set_busy_handler = set_busy_handler
         self.response_filter = response_filter
         self.on_recognized_callback = on_recognized_callback
+        self._init_fallback(
+            secondary=secondary,
+            secondary_factory=secondary_factory,
+            cooldown_seconds=cooldown_seconds,
+            clock=clock,
+        )
 
     async def recognize(self, session_id: str, data: bytes):
         # 1. Busy Check
@@ -249,9 +297,24 @@ class ParceraSTTWrapper:
         if self.set_busy_handler:
             self.set_busy_handler(session_id, True)
 
-        # 2. Delegate to wrapped recognizer
+        # 2. Delegate to wrapped recognizer (or secondary if in cooldown)
         try:
-            result = await self.wrapped.recognize(session_id, data)
+            if self._is_in_cooldown():
+                result = await self.secondary.recognize(session_id, data)
+            else:
+                try:
+                    result = await self.wrapped.recognize(session_id, data)
+                    self._clear_cooldown()
+                except Exception as primary_err:
+                    if self.has_secondary and _is_fallback_trigger(primary_err):
+                        self._trip_cooldown()
+                        logger.warning(
+                            f"STT Wrapper: Primary STT failed ({type(primary_err).__name__}: {primary_err}). "
+                            f"Switching to fallback STT for {self.cooldown_seconds}s."
+                        )
+                        result = await self.secondary.recognize(session_id, data)
+                    else:
+                        raise
         except Exception as e:
             logger.error(f"STT Wrapper: Error during delegation: {e}")
             if self.set_busy_handler:

@@ -98,6 +98,23 @@ stt:
       region: "japaneast"
       language: "ja-JP"
 
+  fallback:
+    provider: ""            # "" (disabled) | "moonshine" | "faster_whisper" | "google" | "azure"
+    cooldown_seconds: 10800 # Seconds before retrying primary after fallback (default: 3h)
+    providers:
+      faster_whisper:
+        model: "longisland3/kotoba-whisper-v2.2-faster"
+        device: "cpu"
+        compute_type: "int8"
+        whisper_vad_filter: false
+      google:
+        api_key: ""
+        language: "ja-JP"
+      azure:
+        api_key: ""
+        region: "japaneast"
+        language: "ja-JP"
+
 # ==========================================
 # TTS (Text to Speech) Settings
 # ==========================================
