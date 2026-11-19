@@ -1,18 +1,66 @@
+import asyncio
 import logging
 import time
-from typing import AsyncGenerator, Optional, List, Dict, Any
+from typing import AsyncGenerator, Callable, Optional, List, Dict, Any
 from aiavatar.sts.llm import LLMService
 
 logger = logging.getLogger(__name__)
 
+_FALLBACK_ERROR_MARKERS = (
+    "429",
+    "resource_exhausted",
+    "rate_limit",
+    "rate limit",
+    "quota",
+    "too many requests",
+    "timeout",
+    "timed out",
+    "503",
+    "overloaded",
+)
+
+
+def _is_fallback_trigger(exc: Exception) -> bool:
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return True
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _FALLBACK_ERROR_MARKERS)
+
+
 class ParceraLLMWrapper(LLMService):
     """
-    Wraps any LLMService to provide Parcera-specific profiling and system prompt logging.
+    Wraps any LLMService to provide Parcera-specific profiling, system prompt
+    forwarding, and optional cooldown-based fallback to a secondary LLMService.
     """
-    def __init__(self, wrapped_service: LLMService, profile_mode: bool = False):
+    def __init__(
+        self,
+        wrapped_service: LLMService,
+        profile_mode: bool = False,
+        secondary: Optional[LLMService] = None,
+        cooldown_seconds: int = 10800,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self.wrapped = wrapped_service
         self.profile_mode = profile_mode
+        self.secondary = secondary
+        self.cooldown_seconds = cooldown_seconds
+        self._clock = clock
+        self._cooldown_until: Optional[float] = None
         self._system_prompt_logged = False
+        self._last_compose_args: Optional[tuple] = None
+        self._last_secondary_messages: Optional[list] = None
+        self._active_turn_is_secondary: bool = False
+
+    def _is_in_cooldown(self) -> bool:
+        return (
+            self.secondary is not None
+            and self._cooldown_until is not None
+            and self._clock() < self._cooldown_until
+        )
+
+    @staticmethod
+    def _fallback_context_id(context_id: str) -> str:
+        return f"{context_id}:fallback"
 
     async def chat(self, *args, **kwargs) -> AsyncGenerator[str, None]:
         # Delegate directly to the wrapped service
@@ -34,53 +82,133 @@ class ParceraLLMWrapper(LLMService):
     @system_prompt.setter
     def system_prompt(self, value):
         self.wrapped.system_prompt = value
+        if self.secondary is not None and hasattr(self.secondary, "system_prompt"):
+            self.secondary.system_prompt = value
 
     async def compose_messages(self, context_id: str, user_id: str, text: str, files: Optional[List[Any]] = None, system_prompt_params: Optional[Dict[str, Any]] = None):
+        self._last_compose_args = (context_id, user_id, text, files, system_prompt_params)
+        self._last_secondary_messages = None
+        if self._is_in_cooldown():
+            self._active_turn_is_secondary = True
+            msgs = await self.secondary.compose_messages(
+                self._fallback_context_id(context_id),
+                user_id,
+                text,
+                files,
+                system_prompt_params,
+            )
+            self._last_secondary_messages = msgs
+            return msgs
+
+        self._active_turn_is_secondary = False
         return await self.wrapped.compose_messages(context_id, user_id, text, files, system_prompt_params)
 
     async def update_context(self, context_id: str, user_id: str, messages: list, response_text: str):
+        if self._active_turn_is_secondary and self.secondary is not None:
+            fb_msgs = self._last_secondary_messages if self._last_secondary_messages is not None else messages
+            return await self.secondary.update_context(
+                self._fallback_context_id(context_id),
+                user_id,
+                fb_msgs,
+                response_text,
+            )
         return await self.wrapped.update_context(context_id, user_id, messages, response_text)
+
+    async def _stream_from_service(
+        self,
+        service: LLMService,
+        context_id: str,
+        user_id: str,
+        messages: list,
+        system_prompt_params: Optional[Dict[str, Any]],
+        tools: Optional[List[Any]],
+        **kwargs,
+    ):
+        for attempt in range(2):
+            start_time = time.time()
+            first_chunk = True
+            try:
+                async for chunk in service.get_llm_stream_response(
+                    context_id, user_id, messages, system_prompt_params, tools, **kwargs
+                ):
+                    if first_chunk:
+                        latency = time.time() - start_time
+                        if self.profile_mode:
+                            logger.info(f"[PERF] LLM First Token Latency: {latency:.3f}s")
+                        first_chunk = False
+                    yield chunk
+                return
+            except Exception as e:
+                effort = getattr(service, "reasoning_effort", None)
+                msg = str(e).lower()
+                is_reasoning_err = "reasoning_effort" in msg and ("400" in msg or "unsupported" in msg or "not supported" in msg)
+                if attempt == 0 and first_chunk and effort is not None and is_reasoning_err:
+                    logger.warning(
+                        f"LLM Wrapper: reasoning_effort '{effort}' is not supported by {getattr(service, 'model', 'model')}; "
+                        "falling back to provider default (unset) and retrying."
+                    )
+                    service.reasoning_effort = None
+                    continue
+                raise
 
     async def get_llm_stream_response(self, context_id: str, user_id: str, messages: list, system_prompt_params: Optional[Dict[str, Any]] = None, tools: Optional[List[Any]] = None, **kwargs):
         # 1. System Prompt Logging (First time only)
         if not self._system_prompt_logged:
-            # We try to inspect the wrapped service to see if we can log the system prompt
             if hasattr(self.wrapped, "_get_system_prompt"):
                 try:
-                    # Note: This is hacky as it tries to access internal method of base classes
-                    # but useful for debugging.
                     sys_prompt = await self.wrapped._get_system_prompt(context_id, user_id, system_prompt_params)
                     logger.debug(f"LLM Wrapper: System Prompt: {sys_prompt[:200]}...")
                 except Exception:
                     pass
             self._system_prompt_logged = True
 
-        # 2. Profiling & Streaming (with runtime fallback if reasoning_effort is unsupported)
-        for attempt in range(2):
-            start_time = time.time()
-            first_chunk = True
-            try:
-                async for chunk in self.wrapped.get_llm_stream_response(context_id, user_id, messages, system_prompt_params, tools, **kwargs):
-                    if first_chunk:
-                        latency = time.time() - start_time
-                        if self.profile_mode:
-                            logger.info(f"[PERF] LLM First Token Latency: {latency:.3f}s")
-                        first_chunk = False
+        # 2. Direct secondary route when primary is in cooldown
+        if self._active_turn_is_secondary and self.secondary is not None:
+            async for chunk in self._stream_from_service(
+                self.secondary,
+                self._fallback_context_id(context_id),
+                user_id,
+                messages,
+                system_prompt_params,
+                tools,
+                **kwargs,
+            ):
+                yield chunk
+            return
 
+        # 3. Primary route with cooldown fallback on first-chunk failure
+        received_any_chunk = False
+        try:
+            async for chunk in self._stream_from_service(
+                self.wrapped, context_id, user_id, messages, system_prompt_params, tools, **kwargs
+            ):
+                received_any_chunk = True
+                yield chunk
+            self._cooldown_until = None
+            return
+        except Exception as e:
+            if not received_any_chunk and self.secondary is not None and _is_fallback_trigger(e):
+                self._cooldown_until = self._clock() + self.cooldown_seconds
+                self._active_turn_is_secondary = True
+                logger.warning(
+                    f"LLM Wrapper: Primary LLM failed ({type(e).__name__}: {e}). "
+                    f"Switching to fallback LLM for {self.cooldown_seconds}s."
+                )
+                fb_context_id = self._fallback_context_id(context_id)
+                if self._last_compose_args is not None:
+                    _, u_id, text, files, sys_params = self._last_compose_args
+                    fb_messages = await self.secondary.compose_messages(
+                        fb_context_id, u_id, text, files, sys_params
+                    )
+                else:
+                    fb_messages = messages
+                self._last_secondary_messages = fb_messages
+                async for chunk in self._stream_from_service(
+                    self.secondary, fb_context_id, user_id, fb_messages, system_prompt_params, tools, **kwargs
+                ):
                     yield chunk
                 return
-            except Exception as e:
-                effort = getattr(self.wrapped, "reasoning_effort", None)
-                msg = str(e).lower()
-                is_reasoning_err = "reasoning_effort" in msg and ("400" in msg or "unsupported" in msg or "not supported" in msg)
-                if attempt == 0 and first_chunk and effort is not None and is_reasoning_err:
-                    logger.warning(
-                        f"LLM Wrapper: reasoning_effort '{effort}' is not supported by {getattr(self.wrapped, 'model', 'model')}; "
-                        "falling back to provider default (unset) and retrying."
-                    )
-                    self.wrapped.reasoning_effort = None
-                    continue
-                raise
+            raise
 
 class ParceraSTTWrapper:
     """

@@ -12,6 +12,7 @@ import { useLLMModels } from '../../hooks/useLLMModels';
 import { useOptionalPackageInstaller, OptionalPackageInstallerUI } from '../settings/controls/OptionalPackageInstaller';
 import { ModelDownloaderUI, useModelDownloader } from '../settings/controls/ModelDownloader';
 import { LocalLLMProfileManager } from '../settings/LocalLLMProfileManager';
+import { LLMFallbackSettings } from '../settings/LLMFallbackSettings';
 
 const LOCAL_MODEL_PRESETS = [
   { label: 'Gemma 4 4B (MLX)', value: 'mlx-community/gemma-4-e4b-it-4bit' },
@@ -259,6 +260,14 @@ export const AdvancedSection: React.FC<SectionProps> = ({
                 />
               </div>
             </div>
+
+            <LLMFallbackSettings
+              settings={settings}
+              defaultSettings={defaultSettings}
+              isWindows={isWindows}
+              updateNested={updateNested}
+              setStatus={setStatus}
+            />
           </div>
 
           {/* STT */}

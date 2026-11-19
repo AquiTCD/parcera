@@ -47,10 +47,17 @@ class LLMProviders(BaseModel):
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     local: LocalLLMConfig = Field(default_factory=LocalLLMConfig)
 
+class LLMFallbackSettings(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    provider: str = Field(default="")
+    cooldown_seconds: int = Field(default=10800, ge=1)
+    providers: LLMProviders = Field(default_factory=LLMProviders)
+
 class LLMSettings(BaseModel):
     model_config = ConfigDict(extra="allow")
     provider: str = Field(default="gemini")
     providers: LLMProviders = Field(default_factory=LLMProviders)
+    fallback: LLMFallbackSettings = Field(default_factory=LLMFallbackSettings)
 
 class STTDictionary(BaseModel):
     model_config = ConfigDict(extra="allow")

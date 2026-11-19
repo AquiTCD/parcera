@@ -21,12 +21,9 @@ class ParceraComponentFactory:
     def __init__(self, config: ParceraConfig):
         self.config = config
 
-    def build_llm(self):
-        llm_cfg = self.config.get("llm", {})
-        provider = llm_cfg.get("provider", "gemini")
-        providers = llm_cfg.get("providers", {})
-
-        service_instance = None
+    def _build_llm_service(self, provider: str, providers: dict):
+        db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
+        context_manager = SQLiteContextManager(db_path=db_path)
 
         if provider == "gemini":
             gemini_cfg = providers.get("gemini", {})
@@ -34,10 +31,7 @@ class ParceraComponentFactory:
             if not api_key:
                 logger.warning("Gemini API key is missing. Set it in Settings -> LLM.")
 
-            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
-            context_manager = SQLiteContextManager(db_path=db_path)
-
-            service_instance = FixedGeminiService(
+            return FixedGeminiService(
                 gemini_api_key=api_key,
                 context_manager=context_manager,
                 model=gemini_cfg.get("model", "gemini-2.0-flash"),
@@ -48,17 +42,14 @@ class ParceraComponentFactory:
                 profile_mode=self.config.profile_mode,
                 debug=self.config.verbose
             )
-        elif provider == "openai":
+        if provider == "openai":
             openai_cfg = providers.get("openai", {})
             api_key = openai_cfg.get("api_key")
             if not api_key:
                 logger.warning("OpenAI API key is missing. Set it in Settings -> LLM.")
 
-            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
-            context_manager = SQLiteContextManager(db_path=db_path)
-
             # NOTE: ChatGPTService arguments differ from ChatGPT
-            service_instance = ChatGPTService(
+            return ChatGPTService(
                 openai_api_key=api_key,
                 context_manager=context_manager,
                 model=openai_cfg.get("model", "gpt-4o"),
@@ -66,9 +57,7 @@ class ParceraComponentFactory:
                 reasoning_effort=openai_cfg.get("thinking_level") or None,
                 system_prompt=self.config.full_system_prompt,
             )
-            return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
-
-        elif provider == "local":
+        if provider == "local":
             if IS_WINDOWS:
                 raise ValueError("Local LLM (mlx-lm) is not supported on Windows. Use Gemini or OpenAI instead.")
             from core.local_llm import LocalLLMService  # lazy: only when local LLM is selected
@@ -76,10 +65,7 @@ class ParceraComponentFactory:
             model_name = local_cfg.get("model", "mlx-community/gemma-2-9b-it-4bit")
             adapter_path = local_cfg.get("adapter_path")
 
-            db_path = os.path.join(self.config.app_data_dir, "aiavatar.db")
-            context_manager = SQLiteContextManager(db_path=db_path)
-
-            service_instance = LocalLLMService(
+            return LocalLLMService(
                 model=model_name,
                 adapter_path=adapter_path,
                 context_manager=context_manager,
@@ -90,12 +76,32 @@ class ParceraComponentFactory:
                 repetition_context_size=int(local_cfg.get("repetition_context_size", 20)),
                 debug=self.config.verbose
             )
-            return ParceraLLMWrapper(service_instance, profile_mode=self.config.profile_mode)
 
-        else:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+        raise ValueError(f"Unsupported LLM provider: {provider}")
 
-        return service_instance
+    def build_llm(self):
+        llm_cfg = self.config.get("llm", {})
+        provider = llm_cfg.get("provider", "gemini")
+        providers = llm_cfg.get("providers", {})
+
+        primary_service = self._build_llm_service(provider, providers)
+
+        fallback_cfg = llm_cfg.get("fallback") or {}
+        fallback_provider = fallback_cfg.get("provider", "")
+        secondary_service = None
+        cooldown_seconds = int(fallback_cfg.get("cooldown_seconds", 10800))
+        if fallback_provider:
+            secondary_service = self._build_llm_service(
+                fallback_provider,
+                fallback_cfg.get("providers", {}),
+            )
+
+        return ParceraLLMWrapper(
+            primary_service,
+            profile_mode=self.config.profile_mode,
+            secondary=secondary_service,
+            cooldown_seconds=cooldown_seconds,
+        )
 
     def build_stt(self, on_recognized_callback=None, is_busy_handler=None, set_busy_handler=None):
         stt_cfg = self.config.get("stt", {})

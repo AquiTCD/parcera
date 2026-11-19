@@ -54,6 +54,17 @@ export interface TwitchSettings {
   queue_expiry_seconds?: number;
 }
 
+export interface LLMFallbackSettings {
+  provider?: string;
+  cooldown_seconds?: number;
+  providers?: {
+    gemini?: LLMProviderConfig;
+    openai?: LLMProviderConfig;
+    local?: LLMProviderConfig;
+    [key: string]: LLMProviderConfig | undefined;
+  };
+}
+
 export interface LLMSettings {
   provider?: string;
   providers?: {
@@ -62,6 +73,7 @@ export interface LLMSettings {
     local?: LLMProviderConfig;
     [key: string]: LLMProviderConfig | undefined;
   };
+  fallback?: LLMFallbackSettings;
 }
 
 export interface LLMProviderConfig {

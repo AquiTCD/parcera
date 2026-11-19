@@ -45,6 +45,27 @@ llm:
       persist_history: false
       adapter_path: ""   # Optional path to LoRA adapter.
 
+  fallback:
+    provider: ""            # "" (disabled) | "gemini" | "openai" | "local"
+    cooldown_seconds: 10800 # Seconds before retrying primary after fallback (default: 3h)
+    providers:
+      gemini:
+        model: "gemini-2.0-flash"
+        api_key: ""
+        temperature: 1.0
+        persist_history: false
+      openai:
+        model: "gpt-4o"
+        api_key: ""
+        temperature: 1.0
+        persist_history: false
+      local:
+        model: "mlx-community/Qwen3.5-9B-MLX-4bit"
+        temperature: 0.8
+        max_tokens: 150
+        persist_history: false
+        adapter_path: ""
+
 # ==========================================
 # STT (Speech to Text) Settings
 # ==========================================
