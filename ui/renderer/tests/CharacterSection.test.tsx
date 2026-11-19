@@ -136,6 +136,91 @@ describe('CharacterSection', () => {
       fireEvent.change(textarea, { target: { value: '新しい知識' } });
       expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge', '新しい知識');
     });
+
+    it('switches knowledge and active_knowledge_preset_id when selecting a preset', () => {
+      const presetSettings = {
+        ...dummySettings,
+        knowledge: 'スト6の知識',
+        active_knowledge_preset_id: 'sf6',
+        knowledge_presets: [
+          { id: 'sf6', title: 'スト6配信', content: 'スト6の知識' },
+          { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+        ],
+      };
+      render(<CharacterSection {...mockProps} settings={presetSettings as any} />);
+
+      const trigger = screen.getByRole('combobox', { name: '知識プリセット' });
+      fireEvent.click(trigger);
+      fireEvent.click(screen.getByRole('option', { name: 'GTA配信' }));
+
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('active_knowledge_preset_id', 'gta');
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge', 'GTAの知識');
+    });
+
+    it('saves a new knowledge preset with title and current knowledge', () => {
+      const presetSettings = {
+        ...dummySettings,
+        knowledge: '新規ゲーム知識',
+        active_knowledge_preset_id: '',
+        knowledge_presets: [],
+      };
+      render(<CharacterSection {...mockProps} settings={presetSettings as any} />);
+
+      const titleInput = screen.getByPlaceholderText('プリセット名を入力（例: 雑談配信 / ゲーム攻略）');
+      fireEvent.change(titleInput, { target: { value: 'スト6配信' } });
+      fireEvent.click(screen.getByRole('button', { name: '現在の内容で新規作成' }));
+
+      expect(mockProps.updateRoot).toHaveBeenCalledWith(
+        'knowledge_presets',
+        [expect.objectContaining({ title: 'スト6配信', content: '新規ゲーム知識' })]
+      );
+      expect(mockProps.updateRoot).toHaveBeenCalledWith(
+        'active_knowledge_preset_id',
+        expect.any(String)
+      );
+      expect(screen.getByText('✓ 「スト6配信」を作成しました')).toBeInTheDocument();
+    });
+
+    it('disables overwrite when unchanged, enables when dirty, and shows feedback on save/delete', () => {
+      const cleanSettings = {
+        ...dummySettings,
+        knowledge: '同じ知識',
+        active_knowledge_preset_id: 'sf6',
+        knowledge_presets: [
+          { id: 'sf6', title: 'スト6配信', content: '同じ知識' },
+          { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+        ],
+      };
+      const { rerender } = render(<CharacterSection {...mockProps} settings={cleanSettings as any} />);
+
+      expect(screen.getByRole('button', { name: 'スト6配信 に上書き' })).toBeDisabled();
+      expect(screen.queryByText('未保存の変更あり')).not.toBeInTheDocument();
+
+      const dirtySettings = {
+        ...cleanSettings,
+        knowledge: '編集後のスト6知識',
+      };
+      rerender(<CharacterSection {...mockProps} settings={dirtySettings as any} />);
+
+      expect(screen.getByText('未保存の変更あり')).toBeInTheDocument();
+      const overwriteBtn = screen.getByRole('button', { name: 'スト6配信 に上書き' });
+      expect(overwriteBtn).toBeEnabled();
+
+      fireEvent.click(overwriteBtn);
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge_presets', [
+        { id: 'sf6', title: 'スト6配信', content: '編集後のスト6知識' },
+        { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+      ]);
+      expect(screen.getByText('✓ 「スト6配信」に上書きしました')).toBeInTheDocument();
+
+      vi.clearAllMocks();
+      fireEvent.click(screen.getByRole('button', { name: '削除' }));
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('knowledge_presets', [
+        { id: 'gta', title: 'GTA配信', content: 'GTAの知識' },
+      ]);
+      expect(mockProps.updateRoot).toHaveBeenCalledWith('active_knowledge_preset_id', '');
+      expect(screen.getByText('✓ 「スト6配信」を削除しました')).toBeInTheDocument();
+    });
   });
 
   describe('ユーザー設定', () => {

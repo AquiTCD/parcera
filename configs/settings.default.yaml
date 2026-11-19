@@ -202,6 +202,8 @@ knowledge: |
   # 攻略メモ (External Knowledge / Memos)
   ## ストリートファイター6
   - 相手が「バーンアウト」したら、一気に攻めるようにユーザーに教える。
+active_knowledge_preset_id: ""
+knowledge_presets: []
 
 # ==========================================
 # Twitch Integration Settings

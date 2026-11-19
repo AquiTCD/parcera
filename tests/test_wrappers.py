@@ -86,3 +86,14 @@ async def test_stt_wrapper_callback():
     # Callback should receive (text, is_filtered=True)
     callback.assert_called_once_with("session", "ハロー", True)
     assert result.text == "" # Filtered out
+
+
+def test_llm_wrapper_forwards_system_prompt_setter():
+    inner_llm = MagicMock()
+    inner_llm.system_prompt = "old prompt"
+    wrapper = ParceraLLMWrapper(inner_llm)
+
+    wrapper.system_prompt = "new prompt"
+    assert inner_llm.system_prompt == "new prompt"
+    assert wrapper.system_prompt == "new prompt"
+

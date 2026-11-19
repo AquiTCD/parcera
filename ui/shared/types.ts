@@ -26,6 +26,14 @@ export interface ParceraSettings {
   user_profile?: UserProfileSettings;
   twitch?: TwitchSettings;
   knowledge?: string;
+  knowledge_presets?: KnowledgePreset[];
+  active_knowledge_preset_id?: string;
+}
+
+export interface KnowledgePreset {
+  id: string;
+  title: string;
+  content: string;
 }
 
 export interface TwitchSettings {
